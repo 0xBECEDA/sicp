@@ -1,0 +1,4111 @@
+#+STARTUP: showall indent hidestars
+
+
+~Упражнение 3.1.~
+Накопитель (accumulator) — это процедура, которая вызывается с одним
+численным аргументом и собирает свои аргументы в сумму. При каждом вызове накопитель
+возвращает сумму, которую успел накопить.
+Напишите процедуру ~make-accumulator~, порождающую накопители, каждый из
+которых поддерживает свою отдельную сумму. Входной параметр ~make-accumulator~ должен
+указывать начальное значение суммы;
+
+#+BEGIN_SRC scheme
+
+  (define (make-accumulator amount)
+    (let ((balance amount))
+      (lambda (amount)
+        (set! balance (+ balance amount))
+        balance)))
+
+  (define A (make-accumulator 5))
+
+  (A 10)
+  => 15
+  (A 10)
+  => 25
+
+#+END_SRC
+
+~Упражнение 3.2.~
+При тестировании программ удобно иметь возможность подсчитывать, сколько
+раз за время вычислений была вызвана та или иная процедура. Напишите процедуру
+~make-monitored~, принимающую в качестве параметра процедуру ~f~, которая
+сама по себе принимает один входной параметр. Результат, возвращаемый
+~make-monitored~ — третья процедура, назовем ее ~mf~, которая подсчитывает,
+сколько раз она была вызвана, при помощи внутреннего счетчика. Если на
+входе ~mf~ получает специальный символ ~how-many-calls?~, она возвращает
+значение счетчика. Если же на вход подается специальный символ
+~reset-count~, ~mf~ обнуляет счетчик. Для любого другого параметра ~mf~
+возвращает результат вызова ~f~ с этим параметром и увеличивает счетчик.
+
+#+BEGIN_SRC scheme
+  (define (make-monitored f)
+    (let ((counter 0))
+      (define (mf arg)
+        (cond ((equal? arg 'how-many-calls?) counter)
+              ((equal? arg 'reset-count) (set! counter 0))
+              (else (begin
+                      (set! counter (+ counter 1))
+                      (f arg)))))
+      mf))
+
+  ;; тестовая функция
+  (define (improve guess x)
+    (average guess (/ x guess)))
+
+  (define (average x y)
+    (/ (+ x y) 2))
+
+  (define (good-enough? guess x)
+    (define (square x)
+      (* x x))
+    (< (abs (- (square guess) x)) 0.001))
+
+  (define (sqrt-iter guess x)
+    (if (good-enough? guess x)
+        guess
+        (sqrt-iter (improve guess x)
+                   x)))
+
+  (define (sqrt x)
+    (sqrt-iter 1.0 x))
+
+  ;; тест
+  (define s (make-monitored sqrt))
+  (s 100)
+  (s 'how-many-calls?)
+  (s 'reset-count)
+#+END_SRC
+
+
+~Упражнение 3.3.~
+Измените процедуру ~make-account~ так, чтобы она создавала счета,
+защищенные паролем.
+А именно, ~make-account~ должна в качестве дополнительного аргумента
+принимать символ, получившийся объект-счет должен обрабатывать запросы,
+только если они сопровождаются паролем, с которым счет был создан, а в
+противном случае он должен жаловаться.
+
+#+BEGIN_SRC scheme
+  (define (make-account balance password)
+    (let ((own-pass password))
+      (define (withdraw amount)
+        (if (>= balance amount)
+            (begin (set! balance (- balance amount))
+                   balance)
+            "Недостаточно денег на счете"))
+
+      (define (deposit amount)
+        (set! balance (+ balance amount))
+        balance)
+
+      (define (dispatch password m)
+        (cond ((and (eq? own-pass password) (eq? m 'withdraw)) withdraw)
+              ((and (eq? own-pass password) (eq? m 'deposit)) deposit)
+              ((not (eq? own-pass password)) (error "Неправильный пароль"))
+               (else (error "Неизвестный вызов -- MAKE-ACCOUNT"
+                            m))))
+        dispatch))
+
+
+  ;; тест
+  (define acc (make-account 100 'secret-password))
+  ((acc 'secret-password 'withdraw) 40)
+  ((acc 'some-other-password 'deposit) 50)
+#+END_SRC
+
+
+~Упражнение 3.4.~
+Модифицируйте процедуру ~make-account~ из упражнения 3.3, добавив еще одну
+локальную переменную, так, чтобы, если происходит более семи попыток доступа подряд с
+неверным паролем, вызывалась процедура ~call-the-cops~ (вызвать полицию).
+
+Я уменьшила кол-во неправильных попыток до трех, чтоб было быстрее
+проверять.
+#+BEGIN_SRC scheme
+  (define (call-the-cops)
+    (error "cops are going!"))
+
+  (define (make-account balance password)
+    (let ((own-pass password)
+          (wrong-pass-counter 0))
+      (define (withdraw amount)
+        (if (>= balance amount)
+            (begin (set! balance (- balance amount))
+                   balance)
+            "Недостаточно денег на счете"))
+
+      (define (deposit amount)
+        (set! balance (+ balance amount))
+        balance)
+
+      (define (dispatch password m)
+        (cond ((and (eq? own-pass password) (eq? m 'withdraw))
+               (begin
+                 (set! wrong-pass-counter 0)
+                 withdraw))
+              ((and (eq? own-pass password) (eq? m 'deposit))
+               (begin
+                 (set! wrong-pass-counter 0)
+                 deposit))
+              ((not (eq? own-pass password))
+               (if (< wrong-pass-counter 3)
+                   (begin
+                     (set! wrong-pass-counter (+ wrong-pass-counter 1))
+                     (error "Неправильный пароль"))
+                   (call-the-cops)))
+               (else (error "Неизвестный вызов -- MAKE-ACCOUNT"
+                            m))))
+        dispatch))
+
+
+  ;; тест
+  (define acc (make-account 100 'secret-password))
+  ((acc 'secret-password 'withdraw) 40)
+  ((acc 'some-other-password 'deposit) 50)
+#+END_SRC
+~Упражнение 3.5~
+
+Реализуйте интегрирование методом Монте-Карло в виде процедуры
+~estimate-integral~, которая в качестве аргументов принимает предикат P,
+верхнюю и нижнюю границы прямоугольника x1, x2, y1 и y2, а также число
+проверок, которые мы должны осуществить, чтобы оценить отношение
+площадей.
+Ваша процедура должна использовать ту же самую процедуру
+~monte-carlo~, которая выше использовалась для оценки значения π. Оцените π при помощи
+~estimate-integral~, измерив площадь единичного круга.
+
+Точки (x1 y1) и (x2 y2) - это 2 угла прямокгольника, расположенные по
+диагонали. Это границы прямоугольника.
+
+#+BEGIN_SRC scheme
+  ;; необходимые для работы функции
+  (define (random-in-range low high)
+    (let ((range (- high low)))
+      (+ low (random range))))
+
+  (define (monte-carlo trials experiment)
+    (define (iter trials-remaining trials-passed)
+      (cond ((= trials-remaining 0)
+             (/ trials-passed trials))
+            ((experiment)
+             (iter (- trials-remaining 1) (+ trials-passed 1)))
+            (else
+             (iter (- trials-remaining 1) trials-passed))))
+    (iter trials 0))
+
+  ;; определенные мной процедуы и переменные
+
+  ;; радиус и координаты центральной точки окружности
+  (define radius 1)
+  (define center-x 1)
+  (define center-y 1)
+
+  (define (square x)
+    (* x x))
+
+  ;; предикат для проверок принадлежности точки окрнужности
+  (define (test x y)
+    (<= (+ (square (- x center-x))
+           (square (- y center-y)))
+        (square radius)))
+
+  (define (estimate-integral P x1 x2 y1 y2 n)
+    ;; находит площать прямоугольника
+    (define (S x1 x2 y1 y2)
+      (* (- y2 y1) (- x2 x1)))
+    (abs (* (S x1 x2 y1 y2) (monte-carlo n (lambda () (P (random-in-range x1 x2)
+                                                         (random-in-range y1 y2)))))))
+  (estimate-integral test 0.0 2.0 0.0 2.0 7000)
+#+END_SRC
+
+~Упражнение 3.6.~
+Полезно иметь возможность сбросить генератор случайных чисел, чтобы
+получить последовательность, которая начинается с некоторого числа. Постройте новую
+процедуру ~rand~, которая вызывается с аргументом. Этот аргумент должен
+быть либо символом ~generate~, либо символом ~reset~.
+Процедура работает так: (rand 'generate) порождает новое случайное число;
+((rand 'reset) <новое-значение>) сбрасывает внутреннюю переменную
+состояния в указанное hновое-значениеi. Таким образом, сбрасывая значения, можно
+получать повторяющиеся последовательности.
+Эта возможность очень полезна при тестировании и отладке программ,
+использующих случайные числа.
+
+#+BEGIN_SRC scheme
+  (define rand
+    (let ((x random-init))
+      (lambda (arg)
+        (cond ((eq? arg 'generate) (begin (set! x (rand-update x)) x))
+              ((eq? arg 'reset ) (lambda (value) (set! x value)
+                                         x))
+              (else x)))))
+
+
+  (define random-init
+  (random (expt 2 31)))
+
+  (define (rand-update x)
+    (let ((a 13)
+          (b 67)
+          (m 6))
+      (+ (* x a) (* (abs m) b))))
+
+  ;; тесты
+  (rand 'generate)
+  ((rand 'reset) 3)
+#+END_SRC
+
+
+~Упражнение 3.7.~
+Рассмотрим объекты-банковские счета, создаваемые процедурой ~make-account~,
+и снабженные паролями, как это описано в упражнении 3.3. Предположим, что наша
+банковская система требует от нас умения порождать совместные счета. Напишите процедуру
+~make-joint~, которая это делает. ~Make-joint~ должна принимать три
+аргумента. Первый из них — защищенный паролем счет. Второй обязан
+совпадать с паролем, с которым этот счет был создан, иначе ~make-joint~
+откажется работать. Третий аргумент — новый пароль.
+
+- как полуить парольищ объекта?
+#+BEGIN_SRC scheme
+  (define (make-account balance password)
+    (let ((own-pass password))
+      (define (withdraw amount)
+        (if (>= balance amount)
+            (begin (set! balance (- balance amount))
+                   balance)
+            "Недостаточно денег на счете"))
+
+      (define (deposit amount)
+        (set! balance (+ balance amount))
+        balance)
+      ;; процедура проверки пароля
+      (define (check-pass pass?)
+        (if (eq? own-pass pass?)
+            #t
+            #f))
+      ;; процедура изменения пароля
+      (define (change-pass new-pass)
+        (set! own-pass new-pass))
+
+      (define (dispatch password m)
+        (cond ((and (eq? own-pass password) (eq? m 'withdraw)) withdraw)
+              ((and (eq? own-pass password) (eq? m 'deposit)) deposit)
+              ((and (eq? own-pass password) (eq? m 'check-pass)) check-pass)
+              ((and (eq? own-pass password) (eq? m 'change-pass)) change-pass)
+              ((not (eq? own-pass password)) (error "Неправильный пароль"))
+              (else (error "Неизвестный вызов -- MAKE-ACCOUNT"
+                           m))))
+
+      dispatch))
+
+  (define (make-joint acc acc-pass new-pass)
+    (if ((acc acc-pass 'check-pass) acc-pass)
+        (begin
+          ((acc acc-pass 'change-pass) new-pass)
+          acc)
+        (error "Неправильный пароль")))
+
+  ;; тесты
+  (define peter-acc (make-account 100 'open-sesame))
+  (define paul-acc (make-joint peter-acc 'open-sesame 'ggg))
+
+  ((paul-acc 'ggg 'check-pass) 'ggg)
+  ((peter-acc 'ggg 'check-pass) 'ggg)
+
+  ((peter-acc 'ggg 'deposit) '10)
+  ((paul-acc 'ggg 'deposit) '10)
+#+END_SRC
+
+~Упражнение 3.8.~
+Когда в разделе 1.1.3 мы определяли модель вычислений, мы сказали, что
+первым шагом при вычислении выражения является вычисление его подвыражений. Однако мы
+нигде не указали порядок, в котором проходит вычисление подвыражений (слева направо или
+справа налево). Когда мы вводим присваивание, порядок, в котором вычисляются аргументы
+процедуры, может повлиять на результат.
+Определите простую процедуру f, так, чтобы вычисление
+(+ (f 0) (f 1))
+возвращало 0, если аргументы + вычисляются слева направо, и 1, если они
+вычисляются справа налево.
+
+Итак, обычно программа вычисляется сверху вниз, слева направо. Но в форме
+set! выражение, которое мы должны вычислить, чтоб присвоить
+переменной его результат, находится справа. Соотвтетсвенно, порядок
+вычислений изменится. Значит для изменения порядка надо использовать set!
+
+Чтоб + вернул 0, нужно, чтоб значение правой части выражения приравлялось
+к левому.
+Иными словами должно произойти (set! (f 1) (f 0))
+А чтоб получить единицу, приравнения должно быть в обратном порядке
+(set! (f 0) (f 1))
+В заивимости от того, будем мы двигать справа налево или слева направо
+поменяется ответ у +.
+
+
+#+BEGIN_SRC scheme
+  (define seen-zero? #f)
+  (define (f n)
+    (cond ((= n 0) (begin (set! seen-zero? #t) n))
+          (seen-zero? 0)
+          (else n)))
+
+
+  (+ (f 1) (f 0))
+  ;; здесь необходимо перезалить функцию и переменную состояния в интерпритатор,
+  ;; поскольку переменная состояния будет отражать состояниена предыдущем вычислении
+  (+ (f 0) (f 1))
+#+END_SRC
+
+~Упражнение 3.9~
+Сделано на листочке.
+
+~Упражнение 3.10.~
+В процедуре ~make-withdraw~ локальная переменная ~balance~ создается в виде
+параметра ~make-withdraw~. Можно было бы создать локальную переменную и явно, используя
+let, а именно:
+
+#+BEGIN_SRC scheme
+  (define (make-withdraw initial-amount)
+    (let ((balance initial-amount))
+      (lambda (amount)
+        (if (>= balance amount)
+            (begin (set! balance (- balance amount))
+                   balance)
+            "Недостаточно денег на счете"))))
+#+END_SRC
+
+С помощью модели с окружениями проанализируйте альтернативную версию
+makewithraw. Нарисуйте картинки, подобные приведенным в этом разделе, для выражений
+~(define W1 (make-withdraw 100))~
+~(W1 50)~
+~(define W2 (make-withdraw 100))~
+Покажите, что две версии make-withdraw создают объекты с одинаковым
+поведением. Как различаются структуры окружений в двух версиях?
+
+Итак , ~make-withdraw~ создается в глобальном окружении. Процедура
+связывается с именем, теперь все процедуры имеют доступ к определенной
+процедуре. ~make-withdraw~ создает свое собвтенное окружение, которое
+вмещает формальные параметры и тело функции. Далее у нас идет форма
+~let~, которая являясь лямбда-выражением по сути, так же создает свое
+внутреннее окружение. Внутри этого окружения что угодно может ссылаться
+на созданную локальную переменную ~balance~, в которую мы положили
+значение формального параметра ~initial-amount~. Важно понимать, что
+окружение, порожденное ~let~ != окружению, порожденному самой функцией
+~make-withdraw~, окружение ~let~ более внутреннее по отношению к
+откружению, которое породила функция. Это значит, что мы можем обращаться
+из окружения формы ~let~ в окружение фунции, например, взаимодетвовать с
+параметром ~initial-amount~, если нам захочется. Но мы не можем
+определяться к переменной ~balance~ вне ее окружения. Она как бы "скрыта"
+от внешнего мира.
+
+Возвращаемое значение процедуры ~make-withdraw~ - лямбда, которая внутри
+себя ссылается на переменную ~balance~, поскольку определена внутри ее
+окружения. Так у нас получается объект "банковский счет". Поскольку
+переменная ~W1~ определна глобально, значит, в глоабльном окружении
+появляется запись, связывание имения ~W1~ и возвращенной лямбды. При
+вызове ~(W1 50)~ мы перезапишем переменную ~balance~, испотзуя формальный
+параметр лямбды. Мы можем это сделать, потому что лямбда была определена
+внутри ~let~, которая создала ~balance~. При вызове ~(define W2 (make-withdraw 100))~
+мы получим второй объект, никак не связаный с ~W1~.
+
+Если у нас будет такая версия ~make-withdraw~, то ничего особенно не поменяется.
+#+BEGIN_SRC scheme
+  (define (make-withdraw balance)
+    (lambda (amount)
+      (if (>= balance amount)
+          (begin (set! balance (- balance amount))
+                 balance)
+          "Недостаточно денег на счете")))
+#+END_SRC
+
+У нас только исчезнет окружение, формируемое формой ~let~ и мы будем
+просто обращаться к формальному параметру ~balance~.
+
+~Упражнение 3.11.~
+В разделе 3.2.3 мы видели, как модель с окружениями описывает поведение
+процедур, обладающих внутренним состоянием. Теперь мы рассмотрели, как
+работают локальные определения.
+Типичная процедура с передачей сообщений пользуется и тем, и
+другим. Рассмотрим процедуру моделирования банковского счета из раздела
+3.1.1:
+
+#+BEGIN_SRC scheme
+  (define (make-account balance)
+    (define (withdraw amount)
+      (if (>= balance amount)
+          (begin (set! balance (- balance amount))
+                 balance)
+          "Недостаточно денег на счете"))
+    (define (deposit amount)
+      (set! balance (+ balance amount))
+      balance)
+    (define (dispatch m)
+      (cond ((eq? m 'withdraw) withdraw)
+            ((eq? m 'deposit) deposit)
+            (else (error "Неизвестный вызов -- MAKE-ACCOUNT"
+                         m))))
+    dispatch)
+#+END_SRC
+
+Покажите, какая структура окружений создается последовательностью
+действий
+~(define acc (make-account 50))~
+~((acc ’deposit) 40)~
+=> 90
+~((acc ’withdraw) 60)~
+=>30
+Где хранится внутреннее состояние acc? Предположим, что мы определяем еще
+один счет ~(define acc2 (make-account 100))~
+Каким образом удается не смешивать внутренние состояния двух счетов?
+Какие части структуры окружений общие у ~acc~ и ~acc2~?
+
+При вызове ~(define acc (make-account 50))~ в глобальном окружении
+появляется объект, который связывается с именем ~acc~. Данный объект по
+факту представляет собой процедуру ~dispatch~, которую вернула процедура
+~make-account~. Внутри  ~make-account~ определены 3 процедуры. Это
+означает, что они находятся в одном окружении, которое породила процедура
+~make-account~, это позволяет им образаться друг к другу, в порядке того,
+как их определяли. Иными словами, процедуру ~dispatch~ определили позже
+всех, поэтому она может обращаться к процедурам ~withdraw~ и ~deposit~, а
+вот они к ~dispatch~ обращаться не могут, т.к. на момент определиния ее
+еще не существовало.
+
+Вернемся к вызову ~(define acc (make-account 50))~. Мы получили объект
+~acc~, формальному параметру ~balance~ было присвоено значение 50. Храним
+это значение.
+Вызываем ~((acc 'deposit) 40)~. В этом время запускается процедура
+~dispatch~, она генерирует свое окружение,
+ее формальному параметру присваивается значение символа
+~'deposit~. Поскольку этот символ совпадает с названием соответствующей
+процедуры, ~dispaltch~ возвращает процедуру ~deposit~ во внешнее
+окружение, откуда была вызвана. При вызове процедуры ~deposit~ генериурет
+свое внутреннее окружение. Ее формальному параметру присваивается
+значение 40. Затем мы обновляем значение ~balance~.  Аналогичные действия
+по окружениям будут  происходить при вызове ~((acc ’withdraw) 60)~.
+
+Предположим, мы создаем новый счет ~(define acc2 (make-account
+100))~. Внутренее состоянии ~acc2~ будет храниться в его переменной
+~balance~. С точки зрения компьютера, acc2 и acc имеют разные адреса, а
+значит являются разными объектами. И хотя они оба определены глобально, у
+каждого есть свои внутренние окружения. Поскольку эти окружения
+изолированы друг от друга, у нас могут быть 2 разных состояния,
+хранящиеся в двух переменных с одинаковым именем ~balance~, поскольку они
+находятся в 2х разных окружениях, то с точки зрения компьютера это 2
+разные переменные. Более того, если мы будем обращаться внутри какого-то
+объекта к его переменной ~balance~,мы обратимся именно к его переменной,
+поскольку будем в одном с ней окружении. Она будет более "внутренней", по
+отношению к другой переменной с таким же именем, и потому перекроет ее.
+
+
+~Упражнение 3.12.~
+В разделе 2.2.1 была введена следующая процедура для добавления одного
+списка к другому:
+#+BEGIN_SRC scheme
+
+  (define (append x y)
+    (if (null? x)
+        y
+        (cons (car x) (append (cdr x) y))))
+
+#+END_SRC
+
+~Append~ порождает новый список, по очереди наращивая элементы ~x~ в начало
+~y~. Процедура ~append!~ подобна ~append~, но только она является не конструктором, а
+мутатором. Она склеивает списки вместе, изменяя последнюю пару ~x~ так, что
+ее ~cdr~ становится равным ~y~. (Вызов ~append!~ с пустым ~x~ является ошибкой.)
+
+#+BEGIN_SRC scheme
+  (define (append! x y)
+    (set-cdr! (last-pair x) y)
+    x)
+#+END_SRC
+Здесь ~last-pair~ — процедура, которая возвращает последнюю пару своего аргумента:
+#+BEGIN_SRC scheme
+  (define (last-pair x)
+    (if (null? (cdr x))
+        x
+        (last-pair (cdr x))))
+#+END_SRC
+
+Рассмотрим последовательность действий
+
+#+BEGIN_SRC scheme
+  (define x (list 'a 'b))
+  (define y (list 'c 'd))
+  (define z (append x y))
+#+END_SRC
+ Каким будет вывод интерпретатора? Объясните свой ответ, нарисовав
+ стрелочные диаграммы.
+
+#+BEGIN_SRC scheme
+  z
+  => (a b c d)
+
+  (cdr x)
+  => (b)
+
+  (define w (append! x y))
+
+  w
+  =>
+  (a b c d)
+
+  (cdr x)
+  (b c d)
+#+END_SRC
+
+Гоовря более простым языком, ~append!~ является деструктивной функцией:
+она не создает новый список, а меняет уже существующие. Поэтому и ~cdr~ у
+~x~ после применения ~append!~ изменился. ~append!~ меняет указатели
+благодаря ~set-cdr!~.
+
+~Упражнение 3.13.~
+Рассмотрим следующую процедуру ~make-cycle~, которая пользуется last-pair
+из упражнения 3.12:
+
+#+BEGIN_SRC scheme
+  (define (make-cycle x)
+    (set-cdr! (last-pair x) x)
+    x)
+#+END_SRC
+
+Нарисуйте стрелочную диаграмму, которая изображает структуру z, созданную
+таким кодом:
+
+#+BEGIN_SRC scheme
+  (define z (make-cycle (list 'a 'b 'c)))
+#+END_SRC
+
+Что случится, если мы попробуем вычислить ~(last-pair z)~?
+
+Структура ~z~ - это так называемый кольцевой список. Т.е. список,
+последний указатель которого указывает не на nil, а на ~car~ этого же
+списка. При попытке вызвать ~(last-pair z)~ мы зациклимся навсегда,
+поскольку ~cdr~ списка никогда не будет ~nil~.
+
+~Упражнение 3.14.~
+Следующая процедура, хотя и сложна для понимания, вполне может оказаться полезной:
+
+#+BEGIN_SRC scheme
+  (define (mystery x)
+    (define (loop x y)
+      (format #t "x ~A y ~A\n" x y)
+      ;; если список пустой
+      (if (null? x)
+          ;; возвращаем y
+          y
+          ;; иначе берем "хвост" списка
+          (let ((temp (cdr x)))
+            (format #t "temp ~A\n" temp)
+            ;; заменияем хвост "x" на "y"
+            (set-cdr! x y)
+            ;; затем в качестве списка "x" передаем его хвост
+            ;; а в качестве "y" передаем обновленный x
+            (loop temp x))))
+    (loop x '()))
+
+  (mystery (list 'a 'b 'c 'd))
+
+#+END_SRC
+
+~Loop~ пользуется «временной» переменной ~temp~, чтобы сохранить старое
+значение ~cdr~ пары ~x~, поскольку ~set-cdr!~ на следующей строке его
+разрушает.
+Объясните, что за задачу выполняет ~mystery~. Предположим, что переменная
+~v~  определена выражением ~(define v (list 'a 'b 'c 'd))~. Нарисуйте
+диаграмму, которая изображает список, являющийся значением ~v~. Допустим,
+что теперь мы выполняем ~(define w (mystery v))~. Нарисуйте стрелочные
+диаграммы, которые показывают структуры v и w после вычисления этого выражения. Что
+будет напечатано в качестве значений ~v~ и ~w~?
+
+~mystery~ - это версия ~reverse~, только формируем мы новый список
+благодаря использованию указателей из исходного, а не
+копированию этих элементов. Из этих указателей мы формируем новый
+список. По мере фомирования нового списка, указатели "вычищаются" из
+исходного из-за использования ~set-cdr!~, который изменяется указатель на
+""хвост" исходного списка.
+
+После вызова ~(define w (mystery v))~ ~w~ будет присвоего значение ~(d c
+b a)~, а ~v~ останется только ~(а)~. ~V~ получает свое значение таким
+образом потому, что мы всегда изменяли ~cdr~ списка, но не ~car~, который
+по-прежнему указывал на элемент ~a~.
+
+~Упражнение 3.16.~
+Бен Битобор решил написать процедуру для подсчета числа пар в любой
+списковой структуре.
+«Это легко, — думает он. — Число пар в любой структуре есть число пар в
+~car~ плюс число пар в ~cdr~ плюс один на текущую пару». И он пишет следующую процедуру:
+
+#+BEGIN_SRC scheme
+  (define (count-pairs x)
+    (if (not (pair? x))
+        (begin (format #t "~A\n" x) 0)
+        (+ (count-pairs (car x))
+           (count-pairs (cdr x))
+           1)))
+
+  ;; зациклится навсегда
+  (define endless-l (make-cyrcle l1))
+  (count-pairs endless-l)
+
+  ;; вернет 4
+  (count-pairs (list 'a (list 'b) 'c))
+
+  ;;вернет 3
+  (count-pairs (list 'a 'b 'c))
+
+  ;; вернет 7
+  (count-pairs (list (list (list 'a) 'c) (list 'b) 'c))
+
+
+  ;; Здесь есь скользкий момент!
+  ;; Нужно, чтоб было 3 пары не с точки зрения человека, а с точки зрения машины. Т.е. чтоб
+  ;; было именно 3 ячейки. Не все примеры выше этому правилу не соответствуют
+  (define l1 (list 'a))
+  (define l2 (list 'b))
+  (define l3 (list 'c))
+
+  (define lt1 (list 'b 'c))
+  (define lt2 (list 'a))
+  (set-car! lt1 lt2)
+  (set-car! (cdr lt1) lt2)
+
+  ;;делаем так, чтоб car и cdr указывали на 1 и тот же объект.
+  (set-car! l2 l3)
+  (set-cdr! l2 l3)
+
+  ;; аналогично
+  (set-car! l1 l2)
+  (set-cdr! l1 l2)
+
+  ;; вернет 4
+  (count-pairs l1)
+  ;;вернет 7
+  (count-pairs lt1)
+#+END_SRC
+
+Покажите, что эта процедура ошибочна. В частности, нарисуйте диаграммы,
+представляющие списковые структуры ровно из трех пар, для которых Бенова процедура
+вернет 3; вернет 4; вернет 7; вообще никогда не завершится.
+
+Некорректное поведение возикает, если использовать разделаемые
+структуры. На самом деле процедура считает не количество пар, а
+количетсов указателей на них. Сколько указателей указывают на одну и ту
+же пару, столько раз она будет посчитана.
+
+~Упражнение 3.17.~
+Напишите правильную версию процедуры count-pairs из упражнения 3.16,
+которая возвращает число различных пар в любой структуре. (Подсказка: просматривайте
+структуру, поддерживая при этом вспомогательную структуру, следящую за
+тем, какие пары уже были посчитаны.)
+
+Мы можем создавать дополнительный список, копируя в него элементы, при
+копировании проверяя, не был ли этот объект уже в списке. Для этого нам
+нужен предикат ~eq?~, который проверяет, являются ли текущие символы
+одним объектом в памяти компьютера.
+
+#+BEGIN_SRC scheme
+  (define (my-count-pairs lst)
+    (let ((new-lst '()))
+      (define (iter x)
+        (format #t "new-lst ~A\n"new-lst)
+        (format #t "x ~A\n" x)
+        (cond ((and (not (pair? x)) (check-lst x new-lst))
+               (begin (format #t "not pair\n") (set! new-lst (cons x new-lst)) 0))
+              ((pair? x) (begin  (format #t "pair\n")
+                                 (+ (iter (car x))
+                                    (iter (cdr x))
+                                    1)))
+              (else (begin (format #t "else\n") -1))))
+      (iter lst)))
+
+
+  (define endless-l (make-cyrcle '(a b c)))
+  (my-count-pairs endless-l)
+
+  (define l1 (list 'a))
+  (define l2 (list 'b))
+  (define l3 (list 'c))
+
+  (define lt1 (list 'b 'c))
+  (define lt2 (list 'a))
+  (set-car! lt1 lt2)
+  (set-car! (cdr lt1) lt2)
+
+  ;;делаем так, чтоб car и cdr указывали на 1 и тот же объект.
+  (set-car! l2 l3)
+  (set-cdr! l2 l3)
+
+  ;; аналогично
+  (set-car! l1 l2)
+  (set-cdr! l1 l2)
+
+  ;; вернет 7
+  (my-count-pairs l1)
+  ;;вернет 4
+  (my-count-pairs lt1)
+
+  (my-count-pairs '(a b c d))
+  ;;предикат для проверки наличия символа в списке
+  (define (check-lst elt lst)
+    (cond ((null? lst) #t)
+          ((eq? elt (car lst)) #f)
+          (else (check-lst elt (cdr lst)))))
+
+
+  (check-lst 'a (list x))
+
+  (define test (list 'a 'a 'a))
+#+END_SRC
+
+~Упражнение 3.18.~
+Напишите процедуру, которая рассматривает список и определяет, содержится
+ли в нем цикл, то есть, не войдет ли программа, которая попытается добраться до конца
+списка, продвигаясь по полям ~cdr~, в бесконечный цикл.
+Такие списки порождались в упражнении 3.13
+
+Идея 1.
+Обычный список от кольцевого отличает наличие указателя на nil в последней
+паре списка. Пока мы не достигнем nil, список не кончится.
+Значит, нам надо как-то проверить, есть этот указатель или нет.
+
+Идея 2.
+Еще можно попробовать скопирвать элементы в другой список и проверить, не
+начали ли мы копировать в новый список одни и те же объекты.
+Недостаток: что если у нас правильный список, состоящий из одних и тех е
+объектов?
+
+Идея 3.
+?
+
+Реализация идеи 2.
+#+BEGIN_SRC scheme
+  ;; создадим тестовые примеры
+  (define test-cycle (make-cycle (list 'a 'b 'c)))
+  (define test-usual (list 'a 'b 'c))
+  (define test-same-object (list 'a 'a 'a))
+
+  ;;предикат проверяет, был элемент в списке уже или нет
+  (define (check-lst elt lst)
+    (cond ((null? lst) #t)
+          ((eq? elt (car lst)) #f)
+          (else (check-lst elt (cdr lst)))))
+
+  (define (cycle? lst)
+    (define (iter lst new-lst)
+      ;; если дошли до конца списка, он не циклический
+      (cond ((null? lst) #f)
+            ;; элемент не был с списке
+            ((check-lst (car lst) new-lst) (iter (cdr lst) (cons (car lst) new-lst)))
+            ;; иначе список циклический
+            (else #t)))
+    (iter lst '()))
+
+  (cycle? test-cycle)
+  (cycle? test-usual)
+  ;; этот тест выявляет недостаток идеи
+  (cycle? test-same-object)
+#+END_SRC
+
+~Упражнение 3.19.~
+Переделайте упражнение 3.18, используя фиксированное количество
+памяти. (Тут нужна достаточно хитрая идея.)
+
+Значит, теперь мы не можем копировать элементы списка в другой список,
+чтоб проверить. не повторяются ли какие-то из них. Объем требуемой памяти
+будет расти вместе с длиной списка. В худжем случае нам понадобится
+столько же памяти, сколько нужно для исходного списка.
+
+Но мы можем сравнивать каждый элемент с ~car~ списка. Тогда понадобится
+фиксированный объем памяти.
+
+Если какой-то элемент совпал с первым элементом списка, то мы считаем,
+что зациклились. Недостаток этой идеи такой же, как и у идеи в предыдущем
+упражнении.
+
+#+BEGIN_SRC scheme
+  ;; создадим тестовые примеры
+  (define test-cycle (make-cycle (list 'a 'b 'c)))
+  (define test-usual (list 'a 'b 'c))
+  (define test-same-object (list 'a 'a 'a))
+
+
+  (define (cycle? lst)
+    (define (iter lst elt)
+      ;; если дошли до конца списка, он не циклический
+      (cond ((null? lst) #f)
+            ;; если текущий элемент не является тем же объектом, что и car списка,
+            ;; список не циклический
+            ((not (eq? elt (car lst))) (iter (cdr lst) elt))
+            ;; иначе список циклический
+            (else #t)))
+    (iter (cdr lst) (car lst)))
+
+  (cycle? test-cycle)
+  (cycle? test-usual)
+  ;; этот тест выявляет недостаток идеи
+  (cycle? test-same-object)
+#+END_SRC
+
+~Упражнение 3.20~
+
+Сделано на листочке.
+
+~Упражнение 3.21~
+ПРоблема в том, что стандартная "печаталка" схемы ничего не знает об
+очередях, она может печатать только списки, пары, отдельные символы и
+т.д. Вобчном списке ~car~ всегда будет указывать на начало списка, на его
+первый элемент, а ~cdr~ - на хвост, т.е., грубо говоря, на следующий
+элемент после того, на который указывает ~car~, соответственно при печати
+списка мы просто печатаем его ~car~ и весь ~cdr~. Но при вставке
+элементов в очередь мы искусственно сдвигаем ~cdr~ на последний
+добавленный элемент. То есть в случае с очередью, между указателем ~car~
+и  ~cdr~ может оказаться неограниченное кол-во элементов. Только
+интерпритатор об этом ничего не знает: при печати он все так же
+напечатает ~car~ и ~cdr~ списка, в результате вместо печати всей очереди,
+мы увидим только ее первый элемент и последний.
+
+Нужно написать такую процедуру, которая сможет напечатать очередь
+целиком.
+
+#+BEGIN_SRC scheme
+  (define (print-queue queue)
+    (define (iter queue)
+      (if (null? queue)
+          (newline)
+          (begin
+            (format #t " ~A" (car queue))
+            (iter (cdr queue)))))
+    (iter (front-ptr queue)))
+
+  ;; тестовая очередь
+  (define test-queue (make-queue))
+  (insert-queue! test-queue 'a)
+  (insert-queue! test-queue 'b)
+  (insert-queue! test-queue 'c)
+  (insert-queue! test-queue 'd)
+  (insert-queue! test-queue 'f)
+
+  (print-queue test-queue)
+#+END_SRC
+
+~Упражнение 3.22.~
+Вместо того, чтобы представлять очередь как пару указателей, можно
+построить ее в виде процедуры с внутренним состоянием. Это состояние
+будет включать указатели на начало и конец обыкновенного списка. Таким
+образом, ~make-queue~ будет иметь вид
+#+BEGIN_SRC scheme
+
+  (define (make-queue)
+    (let ((front-ptr ...)
+          (rear-ptr ...))
+      ;;<определения внутренних процедур>
+      (define (dispatch m) ...)
+      dispatch))
+#+END_SRC
+
+Закончите определение ~make-queue~ и реализуйте операции над очередями с
+помощью этого представления.
+
+Получается, что теперь мы представляем очередь как набор процедур,
+который может взаиможействовать с очередью. Иными словами вызов
+~make-queue~ создавал нам список, который мы воспринимали как очередь, а
+сейча мы получаем объект, который может взаимодействовать с очередью, но
+не саму очередь.
+
+#+BEGIN_SRC scheme
+  (define (make-queue)
+    (let ((front-ptr (lambda (queue) (car queue)))
+          (rear-ptr (lambda (queue) (cdr queue))))
+
+      (define (set-front-ptr! queue item) (set-car! queue item))
+
+      (define (set-rear-ptr! queue item) (set-cdr! queue item))
+
+      (define (empty-queue? queue) (null? (front-ptr queue)))
+
+      (define (front-queue queue)
+        (if (empty-queue? queue)
+            (error "FRONT вызвана с пустой очередью" queue)
+            (car (front-ptr queue))))
+
+
+      (define (insert-queue! queue item)
+        (let ((new-pair (cons item '())))
+          (cond ((empty-queue? queue)
+                 (set-front-ptr! queue new-pair)
+                 (set-rear-ptr! queue new-pair)
+                 queue)
+                (else
+                 (set-cdr! (rear-ptr queue) new-pair)
+                 (set-rear-ptr! queue new-pair)
+                 queue))))
+
+
+      (define (dispatch m)
+        (cond ((eq? 'insert-queue! m) insert-queue!)
+              ((eq? 'front-queue m) front-queue)
+              ((eq? 'empty-queue? m) empty-queue?)
+              ((eq? 'set-front-ptr! m) set-front-ptr!)
+              ((eq? 'set-rear-ptr! m) set-rear-ptr!)
+              (else (error "wrong action!" m))))
+              dispatch))
+
+  (define test-obj (make-queue))
+  (define test-queue '(v n))
+  ((test-obj 'insert-queue!) test-queue 'a)
+
+#+END_SRC
+
+~Упражнение 3.23.~
+Дек (deque, double-ended queue, «двусторонняя очередь») представляет
+собой последовательность, элементы в которой могут добавляться и
+уничтожаться как с головы, так и с хвоста. На деках определены такие
+операции: конструктор ~make-deque~, предикат ~empty-deque?~, селекторы
+~front-deque~ и ~rear-deque~, и мутаторы ~front-insert-deque!~,
+~rear-insert-deque!~, ~front-delete-deque!~ и ~rear-delete-deque!~.
+Покажите, как представить дек при помощи пар, и напишите реализацию
+операций .Все операции должны выполняться за Θ(1) шагов.
+
+#+BEGIN_SRC scheme
+  (define (make-deque)
+    (cons '()'()))
+
+  (define (front-ptr-deque queue) (car queue))
+
+  (define (rear-ptr-deque queue) (cdr queue))
+
+  (define (empty-deque? deque)
+    (and (null? (front-ptr-deque deque)) (null? (rear-ptr-deque deque))))
+
+  (define (set-front-ptr! queue item) (set-car! queue item))
+
+  (define (set-rear-ptr! queue item) (set-cdr! queue item))
+
+  (define (front-insert-deque! deque item)
+    (let ((new-pair (cons item '())))
+      (cond ((empty-deque? deque)
+             (set-front-ptr! deque new-pair)
+             (set-rear-ptr! deque new-pair)
+             deque)
+            (else
+             (begin
+               (let ((front (front-ptr-deque deque)))
+                 (set-car! deque new-pair)
+                 (set-cdr! (front-ptr-deque deque) front)))
+             deque))))
+
+  (define test (make-deque))
+  (front-insert-deque! test 'a)
+  (front-insert-deque! test 'b)
+  (front-insert-deque! test 'c)
+
+  (define queue (make-queue))
+  (insert-queue! queue 'a)
+  (insert-queue! queue 'b)
+  (insert-queue! queue 'c)
+
+
+  (define (rear-insert-deque! queue item)
+    (let ((new-pair (cons item '())))
+      (cond ((empty-deque? queue)
+             (set-front-ptr! queue new-pair)
+             (set-rear-ptr! queue new-pair)
+             queue)
+            (else
+             (set-cdr! (rear-ptr queue) new-pair)
+             (set-rear-ptr! queue new-pair)
+             queue))))
+
+  (rear-insert-deque! test 'f)
+
+   (define (rear-delete-deque! deque)
+     (define (iter queue)
+       (format #t "queue ~A deque ~A\n " queue deque)
+       (if (null? (cdr (cdr queue)))
+           (begin
+             (set-cdr! deque (list (car queue)))
+             (set-cdr! queue '()))
+           (iter (cdr queue))))
+    (cond ((empty-deque? deque)
+           (error "DELETE! вызвана с пустой очередью" deque))
+          (else
+           (iter (car deque))))
+           deque)
+
+  (rear-delete-deque! test)
+
+  (define (front-delete-deeue! deque)
+    (cond ((empty-deque? deque)
+           (error "DELETE! вызвана с пустой очередью" deque))
+          (else
+           (set-front-ptr! deque (cdr (front-ptr deque)))
+           deque)))
+
+#+END_SRC
+
+
+~Упражнение 3.24.~
+В реализациях таблиц в этом разделе ключи всегда проверяются на равенство
+с помощью ~equal?~ (который, в свою очередь, зовется из ~assoc~). Это не всегда то, что
+нужно. Например, можно представить себе таблицу с числовыми ключами, где
+не требуется точного совпадения с числом, которое мы ищем, а нужно только
+совпадение с определенной допустимой ошибкой. Постройте конструктор
+таблиц ~make-table~, который в качестве аргумента принимает процедуру
+~same-key?~ для проверки равенства ключей. ~Make-table~ должна возвращать
+процедуру ~dispatch.~ через которую можно добраться до процедур ~lookup~
+и ~insert!~ локальной таблицы.
+
+Значит, нам нужно представлять таблицу как объект, который сгенерируется
+mаke-table, при этом ~make-table~ должна принимать предикат, с помощью
+которого мы будем искать значение в таблице. ИНыми словами, надо заменить ~assoc~
+#+BEGIN_SRC scheme
+  (define (make-table same-key?)
+    (let ((local-table (list '*table*)))
+
+      (define (lookup key-1 key-2)
+        (let ((subtable (same-key? key-1 (cdr local-table))))
+          (if subtable
+              (let ((record (same-key? key-2 (cdr subtable))))
+                (if record
+                    (cdr record)
+                    #f))
+              #f)))
+
+      (define (insert! key-1 key-2 value)
+        (let ((subtable (same-key? key-1 (cdr local-table))))
+          (if subtable
+              (let ((record (same-key? key-2 (cdr subtable))))
+                (if record
+                    (set-cdr! record value)
+                    (set-cdr! subtable
+                              (cons (cons key-2 value)
+                                    (cdr subtable)))))
+              (set-cdr! local-table
+                        (cons (list key-1
+                                    (cons key-2 value))
+                              (cdr local-table)))))
+        'ok)
+      (define (dispatch m)
+        (cond ((eq? m 'lookup-proc) lookup)
+              ((eq? m 'insert-proc!) insert!)
+              (else (error "Неизвестная операция -- TABLE" m))))
+      dispatch))
+
+
+  (define test (make-table assoc))
+  ((test 'insert-proc!) 'letter 'vowel 'A)
+  ((test 'lookup-proc) 'letter 'vowel)
+#+END_SRC
+
+~Упражнение 3.25.~
+Обобщая случаи одно- и двумерных таблиц, покажите, как можно реализовать
+таблицу, в которой элементы хранятся с произвольным количеством ключей и
+различные значения могут храниться с различным количеством
+ключей. Процедуры lookup и insert! должны принимать на входе
+список ключей, с которыми требуется обратиться к таблице.
+
+Я сделала так, что мы теперь можем строить таблицы любой глубины, а не
+только двухмерные.
+#+BEGIN_SRC scheme
+  (define (make-table same-key?)
+    (let ((local-table (list '*table*)))
+
+      (define (lookup keys)
+        (define (iter table keys)
+          (if (= (length keys) 1)
+              (let ((record (same-key? (car keys) (cdr table))))
+                (if record
+                    (cdr record)
+                    #f))
+              (let ((subtable (same-key? (car keys) (cdr table))))
+                (if subtable
+                    (iter subtable (cdr keys))
+                    #f))))
+        (iter local-table keys))
+
+      ;; эта процедура создаст субтаблицу со всеми ключами, при условии, что другой
+      ;; субтаблицы нет
+      ;; на самом деле, она скорее необходимым образом связывает все оставшиеся ключи и
+      ;; значение, чтоб мы потом могли вставить их в нашу таблицу
+      (define (make-subtable keys value)
+        (if (= (length keys) 1)
+            (cons (car keys) value)
+            (list (car keys) (make-subtable (cdr keys) value))))
+
+      (define (insert! keys value)
+        (define (iter table keys value)
+          ;; если ключ всего 1, значит таблица одномерная (или стала такой из-за рекурсии)
+          (if (= (length keys) 1)
+              (begin
+              ;; ищем запись
+              (let ((record (same-key? (car keys) (cdr table))))
+                ;; если запись найдена,
+                (if record
+                    ;;заменяем значение в записи
+                    (begin
+                      (set-cdr! record value)
+                      'ok)
+                    (begin
+                      ;; иначе добавляем новую запись
+                      (set-cdr! table
+                                (cons (cons (car keys) value)
+                                      (cdr table)))
+                      'ok))))
+              ;; в случае если ключей 2, ищем первую подтаблицу
+              (let ((subtable (same-key? (car keys) (cdr table))))
+                ;; если нашли, отправляемся искать запись
+                (if subtable
+                    (iter subtable (cdr keys) value)
+                    ;; иначе создаем новую подтаблицу
+                    (begin
+                      (set-cdr! table (cons (make-subtable keys value) (cdr table)))
+                      'ok)))))
+        (iter local-table keys value))
+
+
+      (define (dispatch m)
+        (cond ((eq? m 'lookup-proc) lookup)
+              ((eq? m 'insert-proc!) insert!)
+              ((eq? m 'print!) (format #t "~A\n" local-table))
+              (else (error "Неизвестная операция -- TABLE" m))))
+      dispatch))
+
+  ;; первый тест
+  ;; проверяет замещение элементов при условии, что у них один ключ
+  (define test (make-table assoc))
+  ((test 'insert-proc!) '(letter vowel) 'A)
+  ((test 'insert-proc!) '(letter vowel) 'U)
+  ((test 'lookup-proc) '(letter vowel))
+  (test 'print!)
+  ;; второй тест
+  ;; проверяет добавление элементов с разными ключами в подтаблицу
+  (define test (make-table assoc))
+  ((test 'insert-proc!) '(letter consonant) 'C)
+  ((test 'insert-proc!) '(letter vowel) 'U)
+  ((test 'lookup-proc) '(letter consonant))
+  ((test 'lookup-proc) '(letter vowel))
+
+  ;;третий тест
+  ;; проверяет добавление элементов с разным кол-вом ключей
+  (define test (make-table assoc))
+  ((test 'insert-proc!) '(letter consonant big) 'C)
+  ((test 'insert-proc!) '(number) 6)
+  ((test 'lookup-proc) '(number))
+  ((test 'lookup-proc) '(letter consonant big))
+
+#+END_SRC
+
+~Упражнение 3.26.~
+При поиске в таблице, как она реализована выше, приходится просматривать
+список записей. В сущности, это представление с неупорядоченным списком из раздела
+2.3.3. Для больших таблиц может оказаться эффективнее организовать
+таблицу иначе.
+Опишите реализацию таблицы, в которой записи (ключ, значение)
+организованы в виде бинарного дерева, в предположении, что ключи
+можно каким-то образом упорядочить (например, численно или по
+алфавиту). (Ср. с упражнением 2.66 из главы 2.)
+
+Видимо, речь идет об одномерной таблице, которая является по сути
+бинарным деревом. То есть надо организовать бинарное дерево, элементы
+которого - ассоциативные списки.
+
+#+BEGIN_SRC scheme
+  ;; (define test (list (cons 'en 4) (cons 'l 3) (cons 'r 5)))
+  ;; (set-cdr! (cdr test) (list 2))
+
+  (define (make-table)
+    (let ((local-table '()))
+
+      (define (make-node entry-elt right-branch left-branch)
+        (list entry-elt right-branch left-branch))
+
+      (define (entry-elt node)
+        (car node))
+
+      (define (left-branch node)
+        (cadr node))
+
+      (define (right-branch node)
+        (caddr node))
+
+      (define (get-key pair)
+        (car pair))
+
+      (define (get-value pair)
+        (cdr pair))
+
+      (define (insert! key value)
+        (define (iter key value table)
+          ;; таблица пустая, устанавлваем в нее корень
+          (cond ((null? table) (set! local-table (make-node (cons key value) '() '())))
+                ;; если ключ больше ключа текущего узла
+                ((> key (get-key (entry-elt table)))
+                 (if (null? (right-branch table))
+                     ;; и при этом справа узлов нет,
+                     ;; создаем новый лист
+                     (begin
+                       (set-cdr! (cdr table) (cons (make-node
+                                                    (cons key value) '() '())
+                                                   '()))
+                       'ok)
+                     ;; иначе идем по правой ветке
+                     (iter key value (right-branch table))))
+                ;; аналогичная логика, только ветка левая
+                ((< key (get-key (entry-elt table)))
+                 (if (null? (left-branch table))
+                     (begin
+                       (set-car! (cdr table) (make-node
+                                              (cons key value) '() '()))
+                       'ok)
+                     (iter key value (left-branch table))))
+                ;; если ключ = ключу текущего узла, устанавливаем новое значение для
+                ;; этого ключа
+                (else (set-car! table (cons key value)))))
+          (iter key value local-table))
+
+      (define (lookup key)
+        (define (iter table key)
+          (cond ((null? table) #f)
+                ((> key (get-key (entry-elt table)))
+                 (iter (right-branch table) key))
+                ((< key (get-key (entry-elt table)))
+                 (iter (left-branch table) key))
+                (else (get-value (entry-elt table)))))
+        (iter local-table key))
+
+
+      (define (dispatch m)
+        (cond ((eq? m 'lookup-proc) lookup)
+              ((eq? m 'insert-proc!) insert!)
+              ((eq? m 'print!) (format #t "~A\n" local-table))
+              (else (error "Неизвестная операция -- TABLE" m))))
+      dispatch))
+
+  ;;тесты
+  (define test (make-table))
+  ;; пробуем вставлять элементы в таблицу
+  ((test 'insert-proc!) 8 'A)
+  ((test 'insert-proc!) 7 'B)
+  ((test 'insert-proc!) 9 'C)
+  ((test 'insert-proc!) 10 'F)
+  ((test 'insert-proc!) 3 'G)
+
+  (test 'print!)
+  ;; пробуем найти элементы в таблице
+  ((test 'lookup-proc) 7)
+  ((test 'lookup-proc) 3)
+  ((test 'lookup-proc) 1)
+#+END_SRC
+
+~Упражнение 3.28.~
+Определите ИЛИ-элемент как элементарный функциональный блок. Ваш
+конструктор ~or-gate~ должен быть подобен ~and-gate~.
+
+Это все процедуры, которые нужны, чтоб запустить ~and-gate~
+#+BEGIN_SRC scheme
+
+  (define the-agenda (make-agenda))
+
+  (define (make-agenda) (list 0))
+
+  (define (current-time agenda) (car agenda))
+
+  (define (set-current-time! agenda time)
+    (set-car! agenda time))
+
+  (define (segments agenda) (cdr agenda))
+
+  (define (empty-agenda? agenda)
+    (null? (segments agenda)))
+
+  (define (set-segments! agenda segments)
+    (set-cdr! agenda segments))
+
+  (define (first-segment agenda) (car (segments agenda)))
+
+  (define (rest-segments agenda) (cdr (segments agenda)))
+
+  (define (make-time-segment time queue)
+    (cons time queue))
+
+  (define (segment-time s) (car s))
+
+  (define (segment-queue s) (cdr s))
+
+  (define (make-queue)
+    (cons '() '()))
+
+  (define (front-ptr queue) (car queue))
+
+  (define (rear-ptr queue) (cdr queue))
+
+  (define (set-front-ptr! queue item) (set-car! queue item))
+
+  (define (set-rear-ptr! queue item) (set-cdr! queue item))
+
+  (define (empty-queue? queue) (null? (front-ptr queue)))
+
+  (define (front-queue queue)
+    (if (empty-queue? queue)
+        (error "FRONT вызвана с пустой очередью" queue)
+        (car (front-ptr queue))))
+
+  (define (insert-queue! queue item)
+    (let ((new-pair (cons item '())))
+      (cond ((empty-queue? queue)
+             (set-front-ptr! queue new-pair)
+             (set-rear-ptr! queue new-pair)
+             queue)
+            (else
+             (set-cdr! (rear-ptr queue) new-pair)
+             (set-rear-ptr! queue new-pair)
+             queue))))
+
+  (define (call-each procedures)
+    (if (null? procedures)
+        'done
+         (begin
+           ((car procedures))
+           (call-each (cdr procedures)))))
+
+  (define (get-signal wire)
+    (wire 'get-signal))
+
+  (define (set-signal! wire new-value)
+    ((wire 'set-signal!) new-value))
+
+  (define (add-action! wire action-procedure)
+    ((wire 'add-action!) action-procedure))
+
+  (define (add-to-agenda! time action agenda)
+    (define (belongs-before? segments)
+      (or (null? segments)
+          (< time (segment-time (car segments)))))
+    (define (make-new-time-segment time action)
+      (let ((q (make-queue)))
+        (insert-queue! q action)
+        (make-time-segment time q)))
+    (define (add-to-segments! segments)
+      (if (= (segment-time (car segments)) time)
+          (insert-queue! (segment-queue (car segments))
+                         action)
+          (let ((rest (cdr segments)))
+            (if (belongs-before? rest)
+                (set-cdr!
+                 segments
+                 (cons (make-new-time-segment time action)
+                       (cdr segments)))
+                (add-to-segments! rest)))))
+    (let ((segments (segments agenda)))
+      (if (belongs-before? segments)
+          (set-segments!
+           agenda
+           (cons (make-new-time-segment time action)
+                 segments))
+          (add-to-segments! segments))))
+
+  (define (after-delay delay action)
+    (add-to-agenda! (+ delay (current-time the-agenda))
+                    action
+                    the-agenda))
+
+  (define (make-wire)
+    (let ((signal-value 0) (action-procedures '()))
+      (define (set-my-signal! new-value)
+        (if (not (= signal-value new-value))
+            (begin (set! signal-value new-value)
+                   (call-each action-procedures))
+            'done))
+      (define (accept-action-procedure! proc)
+        (set! action-procedures (cons proc action-procedures))
+        (proc))
+      (define (dispatch m)
+        (cond ((eq? m 'get-signal) signal-value)
+              ((eq? m 'set-signal!) set-my-signal!)
+              ((eq? m 'add-action!) accept-action-procedure!)
+              (else (error "Неизвестная операция -- WIRE" m))))
+      dispatch))
+
+#+END_SRC
+
+Это сам ~and-gate~. ~logical-and~ написана самостоятельно,т.к. в мане ее
+нет.
+
+#+BEGIN_SRC scheme
+
+  (define and-gate-delay 3)
+
+  (define (logical-and s1 s2)
+    (if (and (= s1 1) (= s2 1))
+        1
+        0))
+
+  (define (and-gate a1 a2 output)
+    (define (and-action-procedure)
+      (let ((new-value
+             (logical-and (get-signal a1) (get-signal a2))))
+        (after-delay and-gate-delay
+                     (lambda ()
+                       (set-signal! output new-value)))))
+    (add-action! a1 and-action-procedure)
+    (add-action! a2 and-action-procedure)
+    'ok)
+
+
+#+END_SRC
+
+А это сам ответ для задания.
+
+#+BEGIN_SRC scheme
+  (define (logical-or s1 s2)
+    (if (or (= s1 1) (= s2 1))
+        1
+        0))
+
+  (define (or-gate a1 a2 output)
+    (define (or-action-procedure)
+      (let ((new-value
+             (logical-or (get-signal a1) (get-signal a2))))
+        (after-delay or-gate-delay
+                     (lambda ()
+                       (set-signal! output new-value)))))
+    (add-action! a1 or-action-procedure)
+    (add-action! a2 or-action-procedure)
+    'ok)
+
+#+END_SRC
+
+~Упражнение 3.29.~
+Еще один способ создать ИЛИ-элемент — это собрать его как составной блок
+из И-элементов и инверторов. Определите процедуру ~or-gate~, которая это
+осуществляет.
+Как время задержки ИЛИ-элемента выражается через ~and-gate-delay~ и
+~inverter-delay~?
+
+Идея простая:
+- поменяем значение каждого входного провода на противоположные
+- проверим их через "И"
+- если сигнал выходного провода "И" = 1, значит оба входных провода "И"
+  имели значение единицы, которое они приобрели после того, как мы
+  изменили сигналы входных проводов на противоположные. То есть
+  изначально входные сигналы были 0. Если оба входных сигнала "ИЛИ" имеют
+  значения нуля, то вернется 0. Во всех остальных случаях вернется 1.
+Поэтому в случае если ответ "И" = 1, мы на выходе получим 0, а во всех
+остальных случаях 1.
+
+В данном случае задержка ~or-gate~ будет равна сумме всех задержек от
+примеренения "НЕ" и "И". Скажем, если зажержка инвертора = 2, а задержка
+"ИЛИ" = 3, то задержка этой версии ~or-gate~ = 9, поскольку инвертор мы
+примнеили 3 раза, а логическое "N" - 1 раз.
+
+#+BEGIN_SRC scheme
+  (define (or-gate a1 a2 output)
+    (define (or-action-procedure)
+      (let* ((new-a1 (make-wire))
+             (new-a2 (make-wire)))
+        (inverter a1 new-a1)
+        (inverter a2 new-a2)
+        (let* ((and-result (make-wire)))
+          (and-gate new-a1 new-a2 and-result)
+          (inverter and-result output))))
+    (add-action! a1 or-action-procedure)
+    (add-action! a2 or-action-procedure)
+    'ok)
+#+END_SRC
+
+
+~Упражнение 3.30.~
+На рисунке 3.27 изображен каскадный сумматор ~(ripple-carry adder)~,
+полученный выстраиванием в ряд n сумматоров. Это простейшая форма
+параллельного сумматора для сложения двух n-битных двоичных чисел. На
+входе мы имеем A1 , A2 , A3 ,. . . An и B1 , B2 , B3 , . . . Bn — два двоичных чис-
+ла, подлежащих сложению (каждый из Ak и Bk имеет значение либо 0, либо
+1). Схема порождает S1 , S2 , S3 , . . . Sn — первые n бит суммы, и C –
+бит переноса после суммы. Напишите процедуру ~riple-carry-adder~, которая
+бы моделировала эту схему. Процедура должна в качестве аргументов
+принимать три списка по n проводов в каждом (Ak , Bk и Sk ), а
+также дополнительный провод C. Главный недостаток каскадных сумматоров в
+том, что приходится ждать, пока сигнал распространится. Какова задержка,
+требуемая для получения полного вывода n-битного каскадного сумматора,
+выраженная в зависимости от задержек И-, ИЛИ-элементов и инверторов?
+
+Сумматоры и полусумматоры нужны, чтоб сложить 2 числа.
+Полусумматор:
+- обеспечивает сложение в пределах одного разряда без учета единицы,
+  которая могла быть получены в результате сложения в предыдущем разряде.
+- при этом если присложении текущего разряда мы получим единицу для
+  переноса в следующий,она будет занесена в параметр "с"
+
+Сумматор:
+- работает аналогично полусумматору, но учитывает единицу, которую мы
+  могли получить при сложении в предыдущем разряде. Поэтому имеет 3
+  входа: 2 слагаемых и единица из предыдущего разряда.
+
+Таким образом понятно, что все это работает только на одном разряде. А
+что если в числах 5 разрядов? Сто?
+Для этого нужен каскадный сумматор. Фактически он представляет из себя
+полный сумматор, вызванный столько раз, сколько разрядов в самом большом
+числе.
+
+Задержка будет огромной. Чтоб ее посчитать, нужно сложить все задержки от
+всех вызовов ~or-gate~, ~and-gate~ и ~inverter~ на одной итерации
+сложения и умножить эту сумму на количество битов в самом большом
+числе. И задержка будет увеличиваться пропорционально увеличению
+количества разрядов, т.е. сложность алгоритма О(n).
+
+#+BEGIN_SRC scheme
+  ;; полусумматор
+  ;; а и b - это входы, S и С - выходы.
+  ;; S - это сумма, С - бит, который перейдет в следующий разряд
+  (define (half-adder a b s c)
+    ;;создаем дополнительные провода
+    (let ((d (make-wire)) (e (make-wire)))
+      (or-gate a b d)
+      (and-gate a b c)
+      (inverter c e)
+      (and-gate d e s)
+      'ok))
+
+  ;;  сумматор
+  ;;А В - это входны (слагаемые), c-in - бит, доставшийся нам от сложения предыдущего
+  ;; раззряда. sum - сумма и c-out - бит, который будет перенесен в следующий разряд
+  ;; (если мы этот бит получим)
+  (define (full-adder a b c-in sum c-out)
+    (let ((s (make-wire))
+          (c1 (make-wire))
+          (c2 (make-wire)))
+      (half-adder b c-in s c1)
+      (half-adder a s sum c2)
+      (or-gate c1 c2 c-out)
+      'ok))
+
+  (define (riple-carry-adder a-list b-list s-list c-wire)
+      ;; если оба списка слагаемых кончились, сложение окончено
+      (cond ((and (null? a-list) (null? a-list)) 'ok)
+            ;; если список проводов для суммы закончился, прекращаем работу
+            ;; поскольку писать больше некуда
+            ((null? s-list) 'ok)
+            ;; если закончился один из списков, заполняем недостающие разряды нулями
+            ((null? a-list)
+             (begin
+               (full-adder 0 (car b-list) c-wire (car s-list) c-wire)
+               (riple-carry-adder a-list (cdr b-list) (cdr s-list) c-wire)))
+            ((null? b-list)
+             (begin
+               (full-adder (car a-list) 0 c-wire (car s-list) c-wire)
+               (riple-carry-adder (cdr a-list) b-list (cdr s-list) c-wire)))
+            (else
+             (begin
+               (full-adder (car a-list) (car b-list) c-wire (car s-list) c-wire)
+               (riple-carry-adder (cdr a-list) (cdr b-list) (cdr s-list) c-wire)))))
+
+
+  (define a1 (make-wire))
+  (define a2 (make-wire))
+  (set-signal! a2 1)
+  (define a-list (list a1 a2))
+
+  (define b1 (make-wire))
+  (define b2 (make-wire))
+  (define b-list (list b1 b2))
+
+  (define s1 (make-wire))
+  (define s2 (make-wire))
+  (define s-list (list s1 s2))
+
+  (define c-wire (make-wire))
+
+  (riple-carry-adder a-list b-list s-list c-wire)
+#+END_SRC
+
+~Упражнение 3.31.~
+Внутренняя процедура ~accept-action-procedure!~, определенная в ~make-wire~,
+требует, чтобы в момент, когда процедура-действие добавляется к проводу, она
+немедленно исполнялась. Объясните, зачем требуется такая инициализация.
+В частности, проследите работу процедуры ~half-adder~ из этого текста и
+скажите, как отличалась бы реакция системы, если бы ~accept-action-
+procedure!~ была определена как
+
+#+BEGIN_SRC scheme
+  (define (accept-action-procedure! proc)
+    (set! action-procedures (cons proc action-procedures)))
+#+END_SRC
+
+Ответ: механизм исполнения процедур, которые попали в список процедур для
+конкретного провода, заработает только в том случае, если в провод будет
+установлен сигнал, который при этом не совпадает с предыдущим. В случае с
+работой ~half-addler~, сигнал в проводах изменится благодаря вызову
+~set-signal!~, который есть в процедурах ~and-gate~, ~or-gate~ и
+~inverter~. Но заковыка в том, ~half-addler~ сам по себе не заработает:
+это случится только тогда, когда изменится сигнал у проводов. Для этого
+нам и нужен вызов добавляемой процедры в список исполняемых процедур: в
+противном случае просто нечему запустить механизм исполнения процедур,
+добавленных в список, и программа просто не заработает.
+
+~Упражнение 3.32.~
+Процедуры, предназначенные к выполнению в каждом временном отрезке,
+хранятся в виде очереди. Таким образом, процедуры для каждого отрезка
+вызываются в том же порядке, в котором они были добавлены к плану (первый
+пришел, первый ушел).
+Объясните, почему требуется использовать именно такой порядок. В
+частности, проследите поведение И-элемента, входы которого
+меняются с 0 на 1 и с 1 на 0 одновременно и скажите, как отличалось бы
+поведение, если бы мы хранили процедуры отрезка в обыкновенном списке,
+добавляя и убирая их только с головы (последний пришел, первый ушел).
+
+Ответ: при работе любого механизма нам необходим порядок действий, в
+противном случае ни один алгоритм не заработает. Если попросить человека
+напистаь на бумажке любой алгоритм по пунктам на бумажке, то человек начнет его
+писать сверху вниз, т.к. первое действие будет записано первым, никто е
+начнет писать алгоритм с конца. Таким образом мы получаем структуру
+"первым записали - первым исполнили", что очень близко к опеределению
+машинной очереди "первым пришел - первым ушел". Если бы мы использовали
+обычные списки, то действия пришлось бы добавлять с конца, чтоб в ~car~
+списка оказалось первое по порядку действие. Я уже молчу о том, что если
+бы нампонадобилось добавить новое действие,котоое должно было бы
+исполниться после всех уже имеющихся, пришлосьбы переписать весь список
+от начала до конца. А это расходы и по памяти, и по времени.
+
+~Упражнение 3.33.~
+С помощью элементарных ограничений (сумматор, умножитель и константа),
+определите процедуру ~averager~ (усреднитель), которая принимает три
+соединителя a, b и c,
+и обеспечивает условие, что значение c равно среднему арифметическому
+значений a и b.
+
+Процедуры, необходимые для функционирования системы.
+
+#+BEGIN_SRC scheme
+
+  (define (constant value connector)
+    (define (me request)
+      (error "Неизвестный запрос -- CONSTANT" request))
+    (connect connector me)
+    (set-value! connector value me)
+    me)
+
+  (define (inform-about-value constraint)
+    (constraint 'I-have-a-value))
+
+  (define (inform-about-no-value constraint)
+    (constraint 'I-lost-my-value))
+
+  ;; порождает сумматор, который уявляется возвращаемым значением
+  ;; сумматор представляет собой диспетчер для внутренних процедур
+  (define (adder a1 a2 sum)
+    ;; установка нового значения суммы или слагаемых
+    (define (process-new-value)
+      ;; у обеих переменных есть значения? - складываем их и устанавливаем в sum
+      (cond ((and (has-value? a1) (has-value? a2))
+             (set-value! sum
+                         (+ (get-value a1) (get-value a2))
+                         me))
+            ;; известна сумма и первая переменная? - вычисляем вторую как разность суммы
+            ;; и первой переменной
+            ((and (has-value? a1) (has-value? sum))
+             (set-value! a2
+                         (- (get-value sum) (get-value a1))
+                         me))
+            ;; аналогично, только устанавливаем значение первой переменной
+            ((and (has-value? a2) (has-value? sum))
+             (set-value! a1
+                         (- (get-value sum) (get-value a2))
+                         me))))
+    ;; "забываем" все значения
+    (define (process-forget-value)
+      (forget-value! sum me)
+      (forget-value! a1 me)
+      (forget-value! a2 me)
+      (process-new-value))
+
+    ;; сумматор
+    (define (me request)
+      (cond ((eq? request 'I-have-a-value)
+             (process-new-value))
+            ((eq? request 'I-lost-my-value)
+             (process-forget-value))
+            (else
+             (error "Неизвестный запрос -- ADDER" request))))
+
+    ;; подсоединяем слагаемые и сумму к сумматору
+    (connect a1 me)
+    (connect a2 me)
+    (connect sum me)
+    me)
+
+  ;; исполняет все процедуры в списке, коме исключения
+  (define (for-each-except exception procedure list)
+    (define (loop items)
+      (cond ((null? items) 'done)
+            ((eq? (car items) exception) (loop (cdr items)))
+            (else (procedure (car items))
+                  (loop (cdr items)))))
+    (loop list))
+
+  ;; создает соединитель
+  ;; соединительпредставляет собой объект, имеющий 3 переменных состояния:
+  ;; значение, информант, который это значение установил, и список всех ограничений, в
+  ;; которых участвует этот сеодинитель
+  (define (make-connector)
+    ;; начальные значения всех переменных состояния - false
+    (let ((value #f) (informant #f) (constraints '()))
+      ;; устанавливаем новое значение
+      (define (set-my-value newval setter)
+        ;; если у соединтеля нет текущего значения
+        (cond ((not (has-value? me))
+               ;; устанавливаем значение
+               (set! value newval)
+               ;; запоминаем ограничение, которое значение установило
+               (set! informant setter)
+               ;; исполняем список ограничений, кроме текущего
+               (for-each-except setter
+                                inform-about-value
+                                constraints))
+              ;; если же у соединения значение было и оно не совпадает с новым
+              ((not (= value newval))
+               ;; выдаем сообщение об ошибке
+               (error "Противоречие" (list value newval)))
+              ;; все остальное игнорим
+              (else 'ignored)))
+
+      ;; стираем значение соединителя
+      (define (forget-my-value retractor)
+        ;; если стереть значение хочет то же ограничение, что его установило,
+        (if (eq? retractor informant)
+            ;; то стираем ограничение
+            (begin (set! informant #f)
+                   ;; выполняем список всех ограничений кроме текущего
+                   (for-each-except retractor
+                                    inform-about-no-value
+                                    constraints))
+            'ignored))
+
+      ;;подсоединяем новое ограничение к списку
+      (define (connect new-constraint)
+        ;; если нового ограничения в списке нет, то подсоединяем его к списку ограничений
+        (if (not (memq new-constraint constraints))
+            (set! constraints
+                  (cons new-constraint constraints)))
+        ;; если значение у соединителя есть,
+        (if (has-value? me)
+            ;; заносим это в список ограничений (?)
+            (inform-about-value new-constraint))
+        'done)
+      (define (me request)
+        (cond ((eq? request 'has-value?)
+               (if informant #t #f))
+              ((eq? request 'value) value)
+              ((eq? request 'set-value!) set-my-value)
+              ((eq? request 'forget) forget-my-value)
+              ((eq? request 'connect) connect)
+              (else (error "Неизвестная операция -- CONNECTOR"
+                           request))))
+      me))
+
+  ;; "умножитель" полностью копирует поведение "сумматора", только вместо операции сложения,
+  ;; использует умножение
+  (define (multiplier m1 m2 product)
+    (define (process-new-value)
+      (cond ((or (and (has-value? m1) (= (get-value m1) 0))
+                 (and (has-value? m2) (= (get-value m2) 0)))
+             (set-value! product 0 me))
+            ((and (has-value? m1) (has-value? m2))
+             (set-value! product
+                         (* (get-value m1) (get-value m2))
+                         me))
+            ((and (has-value? product) (has-value? m1))
+             (set-value! m2
+                         (/ (get-value product) (get-value m1))
+                         me))
+            ((and (has-value? product) (has-value? m2))
+             (set-value! m1
+                         (/ (get-value product) (get-value m2))
+                         me))))
+    (define (process-forget-value)
+      (forget-value! product me)
+      (forget-value! m1 me)
+      (forget-value! m2 me)
+      (process-new-value))
+    (define (me request)
+      (cond ((eq? request 'I-have-a-value)
+             (process-new-value))
+            ((eq? request 'I-lost-my-value)
+             (process-forget-value))
+            (else
+             (error "Неизвестный запрос -- MULTIPLIER" request))))
+    (connect m1 me)
+    (connect m2 me)
+    (connect product me)
+    me)
+
+  ;; устанавливает значение данного соединителя
+  (define (constant value connector)
+    (define (me request)
+      (error "Неизвестный запрос -- CONSTANT" request))
+    (connect connector me)
+    (set-value! connector value me)
+    me)
+
+  ;; процедуры интерфейса
+  (define (has-value? connector)
+    (connector 'has-value?))
+
+  (define (get-value connector)
+    (connector 'value))
+
+  (define (set-value! connector new-value informant)
+    ((connector 'set-value!) new-value informant))
+
+  (define (forget-value! connector retractor)
+    ((connector 'forget) retractor))
+
+  (define (connect connector new-constraint)
+    ((connector 'connect) new-constraint))
+#+END_SRC
+
+Вычисляем среднее арифметическое по формуле: (а + в) / 2 = с
+
+#+BEGIN_SRC scheme
+  (define (averager a b c)
+    (let ((const (make-connector))
+          (sum (make-connector)))
+      ;; получаем сумму a + b
+      (adder a b sum)
+      (constant 2 const)
+      (multiplier const c sum)))
+
+  ;; тест 1
+  (define a (make-connector))
+  (define b (make-connector))
+  (define c (make-connector))
+
+  (set-value! a 54 'user)
+  (set-value! b 38 'user)
+
+  (define result (averager a b c))
+  (get-value c)
+
+  ;; тест 2
+  (forget-value! a 'user)
+  (forget-value! b 'user)
+  (set-value! a 100 'user)
+  (set-value! b 200 'user)
+  (define result (averager a b c))
+  (get-value c)
+#+END_SRC
+
+~Упражнение 3.34.~
+Хьюго Дум хочет построить квадратор, блок-ограничение с двумя выводами,
+такое, что значение соединителя b на втором выводе всегда будет равно
+квадрату значения соединителя a на первом выводе. Он предлагает следующее
+простое устройство на основе умножителя:
+
+#+BEGIN_SRC scheme
+  (define (squarer a b)
+    (multiplier a a b))
+#+END_SRC
+
+В такой идее есть существенная ошибка. Объясните ее.
+
+На первый взгляд все должно сработать. Но мы знаем, что у нас не
+однонаправленные вычисления: наш умножитель может вычислять как
+произведение, так и множитель, имея произведение и другой множитель.
+В случае, если у нас неизвестно "а", умножитель просто застопорится,
+поскольку не сможет вычислить ни произведение, ни второй множитель. Таким
+образом он становится однонаправленным.
+
+~Упражнение 3.35.~
+Бен Битобор объясняет Хьюго, что один из способов избежать неприятностей
+в упражнении 3.34 — определить квадратор как новое элементарное ограничение. Заполните
+недостающие части в Беновой схеме процедуры, реализующей такое ограничение:
+
+#+BEGIN_SRC scheme
+  ;; необходимые процедуры для поиска квадратного корня
+  (define (sqrt-iter guess x)
+    (if (good-enough? guess x)
+        guess
+        (sqrt-iter (improve guess x)
+                   x)))
+
+  (define (average x y)
+    (/ (+ x y) 2))
+
+  (define (good-enough? guess x)
+    (< (abs (- (square guess) x)) 0.001))
+
+  (define (square x)
+    (* x x ))
+
+  (define (improve guess x)
+    (average guess (/ x guess)))
+
+  (define (sqrt x)
+    (sqrt-iter 1.0 x))
+
+  ;; дописанное ограничение
+  (define (squarer a b)
+    (define (process-new-value)
+      (if (has-value? b)
+          (if (< (get-value b) 0)
+              (error "квадрат меньше 0 -- SQUARER" (get-value b))
+              (set-value! a (sqrt (get-value b)) me))
+          (if (has-value? a)
+              (set-value! b (* (get-value a) (get-value a)) me)
+              'ignored)))
+
+    (define (process-forget-value)
+      (forget-value! a me)
+      (forget-value! b me))
+
+    (define (me request)
+      (cond ((eq? request 'I-have-a-value)
+             (process-new-value))
+            ((eq? request 'I-lost-my-value)
+             (process-forget-value))
+            (else
+             (error "Неизвестный запрос -- SQUARER" request))))
+    (connect a me)
+    (connect b me)
+    me)
+
+  ;;тест
+  (define c (make-connector))
+  (define d (make-connector))
+  (define test (squarer c d))
+
+  (set-value! c 4 'user)
+  (get-value d)
+
+  (forget-value! c 'user)
+  (forget-value! d 'user)
+
+  (set-value! d 18 'user)
+  (define test2 (squarer c d))
+  (get-value c)
+#+END_SRC
+
+~Упражнение 3.36.~
+
+Допустим, что мы выполняем следующую последовательность действий в
+глобальном окружении:
+
+#+BEGIN_SRC scheme
+(define a (make-connector))
+(define b (make-connector))
+(set-value! a 10 'user)
+#+END_SRC
+
+В какой-то момент при вычислении ~set-value!~ будет выполнено следующее
+выражение из внутренней процедуры соединителя:
+
+#+BEGIN_SRC scheme
+(for-each-except setter inform-about-value constraints)
+#+END_SRC
+
+Нарисуйте диаграмму, изображающую окружение, в котором выполняется
+указанное выражение.
+
+Итак, функция ~make-connector~, которая создает соединитель, создает и
+окружение, куда входит процедура ~set-my-value~, которая вызове
+~for-each-except setter~, которая в свою очередь определена глобально.
+
+Итак, мы создали 2 коннектора в глобальном окружении, вызываем
+~set-value!~.  Эта функция внутри себя вызывает ~me~, который отвечает за
+диспетчеризацию внутри соединителя и представления его как
+объекта. Оказываемся внутри окружения соединителя, ~me~ возвращает нам
+процедуру ~set-my-value~, поскольку она сооветствует запросу и находится
+в окружении соединителя, но определена до ~me~,поэтому ~me~имеет к ней
+доступ. Заходим внутрь проедуры ~set-my-value~,оказываемся на втором
+уровне вложенности: глобальное окружение -> окружение соединителя ->
+окружение ~set-my-value~. Доходим до исполнения
+~(for-each-except setter inform-about-value constraints)~. В поиске
+процедуры интерпритатор будет подниматься все выше по уровню вложенности,
+пока не дойдет до глобального окружения. Поскольку процедура там есть, мы
+можем спокойно ею воспользоваться. То есть ~for-each-exept~ будет
+исполнена в окружении, которое сгенерит процедура ~set-my-value~.
+
+~Упражнение 3.37.~
+Процедура ~celsius-fahrenheit-converter~ выглядит громоздко по сравнению со
+стилем определения в формате выражения:
+
+#+BEGIN_SRC scheme
+  (define (celsius-fahrenheit-converter x)
+    (c+ (c* (c/ (cv 9) (cv 5))
+            x)
+        (cv 32)))
+
+  (define C (make-connector))
+
+  (define F (celsius-fahrenheit-converter C))
+#+END_SRC
+
+Здесь c+, c* и т. п. — «ограничительные» версии арифметических
+операций. Например, c+ берет в виде аргументов два соединителя, и
+возвращает соединитель, который связан с ними ограничением-сумматором:
+
+#+BEGIN_SRC scheme
+  (define (c+ x y)
+    (let ((z (make-connector)))
+      (adder x y z)
+      z))
+#+END_SRC
+
+Определите аналогичные процедуры для c-, c*, c/ и cv (константа), так,
+чтобы можно было определять составные ограничения, как в вышеприведенном
+примере.
+
+#+BEGIN_SRC scheme
+  (define (c* x y)
+    (let ((product (make-connector)))
+      (multiplier x y product)
+      product))
+
+  (define (c- x y)
+    (let ((diff (make-connector)))
+      (adder y diff x)
+      diff))
+
+  (define (c/ x y)
+    (let ((quotient (make-connector)))
+      (multiplier y quotient x)
+      quotient))
+
+  (define (cv val)
+    (let ((const (make-connector)))
+      (constant val const)
+      const))
+
+#+END_SRC
+
+~Упражнение 3.38.~
+Пусть Петр, Павел и Мария имеют общий счет, на котором вначале лежит 100
+долларов. Петр кладет на счет 10 долларов, одновременно с этим Павел берет 20, а Мария
+берет половину денег со счета. При этом они выполняют следующие операции:
+
+#+BEGIN_SRC scheme
+  ;; Петр:
+  (set! balance (+ balance 10))
+  ;; Павел:
+  (set! balance (- balance 20))
+  ;; Мария:
+  (set! balance (- balance (/ balance 2)))
+#+END_SRC
+
+а. Перечислите возможные значения balance после завершения операций,
+предполагая, что банковская система требует от транзакций исполняться
+последовательно в каком-то порядке.
+б. Назовите какие-нибудь другие значения, которые могли бы получиться,
+если бы система разрешала операциям чередоваться. Нарисуйте временные
+диаграммы, подобные рис. 3.29, чтобы объяснить, как возникают такие результаты.
+
+А:
+
+Предположим, что операции исполняются в том порядке, в котором они даны в
+задании: т.е. сначала к счету обращается Петр, потом Павел, потом Мария.
+Перед тем, как Петр обратился к счету, балан счета 100$.
+Петр заносит на счет 10$: баланс счета 110$ долларов
+Павел снимает 20$ со счета: баланс 90$
+Мария снимает со счета половину имеющейся суммы: баланс 45$.
+
+Б:
+Предположим, Петр обращается к счету первым. Балас счета 100$,но между
+проверкой баланса и снятием денег ПЕтром, к счету успевает обратиться
+Павел и забирает оттуда 20$,в результате проверка баланса Петром уже
+теряет актуальность, хотя и не мешает исполнению операции: но только
+баланс после занесения 10 долларов на счет будет не 110, как раньше,
+а 90. А если предположить, что между операциями и Петра и Павла
+вклинилась еще и Мария, то последствия несколько непредсказуемы: кому-то
+может банально не хватить денег, если бы суммы были бОльшими.
+
+~Упражнение 3.39.~
+Какие из пяти возможных исходов параллельного выполнения сохраняются,
+если мы сериализуем выполнение таким образом:
+
+#+BEGIN_SRC scheme
+  (define x 10)
+
+  (define s (make-serializer))
+
+  (parallel-execute (lambda () (set! x ((s (lambda () (* x x))))))
+                    (s (lambda () (set! x (+ x 1)))))
+#+END_SRC
+
+Вариант 1.
+Итак, отличие от мановского варианта в том, что в первой процедуре мы
+имеем не ~(set! x (* x x))~, ~(set! x (lambda () (* x x)))~, и вот лямбда
+уже сериализована.
+Значит, у нас сериализована вторая процедура и внутренняя лямбда в первой,
+а значит, технически может сложиться ситуация, когда  первая процедура
+начнет исполнятся, в это время включится вторая. Первая процедура считает
+~x~ в значении 10, в это время вторая процедура увеличит на ~1~, закончит
+выполнение. Но первой процедуре это неважно, посольку значение ~x~ было
+уже считано из памяти, и теперь только осталось возвести его в квадрат.
+Получем ~ответ 100~ .
+
+Вариант 2.
+Вторая процедура увеличивает ~x~ на 1, ~x = 11~, в этом время первая
+процедура считывает значение из памяти возводит его в квадрат, ~ответ 121~.
+
+Вариант 3.
+Начинает исполняться первая процедура, возводит ~x~ в квадрат, затем
+исполняется вторая процедура. ~Ответ 101~.
+
+~Упражнение 3.40.~
+Укажите все возможные значения ~x~ при выполнении
+
+#+BEGIN_SRC scheme
+  (define x 10)
+  (parallel-execute (lambda () (set! x (* x x)))
+                    (lambda () (set! x (* x x x))))
+#+END_SRC
+
+Какие из них сохраняются, если вместо этого мы выполняем сериализованные
+процедуры:
+
+#+BEGIN_SRC scheme
+  (define x 10)
+  (define s (make-serializer))
+  (parallel-execute (s (lambda () (set! x (* x x))))
+                    (s (lambda () (set! x (* x x x)))))
+#+END_SRC
+
+Все варианты ~x~ при параллельном, несериализованном исполнении указанных
+лямбд:
+а) Первая лямбда возводит ~x~ в квадрат, затем вторая лямбда возводит
+результат первой процедуры в куб. ~Ответ 1 000 000~.
+б) Вторя лямбда возводит ~x~ в куб, затем первая лямбда возводит
+результат в квадрат. ~Ответ 1 000 000~
+в) Первая лямбда считывает значение ~x~, затем вторая лямбда успевает
+изменить значение ~x~,первая лямбда считывает его 2 раз, ~ответ 10 000~
+г) Вторая лямбда считывает ~x~ первый раз, затем первая лямбда
+устанавливает новое значение ~x~, и вторая лямбда считывает его второй и
+третий раз. ~Ответ 100 000~
+д) Вторая лямбда успевает считать значение ~x~ два раза, прежде чем
+первая лямбда изменит его. Затем вторая лямбда считывает его третий
+раз. ~Ответ 10 000~
+
+Если воспользоваться сериализацией, то процедуры смогут исполняться
+только по очереди, а значит, исполянтся только варианты ~a~ и ~б~.
+
+~Упражнение 3.41.~
+Бен Битобор считает, что лучше было бы реализовать банковский счет таким
+образом (измененная строка отмечена комментарием):
+
+#+BEGIN_SRC scheme
+  (define (make-account balance)
+    (define (withdraw amount)
+      (if (>= balance amount)
+          (begin (set! balance (- balance amount))
+                 balance)
+          "Недостаточно денег на счете"))
+    (define (deposit amount)
+      (set! balance (+ balance amount))
+      balance)
+    (let ((protected (make-serializer)))
+      (define (dispatch m)
+        (cond ((eq? m 'withdraw) (protected withdraw))
+              ((eq? m 'deposit) (protected deposit))
+              ((eq? m 'balance)
+               ((protected (lambda () balance)))) ; сериализовано
+              (else (error "Неизвестный запрос -- MAKE-ACCOUNT"
+                           m))))
+      dispatch))
+#+END_SRC
+
+поскольку несериализованный доступ к банковскому счету может привести к
+неправильному поведению. Вы согласны? Существует ли сценарий, который демонстрирует
+обоснованность беспокойства Бена?
+
+Ответ:
+в принципе, идея перестраховаться лишней не бывает. В конкретном случае
+Бен прав, хотя и возвращение значения баланса не изменяет никакое
+состояние, но мозможен такой сценарий:
+предположим у нас 2 процесса, которые имеют доступ к одному
+счету. Предположим, первый снимает деньги, а второй запрашивает баланс
+счета, и если сумма на счету его устраивает, то выполняет какие-то
+операции (которые у нас пока даже не определены). В результате у нас оба
+процесса считывают значение баланса, затем первый процесс это значение
+меняет, но второй процесс об этом ничего не знает, он-то значение уже
+считал. В результате у нас параллельно существует 2 состояния одного и
+того же счета. Последствия из-за этого могут быть крайне неблагприятные.
+
+~Упражнение 3.42.~
+Бен Битобор говорит, что слишком расточительно в ответ на каждое
+сообщение ~withdraw~ и ~deposit~ создавать по новой сериализованной
+процедуре. Он говорит, что можно изменить ~make-account~ так, чтобы все
+вызовы ~protected~ происходили вне процедуры ~dispatch~. Таким образом,
+счет будет возвращать одну и ту же сериализованную процедуру
+(созданную тогда же, когда и сам счет) каждый раз, когда у него просят
+процедуру снятия денег:
+
+#+BEGIN_SRC scheme
+  (define (make-account balance)
+    (define (withdraw amount)
+      (if (>= balance amount)
+          (begin (set! balance (- balance amount))
+                 balance)
+          "Недостаточно денег на счете"))
+    (define (deposit amount)
+      (set! balance (+ balance amount))
+      balance)
+    (let ((protected (make-serializer)))
+      (let ((protected-withdraw (protected withdraw))
+            (protected-deposit (protected deposit)))
+        (define (dispatch m)
+          (cond ((eq? m 'withdraw) protected-withdraw)
+                ((eq? m 'deposit) protected-deposit)
+                ((eq? m 'balance) balance)
+                (else (error "Неизвестный запрос -- MAKE-ACCOUNT"
+                             m))))
+        dispatch)))
+#+END_SRC
+
+Безопасно ли такое изменение? В частности, есть ли разница в том, в каком
+порядке может происходить параллельное выполнение в этих двух версиях
+~make-account~?
+
+Я считаю, что поведение процедур будет корректным, и изменение безопасно,
+поскольку процедуры все равно сериализованы тем или иным способом. С
+точки зрения ресурсов этот вариант более эргономичен.
+
+~Упражнение 3.44.~
+Рассмотрим задачу переноса денег с одного счета на другой. Бен Битобор
+утверждает, что ее можно решить с помощью следующей процедуры, даже в тех
+случаях, когда много людей одновременно перемещают деньги между
+различными счетами, если использовать при этом какой-то механизм,
+сериализующий операции занесения на счет и снятия со счета, например,
+версию ~make-account~ из нашего текста.
+#+BEGIN_SRC scheme
+  (define (transfer from-account to-account amount)
+    ((from-account 'withdraw) amount)
+    ((to-account 'deposit) amount))
+#+END_SRC
+
+Хьюго Дум считает, что с этой версией возникнут проблемы и что нужно
+использовать более сложный подход, вроде того, который требуется при решении задачи
+обмена. Прав ли он? Если нет, то в чем состоит существенная разница между
+задачей перевода денег и задачей обмена счетов? (Нужно предположить, что
+значение баланса на from-account по крайней мере равно amount.)
+
+Ответ:
+Ситуация двоякая: правота Хьюго зависит от того, в каком порядке будут
+исполняться операции. Да, снятие и занесение денег на счет защищены
+сериализаторами, но они защищены по отедльности, а не как лок операций.
+Предположим, у нас есть счет 1, 2 и 3 и два клиента банка.
+
+Павел снимает деньги, в это время никакая другая процедура не может
+получить доступ к этой же операции на этом счету. Предположим, что у нас
+на счету 100$, а Павел хочет снять 101. Разумеется, это приведет к
+ошибке. Но что если в этот же самый момент Петр кладет на счет 150
+долларов? Тогда данные, которые есть у Павла уже не актуальны, поскольку
+значение переменной ~balance~ было обновлено.
+
+Но в общем случае процедура, предложенная Беном будет работать, поскольку
+мы будем сначала снимать деньги со счета, а потом класть. Предположим,
+что Петр и Павел оба хотят снять деньги с одного и того же счета. Петр
+оказался первым, а значит, Павел будет ждать, пока он не закончит,
+поскольку процедура снятия защищена сериализатором. Переменная ~balance~
+будет перезаписана, а значит, Павел получит актуальные данные. То есть у
+нас не окажется ситуации, когда где-то в системе параллельно будет
+существовать 2 состояния баланса одного и того же счета.
+
+~Упражнение 3.45.~
+Хьюго Дум полагает, что теперь, когда операции снятия денег со счета и
+занесения их на счет перестали сериализовываться автоматически, система
+банковских счетов стала неоправданно сложной и работать с ней правильным
+образом чересчур трудно. Он предлагает сделать так, чтобы
+~make-account-and-serializer~ экспортировал сериализатор (для использования в
+процедурах вроде ~serialized-exchange~), и вдобавок сам использовал его
+для сериализаци простых операций со счетом, как это делал ~make-account~.
+Он предлагает переопределить объект-счет так:
+
+#+BEGIN_SRC scheme
+  (define (make-account-and-serializer balance)
+    (define (withdraw amount)
+      (if (>= balance amount)
+          (begin (set! balance (- balance amount))
+                 balance)
+          "Недостаточно денег на счете"))
+    (define (deposit amount)
+      (set! balance (+ balance amount))
+      balance)
+    (let ((balance-serializer (make-serializer)))
+      (define (dispatch m)
+        (cond ((eq? m 'withdraw) (balance-serializer withdraw))
+              ((eq? m 'deposit) (balance-serializer deposit))
+              ((eq? m 'balance) balance)
+              ((eq? m 'serializer) balance-serializer)
+              (else (error "Неизвестный запрос -- MAKE-ACCOUNT"
+                           m))))
+      dispatch))
+
+  (define (deposit account amount)
+    ((account 'deposit) amount))
+
+  (define (exchange account1 account2)
+    (let ((difference (- (account1 'balance)
+                         (account2 'balance))))
+      ((account1 'withdraw) difference)
+      ((account2 'deposit) difference)))
+
+  (define (serialized-exchange account1 account2)
+    (let ((serializer1 (account1 'serializer))
+          (serializer2 (account2 'serializer)))
+      ((serializer1 (serializer2 exchange))
+       account1
+       account2)))
+#+END_SRC
+
+Объясните, в чем Хьюго ошибается. В частности, рассмотрите, что
+происходит при вызове ~serialized-exchange~.
+
+Рассматриваем мановский вариант работы процедуры.
+Вызываем ~serialized-exchange~. Получаем сериализаторы первого и второго
+счетов, сохраняем их в локальные переменные. Блочим вторым сериализатором
+процедуру ~exchange~, которая снимает разницу между балансом первого и
+второго счета с первого счета и докладывает ее на второй, а сверху блочим
+это все вторым сериализатором.Что это дает?
+Пока оба сериализатора не "отпустят" процедуру, никакой другой процесс не
+сможет ею воспользоваться. Так мы предоствращаем ситуацию, когда между
+высчитыванием разицы между балансами и изменением состояния счетов
+вклинивается второй процесс и меняет состояние баланса на счете. Он может
+это сделать, поскольку у нас защищены операции зпрашивания баланса,
+снятия и занесения денег, но не защищены "переходы" между ними:
+т. е. после запрашивания баланса сериализатор  "отпускает" счет, а затем
+должен снова его заблочить для дальнейших операций. И именно в этот
+момент счет может перехватить другой процесс.
+
+Теперь рассмотрим вариант, когда процедура исполняется с вариантом
+Хьюго.
+У нас один и тот же сериализатор экспортируется счетом и используется для
+блокировки его же процедур.
+Вызывается процедура ~serialized-exchange~. Получаем сериализаторы обоих
+счетов и сохраняем их в локальные переменные. Блочим обоими
+сериализаторами вызов ~exchange~. В процедуре ~exchange~ пытаемся
+получить баланс первого счета, но это невозможно: сериализатор занят
+блокированием ~exchange~,в результате мы будем вечно ждать, пока
+сериализатор освободится, а освободиться он не сможет, потому что ~exchange~
+никогда не закончит свое исполнение (?)
+
+~шпаргалка по реализации мьютекса~
+
+#+BEGIN_SRC scheme
+  ;; создает сериализованную процедуру
+  (define (make-serializer)
+    ;; создаем мьютекс
+    (let ((mutex (make-mutex)))
+      (lambda (p)
+        (define (serialized-p . args)
+          ;; захватываем мьюеткс
+          (mutex 'acquire)
+          ;; применяем процедуру к аргументам
+          (let ((val (apply p args)))
+            ;; освободаем мьютекс
+            (mutex 'release)
+            ;; возвращаем полученные значения
+            val))
+        serialized-p)))
+
+  ;; проверяем значение мьютекса и устанавливаем новое, если
+  ;; мьюеткс не занят
+  (define (test-and-set! cell)
+    ;; мьютекса занят?
+    (if (car cell)
+        ;; да
+        #t
+        ;; нет
+        ;; захватываем мьютекс
+        (begin (set-car! cell #t)
+               #f)))
+
+  ;; создает мьютекс
+  (define (make-mutex)
+    ;; устанавливаем исходное значение #f
+    (let ((cell (list #f)))
+      (define (the-mutex m)
+        ;; если мы хотим захватить мьюеткс
+        (cond ((eq? m 'acquire)
+               ;; проверяем его текущее значение
+               ;; если значение #t - мьютекс захвачен
+               (if (test-and-set! cell)
+                   ;; ждем, пока не овободится
+                   (the-mutex 'acquire)))
+              ;; если запрос на освобождение мьюетекса, освобождаем
+              ((eq? m 'release) (clear! cell))))
+      the-mutex))
+#+END_SRC
+
+~Упражнение 3.47.~
+Семафор (размера n) представляет собой обобщение мьютекса. Подобно
+мьютексу, семафор поддерживает операции захвата и освобождения, но
+захватить его одновременно могут до ~n~ процессов.
+Прочие процессы, которые попытаются захватить семафор, должны будут ждать
+освобождения. Дайте реализацию семафоров:
+
+а. в терминах мьютексов.
+б. в терминах атомарных операций ~test-and-set!~.
+
+То есть фактически мне надо написать мьютекс, который сможет быть
+захвачен определенным количеством процессов.
+Мьютекс фактически представляется в виде списка из одного элемента. N
+процессов должны захватывать и освобождать этот мьютекс, значит нам
+нужно, чтоб на каждый процесс приходилось по ячейке. Так что будем
+представлять мьютекс в виде списка значений #t/#f - так реализован
+собственный вариант.
+
+Вариант "а" реализован имено так, как сделано ниже, поскольку:
+мьютекс - это особая переменная, которая может принимать значения только
+1/0 или #t/#f. А семафор - это объект, который представляет собой мьютекс
+и счетчик к нему. А в принципе можно сказать, что семафор - это и есть
+сам счетчик.
+
+Процедура ~make-semaphore~ возвращает объект, который является
+представлением семафора. Внутри себя он содержит мьютекс и счетчик для
+подсчета обратившихся к семафору процессов. Мьютекс в нашей реализации
+представляет собой объект, который содержит в себе состояние "занят" или
+"свободен". Если мьютекс занят, а какой-то другой процесс захочет
+получить к нему дотсуп, то процесс войдет в цикл ожидания, пока мьютекс
+не освободится. Семафор работает с несколькими процессами, значит, если
+мы будет просто передавать запрос мьютексу, то это не
+сработает. Предположим, мьютекс занят, но лимит потоков не превышен.
+Мы отправили ему сообщение на повторный захват при поскольку лимит процессов не
+превышен, то каждый новый процесс будет попадать в петлю ожидания, пока
+самый первый процесс не освободит мьютекс. И только после этого какой-то
+из ожидающих процессов сможет занять мьютекс.
+Поэтому если мьютекс занят, но лимит процессов не ревышен, то мы просто
+увеличим счетчик процессов и вернем #t, эмулировав повторный захват
+мьютекса, но не сделав его.
+
+Вариант "б" реализован аналогичным образом, только мы не используем
+~make-mutex~ напрямую, а вместо этого создаем ячейку мьютекса вручную и
+вручную же меняем в ней значения с помощью ~test-and-set!~
+
+#+BEGIN_SRC scheme
+  ;; собственный вариант
+  (define (make-semaphore n)
+    ;;заводим пустой списк
+    (let ((cell-list '()))
+      (define (current-mutex m)
+        ;; если хотим захватить семафор
+        (cond ((eq? m 'acquire)
+               ;; проверяем, сколько ячеек в списке
+               (if (= (length cell-list) n)
+                   ;; если кол-во ячеек = кол-ву процессов, которые могут захватить семафор
+                   ;; ждем, пока не освободится место
+                   (current-mutex 'acquire)
+                   ;; иначе добавляем новую ячейку
+                   (cons (list #t) cell-list)))
+              ;; если хотим освободить семафор от 1 процесса
+              ((eq? m 'release)
+               ;; проверяем, захвачен ли какими-то процессами семафор вообще
+               (if (null? cell-list)
+                   #f
+                   ;; если да, то укорачиваем список на 1
+                   (set! cell-list (cdr cell-list))))))
+      current-mutex))
+
+
+  ;; семафор в термине мьютексов
+  (define (make-semaphore n)
+    ;; создаем мьютекс и счетчик
+    (let ((mutex (make-mutex))
+          (cnt 0))
+      (define (the-semaphore m)
+        ;; если поступил запрос на захват мьютекса
+        (cond ((eq? m 'acquire)
+               ;; захват не первый, но максимум потоков не превышен
+               (cond ((and (> cnt 0) (< cnt n))
+                      ;; увеличиваем счетчик
+                      (begin (set! cnt (+ cnt 1))
+                             #t))
+                     ;; запрос первый, захватывем семафор
+                     ((= 0 cnt) (begin (mutex 'acquire) #t))
+                     ;; лимит потоков превышен, ждем, пока один из них не освободится
+                     (else (the-semaphore 'acquire))))
+              ;; если поступил запрос на освобождение мьютекса
+              ((eq? m 'release)
+               ;; остался единственный поток, освобождаем мьюеткс и уменьшаем счетчик
+               (cond ((= cnt 1) (begin (mutex 'release) (set! cnt (- cnt 1))))
+                     ;; потоков больше, чем 1, просто уменьшаем счетчик
+                     ((> cnt 1) (set! cnt (- cnt 1)))
+                     ;; иначе вхолостую освобождаем мьюеткс
+                     ((= cnt 0) (mutex 'release))))
+              ;; если поступил любой другой запрос, выдаем ошибку
+              (else (error "wrong request---- THE-SEMAPHORE" m))))
+      the-semaphore))
+
+
+  ;;семафор в терминах атомарных операций
+  (define (make-semaphore n)
+    (let ((cell-mutex (list #f))
+          (cnt 0))
+      (define (the-semaphore m)
+        ;; получен запрос не захват мьютекса
+        (cond ((eq? m 'acquire)
+               ;; захват мьютекса не первый, но и максимум не превышен
+               (cond ((and (test-and-set! cell-mutex) (< cnt n))
+                      (begin (set! cnt (+ cnt 1))
+                             #t))
+                     ;;лимит превышен
+                     ((= cnt n) (the-semaphore 'acquire))
+                     ;; в противном случае захватываем мьютекс
+                     (else (test-and-set! cell-mutex))))
+              ((eq? m 'release)
+               (cond ((= cnt 1) (begin (clear! cell-mutex) (set! cnt (- cnt 1))))
+                     ((> cnt 1) (set! cnt (- cnt 1)))
+                     ((= cnt 0) (clear! cell-mutex))))
+              (else (error "wrong request---- THE-SEMAPHORE" m))))
+      the-semaphore))
+
+#+END_SRC
+
+~Упражнение 3.48.~
+Подробно объясните, почему метод избежания тупиков, описанный выше
+(т. е. счета нумеруются, и каждый процесс сначала пытается захватить счет
+с меньшим номером), в самом деле позволяет избежать тупика в задаче
+обмена балансов.  Перепишите ~serialized-exchange~ с использованием этой
+идеи.
+(Придется также изменить ~make-account~, так, чтобы каждый
+счет создавался вместе с номером, и чтобы этот номер можно было считать, послав
+соответствующее сообщение.)
+
+Каждый вызов ~make-serializer~ возвращает объект, который представляет
+собой процедуру ~serialized-p~, которая определена внутри лямбды,
+принимающей на вход процедуру.
+Задача ~serialized-p~ применить процедуру-параметр к своим аргументам,
+использовав мьютекс. Таким образом, если другой поток попытается
+использовать тот же самый объект ~serialized-p~, то при попытке захватить
+мьютекс внутри ~serialized-p~ войдет в петлю ожидания и будет находиться
+там, пока первый поток не освободит мьютекс.
+
+Теперь смотрим, как работает процедура ~serialized-exchange~. Мы получаем
+для каждого счета объект ~serialized-p~, каждый из которых содержит внутри
+себя свой собственный мьютекс. Затем мы выполняем целиком вызов
+~((serializer1 (serializer2 exchange)) account1 account2)~.
+Во что раскрывается вызов ~((serializer1 (serializer2 exchange)) account1
+account2)~
+
+Воспользуемся методом подстановки, чтоб понять, что и когда
+вызывается. Некторые строки кода объединены блоком ~begin~, чтоб их было
+проще форматировать и воспринимать: подразумевается, что внутри блока
+содержится исполняющийся код процедуры ~serialized-p~.
+Так же в определенный момент мы столкнемся с проблемой, что у нас есть 2
+мьютекса и 2 процедуры ~serialized-p~, которые принадлежат разным
+аккаунтам. Чтобы не путаться, мы добавим к ним номера, чтоб
+подчеркнуть, что это разные объекты.
+Стрелочкой ~->~ опозначается переход на следующий шаг вычисления.
+#+BEGIN_SRC scheme
+  ((serializer1 (serializer2 exchange)) account1 account2) ->
+  ((serializer1 (lambda (exchange) serialized-p-2)) account1 account2) ->
+  ((lambda (lambda (exchange) serialized-p-2) serialized-p-1) account1 account2) ->
+  ((lambda (serialized-p-2) serialized-p-1) account1 account2) ->
+  (serialized-p-1 account1 account2) ->
+  ;; объединим в блок для корректного форматирования
+  (begin
+    (mutex 'acquire)
+    (let ((val (apply serialized-p-2 account1 account2)))
+      (mutex 'release)
+      val)) ->
+  ;; во избежании путаницы, какой мьютекс какому сериализатору принадлежит, пронумеруем и их
+  (begin
+    (mutex-1 'acquire)
+    (let ((val (begin (mutex-2 'acquire)
+                      (let ((val (apply exchange account1 account2)))
+                        (mutex-2 'release) val))))
+      (mutex-1 'release)
+      val))
+
+#+END_SRC
+
+Это решение сработает, если в какой-то момент другой
+поток попытается обменять местами счет1 и счет2 или счет1 и счет3. Но
+если второй поток попытается провернуть зеркальную операцию
+(т.е. обменятьм местами счет2 и счет1, пока первый поток пытается обменять
+счет1 и счет2), мы войдем в дедлок.
+
+Но предположим, что у нас присвоены идентификационные номера счетам. Если
+счет1 имеет номер 1, а счет2 имеет номер 2, то хоть мы будем менять
+местами счет1 и счет2 или счет2 и счет1, ~serialized-exchange~ должна
+будет определить, чей идентификационный номер меньше, и войти в
+сериализованную процедуру этого счета. Понятно, что оба процесса
+попытаются захватить один и тот же счет, но в этом случае опоздавший
+процесс будет просто ждать, пока первый выполнит всю работу, таким
+образом первый процесс не попадет в режим ожидания, поскольку второй
+процесс начал работу "с другого конца"и заблочил нужный нам ресурс.
+
+#+BEGIN_SRC scheme
+  (define id-cnt 0)
+
+  (define (make-account-and-serializer balance)
+    (define (withdraw amount)
+      (if (>= balance amount)
+          (begin (set! balance (- balance amount))
+                 balance)
+          "Недостаточно денег на счете"))
+    (define (deposit amount)
+      (set! balance (+ balance amount))
+      balance)
+    (let ((balance-serializer (make-serializer))
+          (id-acc id-cnt))
+
+      (define (dispatch m)
+        (cond ((eq? m 'withdraw) withdraw)
+              ((eq? m 'deposit) deposit)
+              ((eq? m 'balance) balance)
+              ((eq? m 'serializer) balance-serializer)
+              ((eq? m 'id) id-acc)
+              (else (error "Неизвестный запрос -- MAKE-ACCOUNT"
+                           m))))
+      (set! id-cnt (+ id-cnt 1))
+      dispatch))
+
+  (define (exchange account1 account2)
+    (let ((difference (- (account1 'balance)
+                         (account2 'balance))))
+      ((account1 'withdraw) difference)
+      ((account2 'deposit) difference)))
+
+  (define (serialized-exchange account1 account2)
+    (let ((serializer1 (account1 'serializer))
+          (serializer2 (account2 'serializer))
+          (id1 (account1 'id))
+          (id2 (account1 'id)))
+      (if (> id1 id2)
+          ((serializer1 (serializer2 exchange)) account1 account2)
+          ((serializer2 (serializer1 exchange)) account1 account2))))
+
+
+  (define test1 (make-account-and-serializer 100))
+  (define test2 (make-account-and-serializer 130))
+  (test1 'id)
+  (test2 'id)
+
+  ;;тестов для serialized-exchange нет, поскольку пока не реализовано создание потоков
+#+END_SRC
+
+~Упражнение 3.49.~
+Опишите сценарий, в котором вышеописанный механизм избежания тупиков не
+работает. (Подсказка: в задаче обмена счетов каждый процесс заранее знает, к каким
+счетам ему нужен будет доступ. Рассмотрите ситуацию, в которой процессу
+нужно сначала получить доступ к каким-то разделяемым ресурсам, прежде чем
+он сможет определить, какие ресурсы ему потребуются дополнительно.)
+
+Идея:
+Данный метод не сработает, если мы предположим, что процессу заранее
+известен только 1 счет, с которым ему придется
+взаимодействовать. Предположим, он сначала зайдет в сериализованную
+процедуру этого счета, а потом будет узнавать, на какой счет идет
+перевод. Предположим, что у нас есть счет1 и счет2, имеющие id1 и 2
+соответственно. В одно процессе мы будем переводить деньги со счета 1, а
+в другом - со счета 2. Занимаем мьютексы у этих счетов и теперь думаем,
+куда бы перевести деньги. Предположим, что мы решаем переводить деньги на
+счета с наименьшим идентификатором: счет2 захочет перевести деньги на
+счет1 (поскольку мы считаем, что 1 - это самый меньший иднетификатор в
+нашей системе), а счет1 решает перевести деньги на счет2 (поскольку
+самому себе отправлять деньги бессмысленно).В результате при попытке
+захватить мьютексы снова, мы войдем в дедлок. Процесс, отправляющий
+деньги со счета 1 будет ждать, пока освободится счет 2, поскольку тот
+занят другим процессом, который хочет перевести деньги с него. Второй же
+процесс будет ожидать освобождения счета1 по той же причине. Цикл этого
+ожидания не кончится никогда.
+
+~Упражнение 3.50.~
+Закончите следующее определение, которое обобщает процедуру ~stream-map~,
+чтобы она позволяла использовать процедуры от нескольких аргументов, подобно ~map~ из
+раздела 2.2.1, сноска 12.
+
+В сноске 12 сказано:
+map принимает процедуру от n аргументов и n списков и применяет процедуру ко
+всем первым элементам списков, всем вторым элементам списков и так
+далее. Возвращается список результатов.
+
+У нас уже было аналогичное задание 2.36, когда требовалось заполнить пробелы в
+процедуре ~accumulate-n~. ~stream-map~ отличется от нее только структурой
+данных и отсутствием начального значения.
+
+Определим необходимые функции для работы с потоками, описанные в мане.
+#+BEGIN_SRC scheme
+
+  (define (force delayed-object)
+    (delayed-object))
+
+  (define (memo-proc proc)
+    (let ((already-run? #f) (result #f))
+      (lambda ()
+        (if (not already-run?)
+            (begin (set! result (proc))
+                   (set! already-run? #t)
+                   result)
+            result))))
+
+  (define (delay expr)
+    (memo-proc (lambda () expr)))
+
+  (define (stream-ref s n)
+    (if (= n 0)
+        (stream-car s)
+        (stream-ref (stream-cdr s) (- n 1))))
+
+  (define (stream-enumerate-interval low high)
+    (if (> low high)
+        the-empty-stream
+        (cons-stream
+         low
+         (stream-enumerate-interval (+ low 1) high))))
+
+  (define (stream-filter pred stream)
+    (cond ((stream-null? stream) the-empty-stream)
+          ((pred (stream-car stream))
+           (cons-stream (stream-car stream)
+                        (stream-filter pred
+                                       (stream-cdr stream))))
+          (else (stream-filter pred (stream-cdr stream)))))
+
+  (define (display-line x)
+    (newline)
+    (display x))
+
+  (define (stream-for-each proc s)
+    (if (stream-null? s)
+        'done
+         (begin (proc (stream-car s))
+                (stream-for-each proc (stream-cdr s)))))
+
+  (define (display-stream s)
+    (stream-for-each display-line s))
+#+END_SRC
+
+Если мы считаем, что ~argstreams~ - это не список потоков, а поток,
+содержащий в себе потоки, а сама ~stream-map~ возвращает не список
+результатов, а поток результатов, то определение такое:
+#+BEGIN_SRC scheme
+
+  (define (stream-map proc . argstreams)
+    (if (stream-null? (car argstreams))
+        the-empty-stream
+        (cons-stream
+         (apply proc (map stream-car argstreams))
+         (apply stream-map
+                (cons proc (map stream-cdr argstreams))))))
+#+END_SRC
+
+~Упражнение 3.51.~
+Чтобы внимательнее изучить задержанные вычисления, мы воспользуемся
+следующей процедурой, которая печатает свой аргумент, а затем возвращает
+его:
+
+#+BEGIN_SRC scheme
+  (define (show x)
+    (display x)
+    (newline)
+    x)
+#+END_SRC
+
+Что печатает интерпретатор в ответ на каждое выражение из следующей
+последовательности?
+
+#+BEGIN_SRC scheme
+  (define x (stream-map show (stream-enumerate-interval 0 10)))
+
+  (stream-ref x 5)
+
+  (stream-ref x 7)
+#+END_SRC
+
+При исполнении первого выражения интерпретатор напечатал цифры от 0 до 10
+по одному на строке. Второе и третье выражение возвращают 5 и 7,
+соответственно. Это становится возможным, поскольку ~x~ - это поток
+данных.
+Он образовался поскольку:
+- ~show~ не только печатает элемент, но и возвращает его
+- ~stream-map~ возвращает результат в качестве потока
+
+Если ~show~ перестанет возвращать печтаемые элементы, то ~x~ будет
+заполнен значениями типа ~unspecified~.
+
+~Упражнение 3.52.~
+Рассмотрим последовательность выражений
+
+#+BEGIN_SRC scheme
+  (define sum 0)
+
+  ;;прибавляет число к имеющейся сумме и возвращает сумму
+  (define (accum x)
+    (set! sum (+ x sum))
+    sum)
+
+  ;; формируем последовательность-поток сумм
+  ;; после выполнения sum = 210
+  (define seq (stream-map accum (stream-enumerate-interval 1 20)))
+
+  ;; формирует поток четных чисел
+  ;; начиная с этого выражения sum не меняется
+  (define y (stream-filter even? seq))
+
+  ;; формирует поток из чисел, которые делятся на 5 дез остатка
+  (define z (stream-filter (lambda (x) (= (remainder x 5) 0))
+                           seq))
+
+  ;; возвращает седьмой элемент потока
+  (stream-ref y 7)
+
+  ;; печатает весь поток
+  (display-stream z)
+#+END_SRC
+
+а) Каково значение ~sum~ после вычисления каждого из этих выражений?
+б) Что печатается при вычислении выражений ~stream-ref~ и
+~display-stream~?
+в) Изменился бы этот результат, если бы мы реализовали ~(delay <expr>)~ просто как
+~(lambda () <выражение>)~, не применяя оптимизацию через ~memo-proc~?
+Объясните свой ответ.
+
+Ответы:
+а - смотри ответы над выражениями
+б - смотри ответы над соответствующими выражениями
+в - результат бы не изменился, но пришлось бы каждый раз вычислять
+задержанное выражение заново (в нашем случае это вычисление ~cdr~ потока,
+например), что ресурсозатратно, вместо того, чтоб просто получить уже
+вычисленный результат.
+
+~Упражнение 3.53.~
+Не запуская программу, опишите элементы потока, порождаемого
+
+#+BEGIN_SRC scheme
+  (define s (cons-stream 1 (add-streams s s)))
+#+END_SRC
+
+Так выглядит сама ~add-streams~,которая порождает поток сумм первых
+элементов, вторых и т.д.
+#+BEGIN_SRC scheme
+(define (add-streams s1 s2)
+    (stream-map + s1 s2))
+#+END_SRC
+
+Значит получается, что мы конструируем бесконечный поток
+~s~. Бесконечный - потоку что параметры ~add-streams~ - все тот же поток
+~s~. Затем мы конструируем поток, ~car~ которого 1, а ~cdr~ - обещание
+вычислить сумму элементов этого же потока. Если мы попросим вычислить
+~cdr~ потока, процесс замкнется навсегда. Но элементы будут выглядеть
+так: 1 2 4 8 16 и т.д.
+
+Кстати, запустить программу не получается: интерпретатор заявляет, что
+переменная ~s~ не привязана. Поскольку выполнения начинается с самых
+внутренних скобок, т.е. с ~(add-streams s s)~, то с точки зрения
+интерпретатора ~s~действительно еще не определена.
+
+~Упражнение 3.54~.
+Определите процедуру ~mul-streams~, аналогичную ~add-streams~, которая
+порождает поэлементное произведение двух входных потоков. С помощью нее и
+потока ~integers~ закончите следующее определение потока, n-й элемент
+которого (начиная с 0) равен факториалу n + 1.
+
+Значит, например, второй элемент потока должен быть = !1. А седьмой
+элемент - !8.
+
+К сожалению, проверить решение невозможно, т.к. комп пытается вычислить
+все и мы получаем переполнение стека.
+
+#+BEGIN_SRC scheme
+  (define (mul-streams s1 s2)
+      (stream-map * s1 s2))
+
+  (define (integers-starting-from n)
+    (cons-stream n (integers-starting-from (+ n 1))))
+
+  (define integers (integers-starting-from 1))
+
+  (define factorials (cons-stream 1 (mul-streams integers factorials)))
+#+END_SRC
+
+~Упражнение 3.55.~
+Определите процедуру ~partial-sums~, которая в качестве аргумента берет
+поток S, а возвращает поток, элементы которого равны S0, S0 + S1, S0 + S1 + S2....
+Например, ~(partial-sums integers)~ должно давать поток 1, 3, 6, 10,
+15...
+
+Значит, каждый элемен потока = сумме всех предыдущих элементов. Задача
+похожа на предыдущее упражнение.
+
+Не получилось сразу написать процедуру для потоков, поэтому сначала
+представим ее для обычных списков:
+#+BEGIN_SRC scheme
+  ;; вариант процедуры для обычных списков
+  ;; неэффективен, поскольку мы по многу раз считаем одни и те же промежуточные суммы,
+  ;; пока список не кончится + используется реверс списка
+  ;; скорость роста алгоритма близка к экспоненциальной, если считать кол-во операций
+  ;; сложения
+  (define (partial-sums lst)
+    (define (sum-of-elts lst)
+      (if (null? lst)
+          0
+          (+ (car lst) (sum-of-elts (cdr lst)))))
+    (define (iter lst new-list)
+      (if (null? lst)
+          new-list
+            (iter (cdr lst) (cons (sum-of-elts lst) new-list))))
+    (iter (reverse lst) '()))
+
+  ;; более эффективный варинт:
+  ;; теперь мы накапливаем суммы, полученные на каждой итерации сложения элементов списка,
+  ;; пока не дойдем до конца
+  ;; скорость роста алгоритма линейная
+  (define (partial-sums lst)
+    (define (sum-of-elts lst new-list)
+      (if (null? lst)
+          new-list
+          (sum-of-elts (cdr lst)
+                       (append new-list (list (+ (car (last-pair new-list))
+                                      (car lst)))))))
+    (sum-of-elts (cdr lst) (list (car lst))))
+#+END_SRC
+
+Теперь пробуем написать процедуру для потоков данных.
+Процедура представляет собой бесконечную рекурсию, которая вернет
+бесконечный поток сумм бесконечных целых чисел.
+
+#+BEGIN_SRC scheme
+
+  (define (partial-sums s)
+    (cons-stream (stream-car s) (add-streams (stream-cdr s) (partial-sums s))))
+
+#+END_SRC
+
+
+~Упражнение 3.56.~
+Существует знаменитая задача, впервые сформулированная Р. Хэммингом:
+породить в возрастающем порядке и без повторений все положительные целые
+числа, у которых нет других простых делителей, кроме 2, 3 и 5. Очевидное
+решение состоит в том, чтобы перебирать все натуральные числа по очереди
+и проверять, есть ли у них простые множители помимо 2, 3 и 5. Однако эта
+процедура весьма неэффективна, поскольку чем больше числа, тем меньшая их
+доля соответствует условию. Применим альтернативный подход: назовем
+искомый поток чисел ~S~ и обратим внимание на следующие факты:
+
+- ~S~ начинается с 1.
+- Элементы ~(scale-stream S 2)~ также принадлежат ~S~
+- То же верно и для ~(scale-stream S 3)~ и ~(scale-stream S 5)~.
+- Других элементов ~S~ нет.
+
+Теперь требуется только соединить элементы из этих источников. Для этого
+мы определяем процедуру ~merge~, которая сливает два упорядоченных потока в один
+упорядоченный поток, убирая при этом повторения:
+
+#+BEGIN_SRC scheme
+  (define (merge s1 s2)
+    ;;если какой-то из потоков пустой - возвращаем другой
+    (cond ((stream-null? s1) s2)
+          ((stream-null? s2) s1)
+          ;; иначе
+          (else
+           ;; получаем первые элементы потоков
+           (let ((s1car (stream-car s1))
+                 (s2car (stream-car s2)))
+             ;; смотрим, какой из них больше
+             ;; меньший элемент включаем в новый поток и рекурсивно вызываем процедуру
+             ;; с cdr потока, чей элемент мы включили в новый поток, и нетронутым
+             ;; вторым потоком
+             (cond ((< s1car s2car)
+                    (cons-stream s1car (merge (stream-cdr s1) s2)))
+                   ((> s1car s2car)
+                    (cons-stream s2car (merge s1 (stream-cdr s2))))
+                   (else
+                    (cons-stream s1car
+                                 (merge (stream-cdr s1)
+                                        (stream-cdr s2)))))))))
+#+END_SRC
+
+Тогда требуемый поток можно получить с помощью ~merge~, заполнив
+пропуски, таким образом:
+
+Мы знаем, что нам нужно 2 потока.
+- идея 1:  ~integer~ и ~cdr~ от него - не подходит, получим поток из всех
+целых чисел без повторений, которые есть в обоих потоках
+- идея 2: поток четных и поток нечетных чисел - не подходит по той же причине
+- идея 3: использовать рекурсию от потока ~s~ и ~integers~ - не подходит по
+той же причине
+- идея 4: Возможно, нужен фильтер? Что если один поток будет отфильтрован
+таким образом, что в нем будут только числа, которые делятся на 2, 3 или 5,
+а в другом потоке будут числа, которые не будут делиться на остальные
+простые числа - невозможно, поскольку все простые числа не указать, их
+ряд бесконечен.
+- идея 5: использовать поток, в котором числа делятся на 2, 3 или 5 (ставим
+фильтр) Затем на новый поток накладываем еще фильтр: числа не должны
+делиться на 7.
+Получим такой первый поток:
+2 3 4 5 6 8 9 15 16 18 20 22 24 25 26 27..
+Похоже на правду. Мы можем не беспокоиться по поводу простых чисел 11,
+13, 17, 19, 23 и т.д., поскольку их отсеит первый фильтр, поскольку ни
+одно из них невозможно разделить на 2, 3 или 5 без остатка.
+Каким должен быть второй поток, чтоб смержив его с первым получить
+искомый ряд?
+- идея 6: что если фильтры поделить между потоками? Числа в первом потоке
+  должны делиться на 2 или 3 и не делиться на 7, а во втором - делиться
+  на 5 и тоже не делиться на на 7.
+
+первый: 2 3 4 6 8 10 12 15 16 18 20 22 24 26 30  и т.д.
+второй: 5 10 15 20 25 30 40 45 50 55 60 65 75 и т.д.
+
+Пробуем представить себе их мердж:
+2 3 4 5 6 8 10 12 15 16 18 20 22 24 25 26 30 32 33 34
+
+Проблема с числом 33 и 26: они отлично делится на 11 или 13. А это простые
+числа. Идея со вторым фильтром, который должен поставлять нам числа,
+которые не делятся на 7 не прокатывает.
+
+- идея 7: Что если первый поток имеет числа, которые делятся на 2 или 3,
+  а числа во втором потоке могут делиться только на 5 и ни на какое
+  другое нечетное число больше 5?
+Просто все простые числа кроме двойки - нечетные. Ведь если хотя бы одно
+из них будет четным, значит, его можно поделить на 2, а значит это уже не
+простое число.
+Идея не подходит: как проверить, делится ли число на все нечетные числа?
+Зависнем на проверке первого же числа навечно.
+
+идея 8: замечаем сраную опечатку в описании задания и понимаем, что у нас
+есть подсказка: "элементы ~(scale-stream S 2)~ также принадлежат
+~S~". Вспоминаем, что у нас есть одноименная функция. Еще вспоминаем, что
+обратная операция от деления - это умножение.
+
+#+BEGIN_SRC scheme
+  (define (scale-stream stream factor)
+    (stream-map (lambda (x) (* x factor)) stream))
+
+  (define S (cons-stream 1 (merge (scale-stream S 2) (merge (scale-stream S 3)
+                                                            (scale-stream S 5)))))
+#+END_SRC
+
+~Упражнение 3.57~.
+Сколько сложений происходит при вычислении n-го числа Фибоначчи, в
+случае, когда мы используем определение ~fibs~ через процедуру
+~add-streams~?
+Покажите, что число сложений выросло бы экспоненциально, если бы мы
+реализовали ~(delay <expr>)~ просто как ~(lambda () <expr>)~, без
+оптимизации через процедуру ~memo-proc~ из раздела 3.5.1.
+
+Сама процедура ~fibs~:
+#+BEGIN_SRC scheme
+  (define fibs
+    (cons-stream 0
+                 (cons-stream 1
+                              (add-streams (stream-cdr fibs)
+                                           fibs))))
+#+END_SRC
+
+Предположим, нам нужно вычислить число 5. Нам понадобится 4 операции
+сложения, если использовать ~memo-proc~: 0+1, 1+1, 1+2, 2+3, если ряд
+Фибоначчи еще вообще не вычислялся. Если до этого у нас ряд
+Фибоначчи вычислен до числа 3, например, то нам нужно только 2 последних
+числа, которые хранятся в ~cdr~ потока: 2 и 3. Т.е. понадобится всего 1
+операция сложения, чтоб вычисллить следующее число.
+
+В случае, если  ~memo-proc~ не используется, то на каждой итерации
+рекурсии придется считать весь ряд сначала. Отсюда экспоненциальный рост.
+
+~Упражнение 3.58.~
+Дайте интерпретацию потоку, порождаемому следующей процедурой:
+
+#+BEGIN_SRC scheme
+  (define (expand num den radix)
+    (cons-stream
+     ;; получаем целую часть от деления произведеия num-radix на den
+     ;; отправляем ее в новый поток
+     (quotient (* num radix) den)
+     ;; рекурсивно вызываем процедуру, в качестве numпередаем отстаток от деления
+     ;; произведения num-radix на den
+     (expand (remainder (* num radix) den) den radix)))
+#+END_SRC
+
+(Элементарная процедура ~quotient~ возвращает целую часть частного двух
+целых чисел.) Каковы последовательные элементы потока, порожденного
+выражением ~(expand 1 7 10)~? Что дает вычисление ~(expand 3 8 10)~?
+
+Надо ли говорить, что запустив эту процедуру, мы получим переполнение
+стека, поскольку условия остановки рекурсии нет?
+
+Поток, порожденный ~(expand 1 7 10)~:
+1 4 2 8 5 7 1 4 2...
+
+Поток, порожденный ~(expand 3 8 10)~:
+3 7 5 0 0...
+
+~Упражнение 3.59~
+
+Часть задания невозможно адекватно перенести сюда из-за формул,
+см. стр 312.
+
+a)
+Определите процедуру ~integrate-series~, которая на
+входе принимает поток a0 , a1 , a2 , ...., представляющую степенной
+ряд, и возвращает поток a0 , 1/2 a1 , 1/3 a2 , . . . коэффициентов
+при неконстантных членах интеграла последовательности. (Поскольку в
+результате отсутствует постоянный член, он не представляет собой степенной ряд; при
+использовании ~integrate-series~ мы через cons будем присоединять к началу
+соответствующую константу.)
+
+Перевод на русский язык:
+интеграл - это сумма бесконечно малых слагаемых. На вход мы получим поток
+степеней, а на выходе - коэфициенты для всех члагаемых интеграла, кроме
+константы.
+
+Не знаю, какой из вариантов решения правильный
+#+BEGIN_SRC scheme
+  ;;мой вариант
+  (define (integrate-series stream)
+   (let ((denom 2))
+     (cons-stream (stream-car stream) (stream-map (lambda (x)
+                                                    (let ((part (* (/ 1 denom) x)))
+                                                      (+ 1 denom)
+                                                      part))
+                                                  (stream-cdr stream)))))
+  ;; подсмотренный
+  (define (integrate-series stream)
+      (stream-map / stream integers))
+#+END_SRC
+
+б)
+
+Функция x→ e^x равна своей собственной производной. Отсюда следует, что
+e^x и интеграл e^x cуть одна и та же последовательность, с точностью до
+постоянного члена, который равен e^0 = 1.
+Соответственно, можно породить последовательность для e^x через
+#+BEGIN_SRC scheme
+  (define exp-series
+    (cons-stream 1 (integrate-series exp-series)))
+#+END_SRC
+
+Покажите, как породить последовательности для синуса и косинуса, опираясь
+на то, что производная синуса равна косинусу, а производная косинуса равна минус синусу:
+
+#+BEGIN_SRC scheme
+  (define cosine-stream
+    (cons-stream 1 (scale-stream sine-series -1)))
+
+  (define sine-series
+    (cons-stream 0 (integrate-series cosine-stream)))
+#+END_SRC
+
+~Упражнение 3.60.~
+Если степенной ряд представляется в виде потока своих коэффициентов, как
+в упражнении 3.59, то сумма последовательностей реализуется посредством
+~add-streams~. Завершите определение следующей процедуры для перемножения
+последовательностей:
+
+#+BEGIN_SRC scheme
+  (define (mul-series s1 s2)
+    (cons-stream .. (add-streams .. ..)))
+#+END_SRC
+
+~Упражнение 3.63.~
+Хьюго Дум спрашивает, почему нельзя было написать ~sqrt-stream~ более
+простым способом, без внутренней переменной ~guesses~:
+
+#+BEGIN_SRC scheme
+  (define (sqrt-stream x)
+    (cons-stream 1.0
+                 (stream-map (lambda (guess)
+                               (sqrt-improve guess x))
+                             (sqrt-stream x))))
+#+END_SRC
+
+Лиза П. Хакер отвечает, что эта версия процедуры значительно менее
+эффективна, поскольку производит избыточные вычисления. Объясните Лизин
+ответ. Сохранилось бы отличие в эффективности, если бы реализация ~delay~
+использовала только ~(lambda () <выражение>)~, без оптимизации через ~memo-proc~?
+
+В оригинальной версии функции мы не просто ищем придлиженное значение, но
+и сохраняем все промежуточные значения в потоке ~guesses~, т.е. в нашей
+локальной переменной. Это значит, что при вычислении каждого следующего
+предположения нам не надо вычислять всю цепочку от начала.
+
+А во варианте, который предлагает Хьюго, хранить
+промежуточные значения просто негде.
+
+В случае с использованием ~delay~ без оптимизации, эффективность бы не
+сохранилась, эффективность бы не сохранилась, поскольку пришлось бы
+вычислять значение ~cdr~ потоков каждый раз заново.
+
+~Упражнение 3.64.~
+Напишите процедуру ~stream-limit~, которая в качестве аргумента принимает
+поток и число (погрешность). Она должна просматривать поток, пока не найдется два
+элемента подряд, различающихся меньше, чем на погрешность, и возвращать второй из этих
+элементов. При помощи этой процедуры можно будет вычислять квадратные
+корни с  заданной точностью так:
+
+#+BEGIN_SRC scheme
+  (define (sqrt x tolerance)
+    (stream-limit (sqrt-stream x) tolerance))
+#+END_SRC
+
+#+BEGIN_SRC scheme
+  (define (stream-limit stream  tolerance)
+    (cond ((stream-null? stream) #f)
+          ((<= (- (car (stream-cdr stream)) (stream-car stream)) tolerance)
+           (car (stream-cdr stream)))
+          (else (stream-limit (stream-cdr stream)  tolerance))))
+#+END_SRC
+
+~Упражнение 3.65.~
+породите три последовательности приближений к натуральному логарифму 2,
+так же, как мы выше сделали это для πи. Как быстро сходятся эти
+последовательности?
+
+Сначала адаптируем процедуру для нахождения пи под нахождение логарифма.
+Это первый вариант, самый медленный.
+#+BEGIN_SRC scheme
+  (define (ln-summands n)
+    (cons-stream (/ 1.0 n)
+                 (stream-map - (ln-summands (+ n 1)))))
+
+  (define ln-stream
+    (partial-sums (ln-summands 1)))
+
+#+END_SRC
+
+Теперь воспользуемся ускорением Эйлера для порождения ускоренного
+варианта:
+
+#+BEGIN_SRC scheme
+  (define (euler-transform s)
+    (let ((s0 (stream-ref s 0))
+          (s1 (stream-ref s 1))
+          (s2 (stream-ref s 2)))
+      (cons-stream (- s2 (/ (square (- s2 s1))
+                            (+ s0 (* -2 s1) s2)))
+                   (euler-transform (stream-cdr s)))))
+
+  (euler-transform ln-stream)
+#+END_SRC
+
+И третий вариант. Будем использовать табло, т.е. поток потоков, где
+каждый последующий поток - это результат модификации предыдущего.
+
+Этот вариант будет самый быстрый.
+#+BEGIN_SRC scheme
+  (define (make-tableau transform s)
+    (cons-stream s
+                 (make-tableau transform
+                               (transform s))))
+
+  ;; формируем поток из первых элементов кажждой строки табло
+  (define (accelerated-sequence transform s)
+    (stream-map stream-car
+                (make-tableau transform s)))
+
+
+  (accelerated-sequence euler-transform ln-stream)
+#+END_SRC
+
+~Упражнение 3.66.~
+Рассмотрим поток ~(pairs integers integers)~  Можете ли Вы что-то сказать о
+порядке, в котором пары попадают в поток? Например, сколько приблизительно пар
+предшествуют паре ~(1, 100)~? Паре ~(99, 100)~ ? ~(100, 100)~ ?
+(Если Вы способны предоставить точные математические утверждения, —
+прекрасно. Однако если Вы увязаете в деталях, достаточно качественных оценок.)
+
+Сначала проанализируем саму процедуру ~pairs~. Эта процедура порождает
+бесконечный поток, состоящий из потоков, состоящих из пар.
+
+#+BEGIN_SRC scheme
+  ;; сливает 2 потока в 1, чередуя их пары.
+  (define (interleave s1 s2)
+    (if (stream-null? s1)
+        s2
+        (cons-stream (stream-car s1)
+                     (interleave s2 (stream-cdr s1)))))
+
+  (define (pairs s t)
+    (cons-stream
+     ;; делаем пару из первых элементов потоков
+     (list (stream-car s) (stream-car t))
+     ;; сливаем 2 потока в 1
+     (interleave
+      ;; поочередно составляем пару из первого элемента s-потока и всех пар из хвоста t
+      (stream-map (lambda (x) (list (stream-car s) x))
+                  (stream-cdr t))
+      ;; вызываем pairs рекурсивно, чтоб проделать описанные выше действия со всеми
+      ;; для хвостов потоков
+      (pairs (stream-cdr s) (stream-cdr t)))))
+#+END_SRC
+
+Теперь разберем саму задачу. У нас есть вызов ~(pairs integers
+integers)~, где integers - это поток, содержащий все целые положительные
+числа.
+Ответы:
+~(1, 100)~ предшествует сравнительно немного пар. Потому что пары пойдут в такой
+последовательности: (1, 1), (1, 2) (1, 3) и т.д.
+
+~(99, 100)~ - предшествует значительно больше пар. Невозможно сказать,
+сколько, потому что сначала нужно составить из первого элемента первого
+потока и всех пар второго, потом из второго элемента первого потока и
+всех пар второго потока и т.д.
+
+~(100, 100)~ - этой паре будет предшествовать еще больше пар, чем
+предыдущей, по описанным выше причинам.
+
+~Упражнение 3.67.~
+Измените процедуру так, чтобы ~(pairs integers integers)~ порождало поток
+из всех пар натуральных чисел (i, j), без дополнительного условия i ≤ j. Подсказка:
+потребуется примешать еще один поток.
+
+Я добавила еще один поток, порождаемый ~stream-map~ и перемешала его с
+уже имеющимся.
+
+#+BEGIN_SRC scheme
+  (define (my-pairs s t)
+    (cons-stream
+     (list (stream-car s) (stream-car t))
+     (interleave
+      (stream-map (lambda (x) (list x (stream-car s)))
+                  (stream-cdr t))
+      (interleave
+       (stream-map (lambda (x) (list (stream-car s) x))
+                   (stream-cdr t))
+       (pairs (stream-cdr s) (stream-cdr t))))))
+
+  (define test2 (my-pairs integers integers))
+
+  (display-stream test2)
+#+END_SRC
+
+~Упражнение 3.68.~
+Хьюго Дум считает, что построение потока пар из трех частей — процедура
+слишком сложная.
+Он предлагает вместо того, чтобы отделять пару (S 0 , T 0 ), работать с
+первой строкой целиком:
+
+#+BEGIN_SRC scheme
+  (define (pairs s t)
+    (interleave
+     (stream-map (lambda (x)
+                   (list (stream-car s) x))
+                 t)
+     (pairs (stream-cdr s) (stream-cdr t))))
+
+#+END_SRC
+
+Будет ли такой код работать? Посмотрите, что произойдет, если мы
+попытаемся вычислить ~(pairs integers integers)~, используя определение Хьюго.
+
+Итак, мы получиличи переполнени стека из-за рекурсии. И происходит это
+именно из-за отсутствия пары (S 0 , T 0 ). В прежней версии на выходе из
+функции  ~pairs~ мы получали поток, сформированный ~cons-stream~ ,
+который состоял из пары (S 0 , T 0 ) и ~обещания~ вычислить остальные
+пары. Сейчас же поток нам должна вернуть функция ~interleave~, которая сделать
+этого не может, пока не сформируются оба ее аргумента. Вычисления первого
+аргумента, порождаемого ~stream-map~, не так страшно:
+~stream-map~ возвращает результат применения операции к первому элементу
+потока и все то же обещание применить операцию к остальным
+элементам. Стек нам переполняет  вызов
+~(pairs (stream-cdr s) (stream-cdr t))~, из которого теперь ничего не
+возвращается. А раньше возвращалась первая пара, сформированная из первых
+элементов хвоста потоков и пресловутого обещания вычислить оставшееся.
+
+~Упражнение 3.69.~
+Напишите процедуру ~triples~, которая берет три бесконечных потока S, T и U, и порожда-
+ет поток троек (Si , Tj , Uk ), таких, что i ≤ j ≤ k. С помощью
+~triples~ породите поток всех Пифагоровых троек натуральных чисел,
+т. е. таких троек (i, j, k), что i ≤ j и i^2 + j^2 = k^2
+
+- нам нужны 3 потока  ~integers~ (?)
+- для получения пар, где i ≤ j можно воспользоваться ~pairs~
+- нужен фильтр, который будет проверять условие i^2 + j^2 = k^2 и
+  формировать поток только из тех значений, где это условие срабатывает
+#+BEGIN_SRC scheme
+  (define (square x)
+    (* x x))
+
+  ;; очень медленный вариант
+  (define (triples s t u)
+    (define (unsorted-triples ij-pairs u)
+      (cons-stream (append (stream-car ij-pairs)
+                           (list (stream-car u)))
+                   (interleave
+                    (stream-map (lambda (x)
+                                  (append x (list (stream-car u))))
+                                (stream-cdr ij-pairs))
+                    (unsorted-triples (stream-cdr ij-pairs) (stream-cdr u))
+                    )))
+    (let* ((ij-pairs (pairs s t))
+           (u-triples (unsorted-triples ij-pairs u)))
+      (stream-filter (lambda (item)
+                       (let ((i (car item))
+                             (j (cadr item))
+                             (k (caddr item)))
+                         (= (+ (square i) (square j)) (square k))))
+                     u-triples)))
+
+  ;; побыстрее
+  (define (triples s t u)
+    (define (unsorted-triples s t u)
+      (cons-stream (list (stream-car s) (stream-car t) (stream-car u))
+                   (interleave
+                    (stream-map (lambda (x)
+                                  (append (list (stream-car u)) x))
+                                (stream-cdr (pairs s t)))
+                    (unsorted-triples (stream-cdr s) (stream-cdr t) (stream-cdr u)))))
+    (let* ((u-triples (unsorted-triples s t u)))
+      (stream-filter (lambda (item)
+                       (let ((i (car item))
+                             (j (cadr item))
+                             (k (caddr item)))
+                         (= (+ (square i) (square j)) (square k))))
+                     u-triples)))
+
+  (define tr (triples integers integers integers))
+
+#+END_SRC
+
+~Упражнение 3.70.~
+Интересно было бы уметь порождать потоки в каком-либо полезном порядке, а
+не в порядке, задаваемом к случаю придуманным процессом чередования. Можно
+воспользоваться методом, подобным процедуре ~merge~ из упражнения 3.56,
+если мы определим способ сказать, что одна пара целых чисел «меньше»
+другой. Один из способов состоит в том, чтобы определить «функцию
+взвешивания» W(i,j) и постановить, что (i1 ,j1 ) меньше, чем (i2,j2),
+если W (i1 , j1 ) ≤ W (i2 , j2 ).
+Напишите процедуру ~merge-weighted~, которая во всем подобна ~merge~, но только
+дополнительного аргумента принимает процедуру ~weight~, которая вычисляет
+вес пары, и используется для определения порядка, в котором элементы должны появляться
+в получающемся смешанном потоке. При помощи ~merge-weighted~ напишите процедуру
+~weighted-pairs~, обобщающую ~pairs~. Она должна принимать два потока и процедуру,
+вычисляющую функцию взвешивания, и порождать поток пар, упорядоченных по весу. Породите,
+используя эту процедуру:
+а. Поток всех пар натуральных чисел (i, j) где i ≤ j, упорядоченных по
+сумме i + j.
+б. поток всех пар натуральных чисел (i, j), где i ≤ j, ни i, ни j не
+делится ни на 2, ни на 3, ни на 5, (без остатка?) и пары упорядочены по
+значению суммы 2i + 3j + 5ij.
+
+С заданием "а" все достаточно тривиально. С заданием "б" чуть сложнее.
+Суть в том, что нужно заранее формировать пары из чисел, которые не
+деляется на 2, 3 или 5 без остатка, а только потом сортировать.
+При этом нельзя проверять недилимость чисел выражением типа
+~(= 0 (remainder x 2) (remainder x 3) (remainder x 5))~, поскольку если
+число не делится на 2, то это не значит, что оно не может делиться на 3
+или 5, а тем не менее, вычисление уже остановилось и нам вернули
+~false~.
+
+#+BEGIN_SRC scheme
+  (define (merge-weighted s1 s2 pred)
+    (cond ((stream-null? s1) s2)
+          ((stream-null? s2) s1)
+          (else
+           (let ((s1car (stream-car s1))
+                 (s2car (stream-car s2)))
+             (if (<= (pred s1car) (pred s2car))
+                 (cons-stream s1car (merge-weighted (stream-cdr s1) s2 pred))
+                 (cons-stream s2car (merge-weighted s1 (stream-cdr s2) pred)))))))
+
+  (define (weighted-pairs s t pred)
+    (cons-stream (list (stream-car s) (stream-car t))
+                 (merge-weighted
+                  (stream-map (lambda (x) (list (stream-car s) x))
+                              (stream-cdr t))
+                  (weighted-pairs (stream-cdr s) (stream-cdr t) pred) pred)))
+
+
+  (define (weight-a pair)
+    (+ (car pair) (cadr pair)))
+  ;;конструируем правильный поток чисел для задания "б"
+  ;; числа не должны делиться на 2, 3 и 5
+  (define (make-stream-for-b stream)
+    (stream-filter (lambda (x)
+                     (cond ((= 0 (remainder x 2)) #f)
+                           ((= 0 (remainder x 3)) #f)
+                           ((= 0 (remainder x 5)) #f)
+                           (else #t)))
+                   stream))
+
+  (define (weight-b pair)
+    (let ((i (car pair))
+          (j (cadr pair)))
+      (+ (* 2 i) (* 3 j) (* 5 i) (* 5 j))))
+
+
+  (display-stream (weighted-pairs integers integers weight-a))
+  (display-stream  (weighted-pairs (make-stream-for-b integers)
+                                   (make-stream-for-b integers)
+                                   weight-b))
+#+END_SRC
+
+~Упражнение 3.71.~
+Числа, которые можно выразить в виде суммы двух кубов более, чем одним
+способом, иногда называют числами Рамануджана (Ramanujan numbers), в честь математика
+Шринивасы Рамануджана. Упорядоченные потоки пар предлагают изящное решение для задачи
+порождения таких чисел. Чтобы найти число, которое можно двумя разными
+способами записать в виде суммы двух кубов, требуется только породить
+поток пар натуральных чисел (i, j), взвешенных согласно сумме i^3 + j^3
+(см. упражнение 3.70), и искать в этом потоке две пары
+подряд с одинаковым весом. Напишите процедуру для порождения чисел
+Рамануджана. Первое такое число 1729. Каковы следующие пять?
+
+#+BEGIN_SRC scheme
+  (define (cube x)
+    (* x x x))
+
+  (define (cube-weight pair)
+    (+ (cube (car pair)) (cube (cadr pair))))
+
+  (define (ramanujan-numbers s t)
+    (define (ramanujan-numbers-search stream)
+      (if (= (cube-weight (stream-car stream)) (cube-weight
+                                                (stream-car (stream-cdr stream))))
+          (cons-stream (list (cube-weight (stream-car stream))
+                                          (stream-car stream)
+                                          (stream-car (stream-cdr stream)))
+                       (ramanujan-numbers-search (stream-cdr stream)))
+          (ramanujan-numbers-search (stream-cdr stream))))
+    (ramanujan-numbers-search (weighted-pairs s t cube-weight)))
+
+  (define test (ramanujan-numbers integers integers))
+
+  (display-stream test)
+#+END_SRC
+
+~Упражнение 3.72.~
+Используя метод, подобный описанному в упражнении 3.71, породите поток
+всех чисел, которые можно записать как сумму двух квадратов тремя
+различными способами
+(и покажите, каковы эти способы).
+
+#+BEGIN_SRC scheme
+  (define (square x)
+    (* x x))
+
+  (define (square-weight pair)
+    (+ (square (car pair)) (square (cadr pair))))
+
+  (define (thee-square-numbers s t)
+    (define (thee-square-numbers-search stream prev)
+      (if (= (square-weight (stream-car stream))
+             (square-weight (stream-car (stream-cdr stream)))
+             (square-weight prev))
+          (cons-stream (list (cube-weight (stream-car stream))
+                                          (stream-car stream)
+                                          (stream-car (stream-cdr stream))
+                                          prev)
+                       (thee-square-numbers-search (stream-cdr stream)
+                                                   (stream-car stream)))
+          (thee-square-numbers-search (stream-cdr (stream-cdr stream))
+                                      (stream-car stream))))
+    (let ((pairs (weighted-pairs s t square-weight)))
+    (thee-square-numbers-search (stream-cdr pairs) (stream-car pairs))))
+
+  (define test (thee-square-numbers integers integers))
+
+  (display-stream test)
+#+END_SRC
+
+~Упражнение 3.73.~
+Можно моделировать электрические цепи с помощью потоков, представляющих
+значения тока или напряжения в определенные моменты времени. Допустим,
+например, что у нас имеется цепь RC (RC circuit), состоящая из резистора
+с сопротивлением R и конденсатора емкостью C, соединенных
+последовательно.
+Значение напряжения v в зависимости от заданного
+тока i определяется формулой.
+Напишите процедуру RC, моделирующую эту
+цепь. На входе RC должна получать значения R, C и dt, и выдавать
+процедуру, которая принимает на входе поток значений тока i и начальное
+значение напряжения v 0 , а на выходе выдает поток значений
+напряжения v. Например, у Вас должна быть возможность смоделировать при
+помощи RC RC-цепь с R = 5 ом, C = 1 фараде, и временным шагом в 0,5
+секунды, вычислив ~(define RC1 (RC 5 1 0.5))~. Здесь RC1
+определяется как процедура, которая принимает на входе поток,
+представляющий временную последовательность токов, и исходное напряжение
+на конденсаторе, а на выходе дает временной поток напряжений.
+
+#+BEGIN_SRC scheme
+
+#+END_SRC
+
+~Упражнение 3.74.~
+Лиза П. Хакер разрабатывает систему для обработки сигналов, приходящих от
+физических сенсоров. Один из важных инструментов, который она хочет построить, — это
+сигнал, описывающий переходы входного сигнала через ноль
+~(zero-crossings)~.
+Выходной сигнал должен равняться +1, когда сигнал на входе
+меняется с отрицательного на положительный, -1, когда сигнал меняется с
+положительного на отрицательный, и 0 в остальных случаях. (Допустим, что
+знак нулевого входа положителен).
+В Лизиной системе сигнал от сенсора представляется как поток ~sense-data~,
+а ~zero-crossings~ представляет соответствующий поток пересечений нуля. Для начала
+Лиза пишет процедуру ~sign-change-detector~, которая берет два значения в качестве
+аргументов и, сравнив их знаки, выдает 0, 1 или -1. Затем она строит
+поток переходов через ноль следующим образом:
+
+#+BEGIN_SRC scheme
+  (define (make-zero-crossings input-stream last-value)
+    (cons-stream
+     (sign-change-detector (stream-car input-stream) last-value)
+     (make-zero-crossings (stream-cdr input-stream)
+                          (stream-car input-stream))))
+
+  (define zero-crossings (make-zero-crossings sense-data 0))
+
+#+END_SRC
+
+Мимо проходит Лизина начальница Ева Лу Атор и замечает, что программа
+приблизительно равносильна следующей, написанной с использованием обобщенной версии
+~stream-map~ из упражнения 3.50. (т.е. принимает неограниченное кол-во
+потоков)
+Заполните пропуски.
+
+ПРи переводе на более простой язык:
+~sense-data~ - это входные значения
+~zero-crossings~ - выходные значения
+~sign-change-detector~ -  функция, которая формирует ~zero-crossings~,
+сравнивая попарно значения из ~sense-data~ на предмет изменения знака.
+
+Начальница Лизы предлагает более простой вариант реализации лизиной
+идеи. Надо только заполнить пробелы. Исходя из порядка аргументов,
+которые принимает ~stream-map~, мы понимаем, что вместо пропуска должен
+быть какой-то поток, а раз ~sign-change-detector~ в изначальной версии
+сравнивает значения в ~sense-data~ попарно, то пропуск заполним так:
+
+#+BEGIN_SRC scheme
+  (define zero-crossings
+    (stream-map sign-change-detector sense-data (cons-stream 0 sense-data)))
+#+END_SRC
+
+Вместо ~(cons-stream 0 sense-data)~ можно было бы написать
+~(stream-cdr sense-data)~ и работа ~zero-crossings~ не нарушилась бы, но
+только при уловии, в ~sense-data~ заполнен ~cdr~, потому что если там
+окажется только 1 значение, то попытавшись взять ~cdr~ от потока, мы бы
+наткнулись на ~null~.
+
+~Упражнение 3.75.~
+К сожалению, Лизин детектор перехода через ноль из упражнения 3.74
+оказывается недостаточным, потому что зашумленный сигнал от сенсоров приводит к ложным
+срабатываниям. Инженер-электронщик Дайко Поправич предлагает Лизе сгладить сигнал, чтобы
+отфильтровать шум, прежде, чем отлавливать пересечение нуля. Лиза
+принимает его совет и решает извлечь переходы через ноль из сигнала,
+полученного взятием среднего арифметического каждого значения входных
+данных с предыдущим значением. Она объясняет задачу своему помощнику
+Хьюго Думу, и тот пытается реализовать идею, но допускает ошибку. Найдите
+ее, исправьте, не меняя логику программы. (Подсказка: придется увеличить
+число аргументов ~make-zero-crossings~.)
+
+Итак, замысел Лизы:
+- берем среднее арифметическое попарно из всех сигналов из ~sense-data~
+- извлекаем значение перехода через ноль из потока этих средних
+  арифметических
+
+Что сделал Хьюго неправильно:
+- получает среднее арифметическое, используя не 2 значения из
+  ~sense-data~, а предыдущее срежнее арифметическое и первое значение из
+  ~sense-data~
+
+#+BEGIN_SRC scheme
+  (define (make-zero-crossings input-stream last-value avpt)
+    (let ((avpt (/ (+ (stream-car input-stream) last-value) 2)))
+      (cons-stream (sign-change-detector avpt last-value)
+                   (make-zero-crossings (stream-cdr input-stream)
+                                        (stream-car input-stream) avpt))))
+#+END_SRC
+
+~Упражнение 3.76.~
+Ева Лу Атор недовольна подходом Хьюго из упражнения 3.75. Написанная им
+программа не модульна, поскольку смешивает операции сглаживания и отлова пересечений
+ноля. Например, тест на пересечение не должен изменяться, если Лизе удастся найти другой
+способ улучшить качество входного сигнала. Помогите Хьюго и напишите
+процедуру ~smooth~, которая берет на входе поток, а на выходе выдает
+поток, элементы которого получены усреднением каждых двух последовательных
+элементов входного потока. Затем используйте ~smooth~ как компоненту и
+реализуйте детектор перехода через ноль в более модульном стиле.
+
+
+Есть 2 варианта модульной реализации ~make-zero-crossings~:
+- первый вариант построен по принципу черного ящика: препобразование
+  входного потока в поток арифметических значений выполнен внутри
+  функции, так же пользователю не надо вводить самостоятельно первичное
+  значение ~last-value~
+- во втором варианте пользователь должен самостоятельно позаботиться о
+  том, чтоб передать уже преобразованный поток в ~make-zero-crossings~
+
+Второй вариант предоставляет больше свободы пользователю системы. Первый
+же избавляет юзера от возможных ошибок в вводе данных.
+
+#+BEGIN_SRC scheme
+  (define (smooth stream)
+    (cons-stream (/ (+  (stream-car stream)
+                        (stream-car (stream-cdr stream))) 2)
+                 (smooth (stream-cdr stream))))
+
+  ;; первый вариант
+  (define (make-zero-crossings input-stream)
+    (define (make-zero-crossings-inside stream last-value)
+      (cons-stream (sign-change-detector input-stream last-value)
+                   (make-zero-crossings-inside (stream-cdr input-stream)
+                                               (stream-car input-stream))))
+    (make-zero-crossings-inside (smooth input-stream) 0))
+
+  ;; второй вариант
+  (define (make-zero-crossings input-stream last-value)
+    (cons-stream (sign-change-detector input-stream last-value)
+                 (make-zero-crossings (stream-cdr input-stream)
+                                      (stream-car input-stream))))
+
+  (make-zero-crossings-inside (smooth input-stream) 0)
+#+END_SRC
+
+~Упражнение 3.77.~
+Вышеприведенная процедура ~integral~ была аналогична «непрямому»
+определению бесконечного потока натуральных чисел из раздела 3.5.2. В
+виде альтернативы можно дать определение ~integral~, более похожее на
+~integers-starting-from~ (также в разделе 3.5.2).
+
+В системах с циклами эта реализациея порождает такие же проблемы, как и
+наша исходная версия ~integral~. Модифицируйте процедуру так, чтобы она
+ожидала integrand как задержанный аргумент, а следовательно, могла быть
+использована в процедуре ~solve~.
+
+~Объяснение~:
+В данном случае происходит "задержка в задержке".
+Это нужно, когда для вычисления результата нужно вычислить аргументы, а
+для вычисления аргументов нужно вычислить результат. В результате мы
+получаем "змею, кусающую свой хвост", т.е. либо получим сообщени об
+ошибке при попытке вычислить такое выражение, либо уйдем в вечный цикл
+ожидания, пока вычислится какой-то аргумент.
+Поэтому мы можем вычислять аргументы и результат по очереди, что
+позволяет делать процедура ~solve~ и задержанное вычисление аргументов.
+
+Чем задержанный аргумент отличается от просто потока? В потоке вычислен
+car, а дальше мы по запросу вычисляем каждый элемент из cdr. В
+задержанном аргументе не вычислено ничего, даже car.
+
+Процедура ~solve~ показывает как работает описанный выше парадокс.
+Нам нужно вычислить интеграл.
+
+Внутри процедуры у нас определяется 2 величины: ~y~ и ~dy~. Обе нужны для
+вычисления друг друга.
+При определении ~y~ используется вызов
+~integral~ с тремя формальными параметрами, первый из которых -
+задержанный поток dy.
+~dy~ определяется как бесконечный поток, который является результатом
+применения функции к ~y~. Поскольку у нас функция - это лямбда,
+возвращающая полученный аргумент, то значения в ~dy~ и ~y~ будут
+совпадать.
+
+Что происходит при вызове ~(stream-ref (solve (lambda (y) y) 1 0.001) 10)~
+- ~f~ - это лямбда, которая принимает аргумент и возвращает его
+же.
+- ~initial-value~ - 1
+- ~dt~ - 0.001
+
+Вызываем ~integral~ внутри определения ~y~ с заданными значениями.
+Внутри ~integral~ есть ~cons-stream~, которая сразу возвращает нам поток,
+состоящий из ~initial-value~ и ~обещания~ вычислить остальное. Так мы
+вычислили первое значение ~y~.
+
+Таким образом при первом вызове ~(solve (lambda (y) y) 1 0.001)~ мы
+получим на выходе поток, чей первый элемент - 1, а хвост - обещание
+вычислить прочие элементы.
+
+Но ~stream-ref~ заставит вычислиться хвост этого потока 10 раз, т.е. мы
+получим 10 элементов хвоста.
+
+Каким образом будет вычисляться хвост?
+Итак, нам теперь известно, что  первый элемент потокав ~y~ - это 1.
+Начинаем вычислять хвост ~y~.
+Вот тут заработает часть кода, начинающася с ~if~. Если по какой-то
+причине переданный ~dy~ окажется пустым, то мы просто вернем пустой
+поток.
+В противном случае начнется самое интересное.
+Вызываем ~force~, которая инициирует вычисление потока ~dy~, который до
+этого момента не был вычислен вообще. Даже его первый элемент пока что
+неизвестен. (Нельзя использовать ~stream-car~ вместо force, поскольку эта
+процедура не вычисляет первый элемент потока, а лишь возвращает его.)
+
+Мы помним, что dy - это результат вызова ~stream-map~. Так что вызвав
+~force~,мы вызываем ~stream-map~, тот возвращает нам
+поток, состоящий из применения функции к первому элементу потока ~y~ и
+~обещания~ вычислить остальное. Этот поток попадает в локальную переменню
+~integrand~. C его помощью его car мы изменяем ~initial-value~, а его
+обещание вычислить его cdr передаем как новый задержанный поток в
+рекурсивный вызов.
+
+Почему вызов ~(stream-cdr integrand)~ обзательно нужно обернуть в
+~delay~? Потому что чтоб вычислить этот хвост - хвост ~dy~ - нам нужно
+новое значение ~y~, которое мы получим только перейдя на следующую
+ступень рекурсии, где ~cons-stream~ снова вернет поток, состоящий из
+~initial-value~ и обещания вычислить остальное.
+
+Без использования ~delay~ мы попадем в бесконечный цикл вычисления y и
+dy, потому что попытка вычисления хвоста dy будет вызывать попытку
+вычислить хвост y, а тот будет снова пытаться вычислить dy. И это будет
+продолжаться до исчерпания стека.
+
+#+BEGIN_SRC scheme
+  (define (solve f y0 dt)
+    (define y (integral (delay dy) y0 dt))
+    (define dy (stream-map f y))
+    y)
+
+  (define (integral delayed-integrand initial-value dt)
+    (cons-stream initial-value
+                 (if (stream-null? delayed-integrand)
+                     the-empty-stream
+                     (let ((integrand (force delayed-integrand)))
+                       (integral (delay (stream-cdr integrand))
+                                 (+ (* dt (stream-car integrand))
+                                    initial-value)
+                                 dt)))))
+
+
+  (stream-ref (solve (lambda (y) y) 1 0.001) 1000)
+#+END_SRC
+
+~Упражнение 3.78.~
+Рассмотрим задачу проектирования системы обработки сигналов для решения
+гомогенных линейных дифференциальных уравнений второго порядка.
+Выходной поток, моделирующий y, порождается сетью, содержащей цикл. Этот
+цикл возникает потому, что значение d^2y/dt^2 зависит от значений y и dy/dt, а они оба
+получаются интегрированием d^2 y/dt^2 .
+Напишите процедуру ~solve-2nd~, которая в качестве аргументов берет константы a, b и
+dt и начальные значения y0 и dy0 для y и dy, и порождает поток последовательных
+значений y.
+
+Итак, нам нужно построить другую версию процедуры ~solve~, только теперь
+у нас больше величин, которе зависят друг от друга.
+
+#+BEGIN_SRC scheme
+  ;; поток y должен возрасти на величину b
+  ;; поток dy должен возрасти на величину a
+  ;; затем их надо сложить.
+  ;; и тогда мы получим выходной поток y
+  (define (solve-2nd a b dt y0 dy0)
+    (define y (integral (delay dy) y0 dt))
+    (define dy (integral (delay ddy) dy0 dt))
+    (define ddy (add-streams (scale-stream dy a) (scale-stream y b)))
+    y)
+#+END_SRC
+
+~Упражнение 3.79.~
+Обобщите процедуру ~solve-2nd~ из упражнения 3.78 так, чтобы с ее помощью
+можно было решать дифференциальные уравнения второго порядка общего вида
+d^2y/dy^2 = f(dy/dt, y)
+#+BEGIN_SRC scheme
+  (define (solve-2nd f dt y0 dy0)
+    (define y (integral (delay dy) y0 dt))
+    (define dy (integral (delay ddy) dy0 dt))
+    (define ddy (stream-map f dy y))
+      y)
+#+END_SRC
+
+
+~Упражнение 3.80~
+Последовательная RLC-цепь (series RLC circuit) состоит из резистора,
+конденсатора и катушки индуктивности, соединенных последовательно, как показано на
+рис. 3.36. Если сопротивление, индуктивность и емкость равны,
+соответственно, R, L и C, то отношения между напряжением v и током i на
+трех элементах описываются уравнениями (см. стр. 328)
+Напишите процедуру RLC, которая в качестве аргументов берет параметры
+цепи R, L и C и точность по времени dt. Подобно процедуре RC из упражнения 3.73, RLC
+должна порождать процедуру, которая берет начальные значения переменных
+состояния vC0 и iL0 и порождает (через cons) пару потоков состояния v
+C и i L .
+С помощью RLC породите пару потоков, которая моделирует
+поведение RLC-цепи c K = 1 ом, C = 0.2 фарад, L = 1 генри, dt = 0.1
+секунды, и начальными значениями iL0 = 0 ампер и vC0 = 10 вольт.
+
+Резистор: устанавливается в электрической цепи для ограничения тока,
+протекающего через цепь.
+Конденсатор: может сосредотачивать, накапливать и отдавать заряд тока
+другим элементам цепи. Отличие от батарейки: заряд накапливает долго, а
+разряжаться может быстро, в виде импульса (привет вспышкам фотиков)
+
+R - сопросивление
+L - индуктивность
+C - емкость
+V - напряжение
+i - ток
+
+#+BEGIN_SRC scheme
+  (define (RLC R L C dt)
+    (lambda (vC0 iL0)
+      (define Li (integral (delay diL) iL0 dt))
+      (define vC (integral (delay dvC) vC0 dt))
+      (define dvC (scale-stream Li (exact->inexact (/ -1 C))))
+      (define diL (add-streams (scale-stream Li (exact->inexact (/  (/ R -1) L)))
+                               (scale-stream vC (exact->inexact (/ 1 L)))))
+      (cons Li vC)
+      ))
+#+END_SRC
+
+~Упражнение 3.81.~
+В упражнении 3.6 обсуждалась возможность обобщить генератор случайных
+чисел и позволить пользователю сбрасывать последовательность случайных чисел, так, чтобы
+можно было порождать воспроизводимые «случайные» последовательности. Постройте потоковый
+вариант такой же процедуры-генератора, которая работает со входным потоком запросов вида
+generate — породить новое число, либо reset — сбросить последовательность
+в нужную точку, и которая порождает требуемый поток случайных чисел.
+Не используйте в своем решении присваивание.
+
+Итак, нам надо переделать решение для упражнения 3.6 таким образом, чтоб
+не использовать присваивания и использовать потоки.
+На вход процедура принимает пототок и возвращает поток.
+Вот решение из упражнения 3.6.
+#+BEGIN_SRC scheme
+  (define rand
+    (let ((x random-init))
+      (lambda (arg)
+        (cond ((eq? arg 'generate) (begin (set! x (rand-update x)) x))
+              ((eq? arg 'reset ) (lambda (value) (set! x value)
+                                         x))
+              (else x)))))
+
+  (define random-init
+  (random (expt 2 31)))
+
+  (define (rand-update x)
+    (let ((a 13)
+          (b 67)
+          (m 6))
+      (+ (* x a) (* (abs m) b))))
+
+  ;; тесты
+  (rand 'generate)
+  ((rand 'reset) 3)
+#+END_SRC
+
+Входной поток будет состоять из меток
+generate и reset. В зависимости от запроса мы будем вычислять cdr
+выходного потока тем или иным способом.
+
+Начинаем генерить поток с случайного числа, затем в соответствии с
+полученными инструкциями (надо бы как-то переделать генерацию потока
+инструкций, чтоб процесс был более рандомным).
+
+#+BEGIN_SRC scheme
+  (define (rand-update x)
+    (let ((a 13)
+          (b 67)
+          (m 6))
+      (+ (* x a) (* (abs m) b))))
+
+  (define random-init
+    (random (expt 2 31)))
+
+  (define (rand stream)
+    (define (iter int-value input-stream)
+      (cons-stream int-value (if (and (pair? (stream-car input-stream))
+                                      (eq? (car (stream-car input-stream)) 'reset))
+                                 (iter (cdr (stream-car input-stream))
+                                       (stream-cdr input-stream))
+                                 (iter (rand-update int-value) (stream-cdr input-stream)))))
+    (iter random-init stream))
+
+
+  (define (make-instructions-stream x n)
+    (cons-stream x
+                 (if (= (remainder n 2) 0)
+                     (make-instructions-stream (cons 'reset 2) (+ n 3))
+                     (make-instructions-stream 'generate (+ n 4)))))
+
+  (define instructions-stream (make-instructions-stream (cons 'reset 3) 1))
+
+  (define (show-stream stream n)
+    (if (= n 0)
+        'done
+        (begin
+          (display (stream-car stream))
+          (newline)
+          (show-stream (stream-cdr stream) (- n 1)))))
+
+  (show-stream (rand instructions-stream) 6)
+#+END_SRC
+
+~Упражнение 3.82.~
+Переделайте на основе потоков упражнение 3.5 на интегрирование методом
+Монте-Карло. Потоковая версия процедуры ~estimate-integral~ не требует
+аргумента, который говорит, сколько проводить испытаний.
+Вместо этого она порождает поток оценок, основанных на все большем
+количестве испытаний.
+
+Решение упражнения 3.5.
+#+BEGIN_SRC scheme
+  ;; необходимые для работы функции
+  (define (random-in-range low high)
+    (let ((range (- high low)))
+      (+ low (random (abs range)))))
+
+  ;; определенные мной процедуы и переменные
+
+  ;; радиус и координаты центральной точки окружности
+  (define radius 1)
+  (define center-x 1)
+  (define center-y 1)
+
+  (define (square x)
+    (* x x))
+
+  ;; предикат для проверок принадлежности точки окрнужности
+  (define (test x y)
+    (<= (+ (square (- x center-x))
+           (square (- y center-y)))
+        (square radius)))
+
+  (define (monte-carlo trials experiment)
+    (define (iter trials-remaining trials-passed)
+      (cond ((= trials-remaining 0)
+             (/ trials-passed trials))
+            ((experiment)
+             (iter (- trials-remaining 1) (+ trials-passed 1)))
+            (else
+             (iter (- trials-remaining 1) trials-passed))))
+    (iter trials 0))
+
+  (define (square x) (* x x))
+
+  (define (estimate-integral P x1 x2 y1 y2 n)
+    ;; находит площать прямоугольника
+    (define (S x1 x2 y1 y2)
+      (* (- y2 y1) (- x2 x1)))
+    (exact->inexact
+     (* (abs (S x1 x2 y1 y2)) (monte-carlo n (lambda () (P (random-in-range x1 x2)
+                                                           (random-in-range y1 y2)))))))
+  (estimate-integral test 0.0 2.0 0.0 2.0 7000)
+#+END_SRC
+
+Переделанное решение для потоков.
+
+#+BEGIN_SRC scheme
+  (define radius 1)
+  (define center-x 1)
+  (define center-y 1)
+
+  (define (square x)
+    (* x x))
+
+  (define (test x y)
+    (<= (+ (square (- x center-x))
+           (square (- y center-y)))
+        (square radius)))
+
+  (define (random-in-range low high)
+    (let ((range (- high low)))
+      (+ low (random (abs range)))))
+
+
+  (define (estimate-integral P x1 x2 y1 y2)
+    (define (S x1 x2 y1 y2)
+      (* (- y2 y1) (- x2 x1)))
+     (scale-stream (monte-carlo (lambda () (P (random-in-range x1 x2)
+                                              (random-in-range y1 y2))))
+                                (abs (S x1 x2 y1 y2))))
+
+  (define (monte-carlo experiment)
+    (define (iter passed failed)
+      (cons-stream
+       (/ passed (+ passed failed))
+       (if (experiment)
+           (iter (+ 1 passed) failed)
+           (iter passed (+ 1 failed)))))
+    (iter 1 1))
+  (estimate-integral test 0.0 2.0 0.0 2.0)
+
+
+  (show-stream-from-to (estimate-integral test 0.0 2.0 0.0 2.0) 1500 1510)
+#+END_SRC
