@@ -24,7 +24,7 @@ typedef struct cell {
 
 }cell;
 
-
+// globals
 int a = 4;
 char b[1] = "b";
 int c = 5;
