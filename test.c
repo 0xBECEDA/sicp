@@ -24,6 +24,11 @@ typedef struct cell {
 
 }cell;
 
+
+int a = 4;
+char b[1] = "b";
+int c = 5;
+
 /* создает пустой список  */
 struct cell* makeEmptyList() {
 
@@ -164,11 +169,6 @@ int testPrintList (struct cell *lst) {
 /* возвращает указатель на список */
 struct cell * testMakeList() {
 
-
-    int a = 4;
-    char b[1] = "b";
-    int c = 5;
-
     /* инициализируем структуры, которые будут значениями ячеек списка */
     /* в мэйне есть точно такие же */
 
@@ -208,10 +208,6 @@ struct cell * testMakeList() {
 }
 
 int main (void) {
-
-    int a = 4;
-    char b[1] = "b";
-    int c = 5;
 
     /* инициализируем структуры, которые будут значениями ячеек списка */
     struct val *aStruct = (struct val*)malloc(sizeof(val));
