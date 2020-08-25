@@ -30,7 +30,7 @@ char b[1] = "b";
 int c = 5;
 
 /* создает пустой список  */
-struct cell* makeEmptyList() {
+cell* makeEmptyList() {
 
     struct cell *lst = (struct cell*)malloc(sizeof(cell));
     lst->value = NULL;
@@ -38,7 +38,7 @@ struct cell* makeEmptyList() {
     return lst;
 }
 /* создает первую ячейку списка */
-struct cell* initList(struct val *value) {
+cell* initList(struct val *value) {
     struct cell *lst = (struct cell*)malloc(sizeof(cell));
     lst->value = value;
     lst->next = NULL;
@@ -52,7 +52,7 @@ int printEmptyList () {
 }
 
 /* создает список */
-struct cell* makelist (int amountElts, ...) {
+cell* makelist (int amountElts, ...) {
 
     struct cell *lst, *curCell, *prevCell;
     struct val * value = (struct val*)malloc(sizeof(val));
@@ -167,7 +167,7 @@ int testPrintList (struct cell *lst) {
 
 /* тест создания списка и его печати */
 /* возвращает указатель на список */
-struct cell * testMakeList() {
+cell* testMakeList() {
 
     /* инициализируем структуры, которые будут значениями ячеек списка */
     /* в мэйне есть точно такие же */
