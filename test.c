@@ -32,14 +32,14 @@ int c = 5;
 /* создает пустой список  */
 cell* makeEmptyList() {
 
-    struct cell *lst = (struct cell*)malloc(sizeof(cell));
+    cell *lst = (cell*)malloc(sizeof(cell));
     lst->value = NULL;
     lst->next = NULL;
     return lst;
 }
 /* создает первую ячейку списка */
-cell* initList(struct val *value) {
-    struct cell *lst = (struct cell*)malloc(sizeof(cell));
+cell* initList(val *value) {
+    cell *lst = (cell*)malloc(sizeof(cell));
     lst->value = value;
     lst->next = NULL;
     return lst;
@@ -54,12 +54,12 @@ int printEmptyList () {
 /* создает список */
 cell* makelist (int amountElts, ...) {
 
-    struct cell *lst, *curCell, *prevCell;
-    struct val * value = (struct val*)malloc(sizeof(val));
+    cell *lst, *curCell, *prevCell;
+    val * value = (val*)malloc(sizeof(val));
 
     va_list values;
     va_start(values, amountElts);
-    *value = va_arg(values, struct val);
+    *value = va_arg(values, val);
     /* проинициализировали список первым элементов */
     lst = initList(value);
 
@@ -70,17 +70,17 @@ cell* makelist (int amountElts, ...) {
         /* элементы кончились */
         if (i == amountElts) {
             /* создаем путую ячейку и присоединяем ее к списку */
-            curCell = (struct cell*)malloc(sizeof(cell));
+            curCell = (cell*)malloc(sizeof(cell));
             curCell = makeEmptyList();
             prevCell->next = curCell;
             va_end(values);
         } else {
             /* иначе создаем новую ячейку */
-            curCell = (struct cell*)malloc(sizeof(cell));
+            curCell = (cell*)malloc(sizeof(cell));
             /* выделили память под структуру значения */
-            value = (struct val*)malloc(sizeof(val));
+            value = (val*)malloc(sizeof(val));
             /* записали в нее структуру значения */
-            *value = va_arg(values, struct val);
+            *value = va_arg(values, val);
             /* записали структуру как значение ячейки */
             curCell->value = value;
             /* создали пустой указатель на след. ячейку */
@@ -95,7 +95,7 @@ cell* makelist (int amountElts, ...) {
 }
 
 /* печатает значение всех ячеек списка */
-int printListValues (struct cell *lst) {
+int printListValues (cell *lst) {
 
     /* если список пустой или у текущей ячейки нет значения */
     if (lst == NULL || lst->value == NULL) {
@@ -106,8 +106,8 @@ int printListValues (struct cell *lst) {
     } else {
 
         /* получили структуру значения ячейки */
-        struct cell * curCell = lst;
-        struct val * curValue = curCell->value;
+        cell * curCell = lst;
+        val * curValue = curCell->value;
 
         /* поулучили порядковый номер типа и завели пару указателей */
         int typeNum = curValue->typeNum;
@@ -137,7 +137,7 @@ int printListValues (struct cell *lst) {
     }
 }
 /* печатает список в лисповом виде */
-int printList (struct cell *lst) {
+int printList (cell *lst) {
 
     if (lst == NULL) {
         printf("printList: передан указатль NULL\n");
@@ -149,7 +149,7 @@ int printList (struct cell *lst) {
         printEmptyList();
 
     } else {
-        struct cell * curCell = lst;
+        cell * curCell = lst;
         printf("(");
         printListValues (curCell);
         printf(")\n");
@@ -158,7 +158,7 @@ int printList (struct cell *lst) {
 }
 
 /* тест печати */
-int testPrintList (struct cell *lst) {
+int testPrintList (cell *lst) {
 
     printf("testPrintList: lst %p\n", lst);
     printList(lst);
@@ -172,9 +172,9 @@ cell* testMakeList() {
     /* инициализируем структуры, которые будут значениями ячеек списка */
     /* в мэйне есть точно такие же */
 
-    struct val *aStruct = (struct val*)malloc(sizeof(val));
-    struct val *bStruct = (struct val*)malloc(sizeof(val));
-    struct val *cStruct = (struct val*)malloc(sizeof(val));
+    val *aStruct = (val*)malloc(sizeof(val));
+    val *bStruct = (val*)malloc(sizeof(val));
+    val *cStruct = (val*)malloc(sizeof(val));
 
     aStruct->val = (void*)&a;
     bStruct->val = (void*)&b;
@@ -189,12 +189,12 @@ cell* testMakeList() {
     cStruct->typeNum = 0;
     bStruct->typeNum = 1;
 
-    struct val struct1 = *aStruct;
-    struct val struct2 = *bStruct;
-    struct val struct3 = *cStruct;
+    val struct1 = *aStruct;
+    val struct2 = *bStruct;
+    val struct3 = *cStruct;
 
     /* создаем список */
-    struct cell * lst1 = makelist(3, struct1, struct2, struct3);
+    cell * lst1 = makelist(3, struct1, struct2, struct3);
 
     printf("printList from testMakeList:\n");
 
@@ -210,9 +210,9 @@ cell* testMakeList() {
 int main (void) {
 
     /* инициализируем структуры, которые будут значениями ячеек списка */
-    struct val *aStruct = (struct val*)malloc(sizeof(val));
-    struct val *bStruct = (struct val*)malloc(sizeof(val));
-    struct val *cStruct = (struct val*)malloc(sizeof(val));
+    val *aStruct = (val*)malloc(sizeof(val));
+    val *bStruct = (val*)malloc(sizeof(val));
+    val *cStruct = (val*)malloc(sizeof(val));
 
     aStruct->val = (void*)&a;
     bStruct->val = (void*)&b;
@@ -228,12 +228,12 @@ int main (void) {
     bStruct->typeNum = 1;
 
 
-    struct val struct1 = *aStruct;
-    struct val struct2 = *bStruct;
-    struct val struct3 = *cStruct;
+    val struct1 = *aStruct;
+    val struct2 = *bStruct;
+    val struct3 = *cStruct;
 
     /* вызов построения списка */
-    struct cell * lst1 = makelist(3, struct1, struct2, struct3);
+    cell * lst1 = makelist(3, struct1, struct2, struct3);
 
     /* при отладке здесь все печатается правильно */
     printf("main: lst1 %p\n", lst1);
@@ -244,7 +244,7 @@ int main (void) {
 
 
     /* вызов построения нового списка */
-    struct cell * lst2 = testMakeList();
+    cell * lst2 = testMakeList();
 
     /* при отладке здесь все печатается НЕ правильно */
     printf("main: testPrintList lst2 from main: \n");
