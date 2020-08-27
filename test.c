@@ -33,6 +33,18 @@ typedef struct val {
     } uni_val;
 } val;
 
+/* forward declaration */
+int atom_predicate (val* cell);
+
+int dotpair_predicate (val* cell);
+
+int pair_predicate (val* cell);
+
+void pprint(val* param);
+
+void error_handler(char* str);
+
+void ipprint (val* param);
 
 /* конструктор значения-ссылки на копию числа */
 val* int_val_constructor ( int* val ) {
@@ -77,21 +89,43 @@ val* cons  (val* car, val* cdr ) {
 
 /* возвращает car ячейки */
 val* car (val* cell) {
-    return cell->uni_val.cell_val->car;
-}
 
+    if (!atom_predicate ( cell )) {
+        return cell->uni_val.cell_val->car;
+    }else {
+        error_handler ("ERR CAR: ARG ISN'T A PAIR");
+    }
+}
 /* возвращает cdr ячейки */
 val* cdr (val* cell) {
-    return cell->uni_val.cell_val->cdr;
+
+    if (!atom_predicate ( cell )) {
+        return cell->uni_val.cell_val->cdr;
+    } else {
+        error_handler ("ERR CDR: ARG ISN'T A PAIR");
+    }
+}
+
+/* todo: додеделать */
+void error_handler(char* str) {
+    printf("\n %s \n", str);
+    exit(0);
+}
+
+int length_rec (val* cell) {
+    if ( cell->type_num == TYPE_NIL ) {
+        return 0;
+    } else {
+        return (1 + (length_rec( cdr( cell ))));
+    }
 }
 
 /* возвращает длину списка */
 int length (val* cell) {
-    if ( cell->type_num == TYPE_NIL ) {
-        return 0;
-    } else {
-        return (1 + (length( cdr( cell ))));
+    if ( pair_predicate( cell )) {
+        return length_rec( cell );
     }
+    error_handler( "ERR LENGTH: ARG ISN'T A PAIR");
 }
 
 /* возвращает последнюю пару списка */
@@ -112,8 +146,14 @@ val* last_pair (val* cell) {
 
 /* склеивает 2 списка вместе */
 val* append (val* cell1, val* cell2) {
+    /* printf("append\n"); */
 
-    if ( cell1->type_num == TYPE_NIL ) {
+    if ( dotpair_predicate(cell1) ||
+         dotpair_predicate(cell2) ||
+         atom_predicate( cell1 )) {
+        error_handler( "APPEND ERR: ARGS SCHOULD BE LISTS");
+
+    }else if ( cell1->type_num == TYPE_NIL ) {
         return cell2;
 
     } else if ( cell2->type_num == TYPE_NIL) {
@@ -126,31 +166,163 @@ val* append (val* cell1, val* cell2) {
     }
 }
 
-int atom_predicate (int type_num) {
-    if ((TYPE_CHAR == type_num ) ||
-        (TYPE_INT == type_num )) {
+/* val* reverse_rec(val* cell, val* new_cell ) { */
+/*     printf("\n reverse_rec cell: "); */
+/*     ipprint( cell ); */
+/*     printf("\n"); */
+
+/*     printf("\n reverse_rec new_cell: "); */
+/*     ipprint( new_cell ); */
+/*     printf("\n"); */
+
+/*     if ( cell->type_num == TYPE_NIL ) { */
+/*         return new_cell; */
+/*     } */
+
+/*     printf("\n"); */
+/*     ipprint(car ( cell )); */
+/*     printf("\n"); */
+/*     reverse_rec( cdr( cell ), */
+/*                 append( new_cell, car ( cell ))); */
+/* } */
+
+/* здесь все валится */
+val* reverse_rec(val* list, val* new_cell ) {
+    printf("\n reverse_rec cell: ");
+    ipprint( list );
+    printf("\n");
+
+    if ( list->type_num == TYPE_NIL ) {
+        return new_cell;
+
+    }else {
+        val* car_cell = car ( list );
+        printf("car\n");
+        ipprint(car_cell );
+        printf("\n");
+
+        printf("car\n");
+        ipprint( car_cell );
+        printf("\n");
+
+        val* car_new_cell;
+        int* int_value;
+        char* char_value;
+        cell* cell_value;
+
+        printf("%d\n", car_cell->type_num);
+        printf("здесь \n");
+
+        switch ( car_cell->type_num ) {
+
+        case TYPE_INT:
+            printf("\n reverse_rec int: ");
+            ipprint( car_cell );
+
+            *int_value  = *car_cell->uni_val.int_val;
+            car_new_cell = int_val_constructor( int_value );
+
+            printf("\n reverse_rec int car_new_cell: ");
+            ipprint( car_new_cell );
+
+            reverse_rec(cdr( list ), cons( car_new_cell, new_cell ));
+            break;
+
+        case TYPE_CHAR:
+            printf("\n reverse_rec char: ");
+            ipprint( car_cell );
+
+            *char_value = *car_cell->uni_val.char_val;
+            car_new_cell = char_val_constructor( char_value );
+
+            printf("\n reverse_rec char car_new_cell: ");
+            ipprint( car_new_cell );
+
+            reverse_rec(cdr( list ), cons( car_new_cell, new_cell ));
+            break;
+
+        case TYPE_CELL:
+            printf("\n reverse_rec cell: ");
+            ipprint( car_cell );
+
+            *cell_value = *car_cell->uni_val.cell_val;
+            car_new_cell = cell_val_constructor( cell_value );
+
+            printf("\n reverse_rec cell car_new_cell: ");
+            ipprint( car_new_cell );
+
+            reverse_rec(cdr( list ), cons( car_new_cell, new_cell ));
+            break;
+
+        default:
+            printf("error\n");
+
+        }
+    }
+}
+
+/* возвращает инверсированную копию списка */
+val* reverse(val* cell) {
+    printf("\n reverse \n");
+    ipprint( cell );
+    if ( pair_predicate( cell )) {
+        return reverse_rec( cell, nil_constructor() );
+    }
+    error_handler( "ERR REVERSE: ARG ISN'T A PAIR");
+}
+
+int atom_predicate (val* cell) {
+    if ((TYPE_CHAR == cell->type_num ) ||
+        (TYPE_INT == cell->type_num )) {
         return 1;
     }
         return 0;
 }
 
+int pair_predicate (val* cell) {
+    /* printf("\n pair_predicate \n"); */
+    if (cell->type_num == TYPE_CELL &&
+        !dotpair_predicate( cell )) {
+        return 1;
 
-void pprint(val* param); /* forward declaration */
-
-/* печатает и элемент в скобки, если это не атом */
-void wrap_brackets_if_not_atom (val* car) {
-    if ( atom_predicate( car->type_num ) ) {
-        pprint( car );
-    } else {
-        printf("(");
-        pprint( car );
-        printf(")");
+    }else {
+        return 0;
     }
 }
 
+int dotpair_predicate (val* cell) {
+    /* printf("\n dotpair_predicate \n"); */
+    /* ipprint(cell); */
+
+    if (cell->type_num == TYPE_CELL) {
+
+        val* cdr_cell = cdr( cell );
+
+        if( cdr_cell->type_num == TYPE_INT ||
+            cdr_cell->type_num == TYPE_CHAR ) {
+            return 1;
+        } else {
+            return 0;
+        }
+    } else{
+        return 0;
+    }
+}
+
+/* печатает и элемент в скобки, если это не атом */
+/* void wrap_brackets_if_not_atom (val* car) { */
+/*     if ( atom_predicate( car ) ) { */
+/*         pprint( car ); */
+/*     } else { */
+/*         printf("("); */
+/*         pprint( car ); */
+/*         printf(")"); */
+/*     } */
+/* } */
+
 /* печатает и элемент в скобки, если это не атом и не пустой список*/
 void wrap_brackets_if_not_atom_or_empty_cell (val* car) {
-    if ( atom_predicate( car->type_num ) ||
+    if ( atom_predicate( car ) ||
          car->type_num == TYPE_NIL)  {
         pprint( car );
     } else {
@@ -163,7 +335,7 @@ void wrap_brackets_if_not_atom_or_empty_cell (val* car) {
 /* вызывает вывод списка, оборачивает скобками, если param != атом
    и todo:устанавливая отступы */
 void ipprint (val* param) {
-    wrap_brackets_if_not_atom (param);
+    wrap_brackets_if_not_atom_or_empty_cell (param);
 }
 
 /* выводит список */
@@ -182,7 +354,7 @@ void pprint(val* param) {
         printf( "%s", tmp_char );
         return;
     case TYPE_NIL:
-        printf( "NIL" );
+        printf( "()" );
         return;
     case TYPE_CELL:
         car_pnt = car( param );
@@ -199,12 +371,13 @@ void pprint(val* param) {
             pprint( cdr_pnt );
         } else if (   ( TYPE_CELL == cdr_pnt->type_num ) ) {
             /* это список (cdr = CELL) */
-            if ( atom_predicate( car_pnt->type_num ) ) {
+            if ( atom_predicate( car_pnt ) ) {
                 pprint( car_pnt );
             } else {
-                printf("(");
-                pprint( car_pnt );
-                printf(")");
+                wrap_brackets_if_not_atom_or_empty_cell( car_pnt );
+                /* printf("("); */
+                /* pprint( car_pnt ); */
+                /* printf(")"); */
             }
             printf(" ");
             pprint( cdr_pnt );
@@ -239,7 +412,6 @@ void test_car_and_cdr () {
                                                  cons( c_val, d_val )),
                                           d_val),
                                    d_val));
-
     val* cart = car( bazo );
     ipprint( cart );
     printf( "\n" );
@@ -251,9 +423,94 @@ void test_car_and_cdr () {
     val* cadrt =  car(cdr( bazo ));
     ipprint( cadrt );
     printf( "\n" );
+}
 
+void test_reverse() {
+    int* ptr_a = malloc(sizeof(int));
+    *ptr_a = 4;
+    val* a_val = int_val_constructor( ptr_a );
+
+    char* ptr_b = malloc(sizeof(char[1]));
+    strncpy( ptr_b, "b", 1 );
+    val* b_val = char_val_constructor( ptr_b );
+
+    int* ptr_c = malloc(sizeof(int));
+    *ptr_c = 5;
+    val* c_val = int_val_constructor( ptr_c );
+
+    val* d_val = nil_constructor();
+
+    val* reversed_lst;
+
+    /* теперь соберем список (4 b 5) */
+    val* foobar = cons( a_val, cons ( b_val, cons( c_val, d_val )));
+
+    /* соберем вложенный список (4 (4 5) 5) */
+    val* baz = cons( a_val, cons ( cons( a_val,
+                                         cons( c_val, d_val )),
+                                   cons( c_val, d_val )));
+    reversed_lst = reverse (foobar);
+
+    /* printf( "reversed_lst baz\n" ); */
+    /* ipprint( reversed_lst ); */
+    /* printf( "\n" ); */
+
+    /* reversed_lst = reverse (foobar); */
+
+    /* printf( "reversed_lst foobar\n" ); */
+    /* ipprint( reversed_lst ); */
+    /* printf( "\n" ); */
+}
+
+void test_pair () {
+    int* ptr_a = malloc(sizeof(int));
+    *ptr_a = 4;
+    val* a_val = int_val_constructor( ptr_a );
+
+    char* ptr_b = malloc(sizeof(char[1]));
+    strncpy( ptr_b, "b", 1 );
+    val* b_val = char_val_constructor( ptr_b );
+
+    int* ptr_c = malloc(sizeof(int));
+    *ptr_c = 5;
+    val* c_val = int_val_constructor( ptr_c );
+
+    val* d_val = nil_constructor();
+
+    /* теперь соберем список (4 5) */
+    val* bar = cons( a_val, cons( c_val, d_val ));
+
+    /* теперь соберем список (4 b 5) */
+    val* foobar = cons( a_val, cons ( b_val, cons( c_val, d_val )));
+
+    /* соберем вложенный список (4 (4 5) 5) */
+    val* baz = cons( a_val, cons ( cons( a_val,
+                                         cons( c_val, d_val )),
+                                   cons( c_val, d_val )));
+
+    /* создадим точечную пару (4 . 5) */
+    val* dotpair = cons( a_val, c_val );
+
+    /* соберем список из одного элемента NIL */
+    val* bazon = cons( d_val, d_val );
+
+    /* соберем вложенный список (4 ((4 5))) */
+    val* bazo = cons( a_val, cons (cons ( cons ( a_val,
+                                                 cons( c_val, d_val )),
+                                          d_val),
+                                   d_val));
+    printf( "pair? bar %d\n", pair_predicate( bar));
+
+    printf( "pair? bazo %d\n", pair_predicate( bazo));
+
+    printf( "pair? dotpair %d\n", pair_predicate( dotpair));
+
+    printf( "pair? d_val %d\n", pair_predicate( d_val));
+
+    printf( "pair? c_val %d\n", pair_predicate( c_val));
 
 }
+
 /* тест функции append - дотестить */
 void test_append () {
 
@@ -290,6 +547,12 @@ void test_append () {
     /* соберем список из одного элемента NIL */
     val* bazon = cons( d_val, d_val );
 
+    /* соберем вложенный список (4 ((4 5))) */
+    val* bazo = cons( a_val, cons (cons ( cons ( a_val,
+                                                 cons( c_val, d_val )),
+                                          d_val),
+                                   d_val));
+
     /* собираем список (4 b 5 ()) */
     appended_lst = append (foobar, bazon);
 
@@ -307,7 +570,10 @@ void test_append () {
     ipprint( appended_lst );
     printf( "\n" );
 
-    /* собираем список из (4 b 5) и () */
+    /* восстановили значение foobar */
+    foobar = cons( a_val, cons ( b_val, cons( c_val, d_val )));
+
+    /* собираем список из (4 b 5) и () - должен вернуть первый список*/
     appended_lst = append (foobar, d_val);
 
     printf( "appended_lst foobar + d_val \n" );
@@ -317,17 +583,21 @@ void test_append () {
     /* восстановили значение foobar */
     foobar = cons( a_val, cons ( b_val, cons( c_val, d_val )));
 
-    /* собираем список ((()) 4 b 5) - здесь неправильно печатается/аппендится*/
+    /* собираем список (() 4 b 5)  */
     appended_lst = append (bazon, foobar);
 
     printf( "appended_lst bazon + foobar \n" );
     ipprint( appended_lst );
     printf( "\n" );
 
-    /* собираем список из  (4 . 5) и () - вообще-то так нельзя. todo предикат!*/
-    appended_lst = append (dotpair, d_val);
+    /* /\* собираем список из  (4 . 5) и () */
+    /*    - ошибка, append не может работать с дотпарами*\/ */
+    /* append(dotpair, d_val); */
 
-    printf( "appended_lst dotpair + d_val \n" );
+    /* собираем список из (4 b 5 . 5) */
+    appended_lst = append (foobar, c_val);
+
+    printf( "appended_lst foobar + с_val \n" );
     ipprint( appended_lst );
     printf( "\n" );
 }
@@ -458,12 +728,13 @@ void test_length() {
 }
 
 int main (void) {
-
     /* тесты */
-    test_ipprint();
-    test_append ();
-    test_car_and_cdr ();
-    test_length();
+    /* test_reverse(); - пока не включать */
+    test_pair();
+    /* test_ipprint(); */
+    /* test_append (); */
+    /* test_car_and_cdr (); */
+    /* test_length(); */
 
     return 0;
 }
