@@ -11,7 +11,7 @@
 - cons, car, cdr, set_car, set_cdr, reverse, append, length, last-pair, make_list, map,
   add, sub, mul, division, assoc
 - pair_predicate, atom_predicate, dotpair_predicate, null_predicate, number_predicate,
- symbol_predicate*/
+ symbol_predicate, true_predicate, false_predicate*/
 
 /* возможные типы значений */
 enum list_of_types {
@@ -49,6 +49,10 @@ int pair_predicate (val* cell);
 int null_predicate (val* cell);
 
 int number_predicate(val* cell);
+
+int true_predicate(val* cell);
+
+int false_predicate(val* cell);
 
 int symbol_predicate(val* cell);
 
@@ -430,10 +434,12 @@ val* assoc(val* key, val* args_list) {
 
         if ( dotpair_predicate ( cur_arg ) ) {
             val* car_cur_arg = car( cur_arg );
+            /* если ключ и car текущей точечной пары - числа */
             if ( ( number_predicate( key ) )  &&
                  ( number_predicate( car_cur_arg ) ) &&
                  (*key->uni_val.int_val == *car_cur_arg->uni_val.int_val) ) {
                 return cur_arg;
+                /* если ключ и car текущей точечной пары - символы */
             } else if ( ( symbol_predicate( key ) )  &&
                         ( symbol_predicate( car_cur_arg ) ) &&
                         (strcmp
@@ -498,6 +504,20 @@ val* make_list ( int n, ...) {
 /*         return list; */
 /*     } */
 /* } */
+
+int false_predicate(val* cell) {
+    if( TYPE_NIL == cell->type_num ) {
+        return 1;
+    }
+    return 0;
+}
+
+int true_predicate(val* cell) {
+    if( !false_predicate( cell ) ) {
+        return 1;
+    }
+    return 0;
+}
 
 int number_predicate(val* cell) {
     if ( ( TYPE_CHAR != cell->type_num ) &&
@@ -1355,20 +1375,20 @@ void test_length() {
 
 }
 
-int main (void) {
-    /* тесты */
+/* int main (void) { */
+/*     /\* тесты *\/ */
 
-    /* test_reverse(); */
-    /* test_set_car_and_set_cdr(); */
-    /* test_make_list(); */
-    /* test_map(); */
-    /* test_add_sub_mu_division(); */
-    /* test_assoc(); */
-    /* test_pair(); */
-    /* test_ipprint(); */
-    /* test_append (); */
-    /* test_car_and_cdr (); */
-    /* test_length(); */
+/*     /\* test_reverse(); *\/ */
+/*     /\* test_set_car_and_set_cdr(); *\/ */
+/*     /\* test_make_list(); *\/ */
+/*     /\* test_map(); *\/ */
+/*     /\* test_add_sub_mu_division(); *\/ */
+/*     /\* test_assoc(); *\/ */
+/*     /\* test_pair(); *\/ */
+/*     /\* test_ipprint(); *\/ */
+/*     /\* test_append (); *\/ */
+/*     /\* test_car_and_cdr (); *\/ */
+/*     /\* test_length(); *\/ */
 
-    return 0;
-}
+/*     return 0; */
+/* } */
