@@ -7,7 +7,7 @@ int closing_parenthesis_predicate(char symbol);
 
 char** read_input(int max_input_size, int max_str_size);
 
-val* transform_rec( val* param_list, int parenthesis_cnt, val* retval_list);
+val* transform_rec(val* param_list, int parenthesis_cnt, val* retval_list);
 
 int check_brackets(char* array_strings[]) {
     int opening_parenthesis_cnt = 0;
@@ -171,6 +171,7 @@ val* parse_input(char** array_strings, int max_size_input, int max_size_str) {
                 return cur_str_list;
                 /* встретили открывающую скобку */
             case '(':
+                /* printf("открывающая скобка\n"); */
                 /* если что-то есть в буфере знаков строки - преобразовать */
                 if( cur_symbol_cnt != 0) {
 
@@ -180,6 +181,8 @@ val* parse_input(char** array_strings, int max_size_input, int max_size_str) {
                     cur_str_list = append(cur_str_list,
                                           cons( new_struct, nil_constructor()));
 
+                    /* ipprint( cur_str_list ); */
+                    /* printf("\n"); */
                     cur_symbol_cnt = 0;
                     clear_array(cur_symbol, cur_symbol_max_size);
 
@@ -193,13 +196,16 @@ val* parse_input(char** array_strings, int max_size_input, int max_size_str) {
                 cur_str_list = append(cur_str_list,
                                       cons( new_struct, nil_constructor()));
 
+                /* ipprint( cur_str_list ); */
+                /* printf("\n"); */
+
                 cur_symbol_cnt = 0;
                 clear_array(cur_symbol, cur_symbol_max_size);
 
                 break;
                 /* встретили закрывающую скобку */
             case ')':
-
+                /* printf("закрывающая скобка\n"); */
                 if( cur_symbol_cnt != 0) {
 
                     new_struct = malloc(sizeof(val));
@@ -208,6 +214,9 @@ val* parse_input(char** array_strings, int max_size_input, int max_size_str) {
                     cur_str_list = append(cur_str_list,
                                           cons( new_struct, nil_constructor()));
 
+                    /* ipprint( cur_str_list ); */
+                    /* printf("\n"); */
+
                     cur_symbol_cnt = 0;
                     clear_array(cur_symbol, cur_symbol_max_size);
 
@@ -220,6 +229,9 @@ val* parse_input(char** array_strings, int max_size_input, int max_size_str) {
                 cur_str_list = append(cur_str_list,
                                       cons( new_struct, nil_constructor()));
 
+                /* ipprint( cur_str_list ); */
+                /* printf("\n"); */
+
                 cur_symbol_cnt = 0;
                 clear_array(cur_symbol, cur_symbol_max_size);
 
@@ -227,7 +239,7 @@ val* parse_input(char** array_strings, int max_size_input, int max_size_str) {
                 break;
                 /* встретили пробел */
             case ' ':
-
+                /* printf("пробел\n"); */
                 if( cur_symbol_cnt != 0) {
                     new_struct = malloc(sizeof(val));
                     new_struct = transform_symbol_string_to_val_struct( cur_symbol );
@@ -240,6 +252,7 @@ val* parse_input(char** array_strings, int max_size_input, int max_size_str) {
                 break;
                 /* встретили перевод строки */
             case'\n':
+                /* printf("перевод строки\n"); */
                 if( cur_symbol_cnt != 0) {
 
                     new_struct = malloc(sizeof(val));
@@ -247,17 +260,24 @@ val* parse_input(char** array_strings, int max_size_input, int max_size_str) {
                     cur_str_list = append(cur_str_list,
                                           cons( new_struct, nil_constructor()));
 
+                    /* ipprint( cur_str_list ); */
+                    /* printf("\n"); */
+
                     cur_symbol_cnt = 0;
                     clear_array(cur_symbol, cur_symbol_max_size);
                 }
                 break;
                 /* встретили одинарную кавычку ' */
             case 39:
+                /* printf("кавычка\n"); */
                 if( cur_symbol_cnt != 0 ) {
                     new_struct = malloc(sizeof(val));
                     new_struct = transform_symbol_string_to_val_struct( cur_symbol );
                     cur_str_list = append(cur_str_list,
                                           cons( new_struct, nil_constructor()));
+
+                    /* ipprint( cur_str_list ); */
+                    /* printf("\n"); */
 
                     cur_symbol_cnt = 0;
                     clear_array(cur_symbol, cur_symbol_max_size);
@@ -270,6 +290,9 @@ val* parse_input(char** array_strings, int max_size_input, int max_size_str) {
 
                 cur_str_list = append(cur_str_list,
                                       cons( new_struct, nil_constructor()));
+
+                /* ipprint( cur_str_list ); */
+                /* printf("\n"); */
 
                 cur_symbol_cnt = 0;
                 clear_array(cur_symbol, cur_symbol_max_size);
@@ -361,206 +384,185 @@ val* push (val* elt, val* list) {
     return cons( elt, list);
 }
 
-val* quote_analyse(val* param_list) {
-    char *quote = malloc( sizeof( char[5] ) );
-    strncpy( quote, "quote", 5 );
-    val* quote_cell = char_val_constructor( quote );
-    val* retval_list = cons(quote_cell, nil_constructor());
-    val* first_elt = car( param_list );
-
-    if ( number_predicate( first_elt ) ) {
-        retval_list = append( retval_list,
-                              cons( first_elt, nil_constructor() ) );
-        if (null_predicate( cdr( param_list ) ) ) {
-            return retval_list;
-        } else {
-            return cons( retval_list, cdr( param_list ) );
-        }
-    } else {
-        char* string = first_elt->uni_val.char_val;
-        if ( string[0] != '(' &&
-             string[0] != ')' ) {
-            retval_list = append( retval_list,
-                                  cons( first_elt, nil_constructor() ) );
-
-            if (null_predicate( cdr( param_list ) ) ) {
-                return retval_list;
-            } else {
-                return cons( retval_list, cdr( param_list ) );
-            }
-        } else {
-            val* sub_result = transform_rec( param_list, 0, nil_constructor() );
-            retval_list = append( retval_list,
-                                  cons( sub_result, nil_constructor() ) );
-            return retval_list;
+int quote_predicate( val* exp ) {
+    val* elt = car( exp );
+    char* quote = "quote";
+    if ( symbol_predicate( elt ) ) {
+        char* str = elt->uni_val.char_val;
+        if(strcmp( quote, str ) == 0 ) {
+            return 1;
         }
     }
+    return 0;
 }
 
-
 val* transform_rec( val* param_list, int parenthesis_cnt, val* retval_list) {
-
     /* выполнять, пока список не кончился */
     while( !(null_predicate( param_list ) ) ) {
 
-        /* это символ? */
-        if ( symbol_predicate( car( param_list ) ) ) {
+        if ( number_predicate( car( param_list ) )) {
+            retval_list = append( retval_list, cons( car( param_list ),
+                                                     nil_constructor()));
+            param_list = cdr( param_list );
+
+        }  else if ( symbol_predicate( car( param_list ) ) ) {
             val* symbol = car( param_list );
             char* string = symbol->uni_val.char_val;
 
-            /* если открывающая скобка - мы наткнулись на новый список */
-            if ( string[0] == '(' ) {
+            switch(string[0]) {
+
+            case '(':
+
                 parenthesis_cnt++;
                 param_list = cdr(  param_list );
                 val* sub_retval_list = transform_rec( param_list,
                                                       parenthesis_cnt,
-                                                      nil_constructor());
+                                                      nil_constructor() );
+                if ( error_predicate( sub_retval_list ) ) {
+                    return cons( sub_retval_list, nil_constructor());
 
-                param_list = cdr( sub_retval_list );
-                sub_retval_list = car( sub_retval_list );
+                } else {
 
-                retval_list = append( retval_list, cons( sub_retval_list,
-                                                         nil_constructor()));
-                /* если закрывающая скобка - мы наткнулись на конец списка  */
-            } else if ( string[0] == ')' ) {
+                    param_list = cdr( sub_retval_list );
+                    sub_retval_list = car( sub_retval_list );
+
+                    retval_list = append( retval_list, cons( sub_retval_list,
+                                                             nil_constructor()) );
+                }
+                break;
+
+            case ')':
                 parenthesis_cnt--;
 
                 if (parenthesis_cnt < 0) {
 
-                    char *string = malloc( sizeof( char[11] ) );
-                    strncpy( string, "some symbol", 11 );
+                    char *string = malloc( sizeof( char[12] ) );
+                    strncpy( string, "syntax error", 12 );
                     retval_list = error_val_constructor( string );
                     return retval_list;
 
                 } else if ( parenthesis_cnt == 0 ) {
-                    return cons( retval_list, cdr( param_list ) );
+                    if ( null_predicate( cdr( param_list ) ) ) {
+                        return retval_list;
+                    } else {
+                        return cons( retval_list, cdr( param_list ) );
+                    }
                 }
+                break;
 
-                /* иначе это иной символ - присоединяем его к результирующему списку */
-            } else {
+            case 39:
+                param_list = cdr( param_list );
 
+                char *quote = malloc( sizeof( char[5] ) );
+                strncpy( quote, "quote", 5 );
+                val* quote_val = char_val_constructor( quote );
+                val* quote_cell = cons(quote_val, nil_constructor());
+                val* next_elt = car( param_list );
+                val* quote_sub_list;
+                val* quote_exp;
+                val* quoted_quote_exp;
+                val* full_exp;
+
+                if ( number_predicate( next_elt ) ) {
+
+                    quote_sub_list = append( quote_cell, cons( next_elt,
+                                                               nil_constructor() ) );
+                    if (null_predicate ( cdr( param_list ) ) ) {
+                        retval_list = quote_sub_list;
+                        return retval_list;
+                    }
+
+                    retval_list = append( retval_list, cons( quote_sub_list,
+                                                             nil_constructor()) );
+                    param_list = cdr( param_list );
+
+                } else if ( symbol_predicate( next_elt ) ) {
+
+                    char* next_str = next_elt->uni_val.char_val;
+                    if ( next_str[0] != '(' &&
+                         next_str[0] != ')' ) {
+                        quote_sub_list = append( quote_cell,
+                                                 cons( next_elt,
+                                                       nil_constructor() ) );
+                        /* printf("quote_sub_list: "); */
+                        /* ipprint( quote_sub_list ); */
+                        /* printf("\n"); */
+
+                        if (null_predicate ( cdr( param_list ) ) ) {
+                            retval_list = quote_sub_list;
+                            return retval_list;
+                        }
+                        retval_list = append( retval_list, cons( quote_sub_list,
+                                                                 nil_constructor() ) );
+                        param_list = cdr( param_list );
+
+                    } else {
+                        quote_sub_list = transform_rec( param_list, 0,
+                                                        nil_constructor() );
+                        /* printf("quote_sub_list: "); */
+                        /* ipprint( quote_sub_list ); */
+                        /* printf("\n"); */
+
+                        if ( error_predicate( quote_sub_list ) ) {
+                            /* printf("error\n"); */
+                            return quote_sub_list;
+
+                        } else if( atom_predicate( car( quote_sub_list ) ) ) {
+                            quote_exp = quote_sub_list;
+                            /* printf("atom!\n"); */
+                            /* printf("quote_sub_list: "); */
+                            /* ipprint( quote_sub_list ); */
+                            /* printf("\n"); */
+
+                            quoted_quote_exp = append(quote_cell,
+                                                      cons
+                                                      ( quote_exp,
+                                                        nil_constructor() ) );
+                            /* printf("quoted_quote_exp: "); */
+                            /* ipprint( quoted_quote_exp ); */
+                            /* printf("\n"); */
+
+                            retval_list = append( retval_list, quoted_quote_exp);
+                            return retval_list;
+
+                        } else {
+                            quote_exp = car( quote_sub_list );
+
+                            /* printf("quote_exp: "); */
+                            /* ipprint( quote_exp ); */
+                            /* printf("\n"); */
+
+                            quoted_quote_exp = append(quote_cell,
+                                                      cons
+                                                      ( quote_exp,
+                                                        nil_constructor() ) );
+                            /* printf("quoted_quote_exp: "); */
+                            /* ipprint( quoted_quote_exp ); */
+                            /* printf("\n"); */
+                            full_exp = append( cons( quoted_quote_exp,
+                                                     nil_constructor() ),
+                                               cdr( quote_sub_list ) );
+
+                            /* printf("full_exp: "); */
+                            /* ipprint( full_exp ); */
+                            /* printf("\n"); */
+
+                            retval_list = append( retval_list, full_exp);
+                            return retval_list;
+                        }
+                    }
+                }
+                break;
+
+            default:
                 retval_list = append( retval_list, cons( symbol, nil_constructor()));
                 param_list = cdr( param_list );
-            }
-            /* иначе это число - присоединяем его к результирующему списку */
-        } else {
 
-            retval_list = append( retval_list, cons( car( param_list ),
-                                                     nil_constructor()));
-            param_list = cdr( param_list );
+            }
         }
     }
     return retval_list;
 }
-
-/* val* transform_rec( val* param_list, int parenthesis_cnt, val* retval_list) { */
-
-/*     /\* выполнять, пока список не кончился *\/ */
-/*     while( !(null_predicate( param_list ) ) ) { */
-
-/*         /\* это символ? *\/ */
-/*         if ( symbol_predicate( car( param_list ) ) ) { */
-/*             val* symbol = car( param_list ); */
-/*             char* string = symbol->uni_val.char_val; */
-
-/*             /\* если открывающая скобка - мы наткнулись на новый список *\/ */
-/*             if ( string[0] == '(' ) { */
-/*                 parenthesis_cnt++; */
-/*                 param_list = cdr(  param_list ); */
-
-/*                 val* sub_retval_list = transform_rec( param_list, */
-/*                                                       parenthesis_cnt, */
-/*                                                       nil_constructor()); */
-
-/*                 if ( error_predicate( sub_retval_list ) ) { */
-/*                     return sub_retval_list; */
-
-/*                 } else { */
-
-/*                     param_list = cdr( sub_retval_list ); */
-/*                     sub_retval_list = car( sub_retval_list ); */
-
-/*                     retval_list = append( retval_list, cons( sub_retval_list, */
-/*                                                              nil_constructor())); */
-/*                 } */
-
-/*                 /\* если закрывающая скобка - мы наткнулись на конец списка  *\/ */
-/*             } else if ( string[0] == ')' ) { */
-/*                 parenthesis_cnt--; */
-
-/*                 if (parenthesis_cnt < 0) { */
-
-/*                     char *string = malloc( sizeof( char[12] ) ); */
-/*                     strncpy( string, "syntax error", 12 ); */
-/*                     retval_list = error_val_constructor( string ); */
-/*                     return retval_list; */
-
-/*                 } else if ( ( parenthesis_cnt == 0 ) && */
-/*                             ( null_predicate( cdr( param_list ) ) ) ) { */
-/*                     return retval_list; */
-
-/*                 } else { */
-/*                     return cons( retval_list, cdr( param_list ) ); */
-/*                 } */
-
-
-/*                 /\* мы наскнулиcь на одинарную кавычку? *\/ */
-/*             } else if ( string[0] == 39 ) { */
-/*                 param_list = cdr( param_list ); */
-/*                 val* quote_sub_retval_list = quote_analyse( param_list ); */
-/*                 printf("quote_sub_retval_list :"); */
-/*                 ipprint( quote_sub_retval_list ); */
-/*                 printf("\n"); */
-
-/*                 if ( error_predicate( quote_sub_retval_list ) ) { */
-/*                     return quote_sub_retval_list; */
-
-/*                 } else { */
-
-/*                     if ( pair_predicate(car( quote_sub_retval_list ) ) ) { */
-/*                         param_list = cdr( quote_sub_retval_list ); */
-/*                         quote_sub_retval_list = car( quote_sub_retval_list ); */
-
-/*                         printf("quote_sub_retval_list :"); */
-/*                         ipprint( quote_sub_retval_list ); */
-/*                         printf("\n"); */
-/*                         retval_list = append( retval_list, */
-/*                                               cons( quote_sub_retval_list, */
-/*                                                     nil_constructor())); */
-/*                         if ( ( parenthesis_cnt == 0 ) && */
-/*                              ( null_predicate( cdr( param_list ) ) ) ) { */
-/*                             return retval_list; */
-
-/*                         } else { */
-/*                             return cons( retval_list, cdr( param_list ) ); */
-/*                         } */
-/*                     } else { */
-/*                         retval_list = append( retval_list, */
-/*                                               cons( quote_sub_retval_list, */
-/*                                                     nil_constructor())); */
-/*                         if ( ( parenthesis_cnt == 0 ) && */
-/*                              ( null_predicate( cdr( param_list ) ) ) ) { */
-/*                             return retval_list; */
-
-/*                         } else { */
-/*                             return cons( retval_list, cdr( param_list ) ); */
-/*                         } */
-/*                     } */
-/*                 } */
-/*                 /\* иначе это иной символ - присоединяем его к результирующему списку *\/ */
-/*             } else { */
-/*                 retval_list = append( retval_list, cons( symbol, nil_constructor())); */
-/*                 param_list = cdr( param_list ); */
-/*             } */
-/*             /\* иначе это число - присоединяем его к результирующему списку *\/ */
-/*         } else { */
-/*             retval_list = append( retval_list, cons( car( param_list ), */
-/*                                                      nil_constructor())); */
-/*             param_list = cdr( param_list ); */
-/*         } */
-/*     } */
-/*     return retval_list; */
-/* } */
 
 val* transform_list( val* param_list ) {
     val* list = transform_rec( param_list, 0, nil_constructor());
