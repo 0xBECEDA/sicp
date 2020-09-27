@@ -3,10 +3,6 @@
 #include <stdarg.h>
 #include <string.h>
 
-/* сборка и запуск: */
-/* gcc test.c -o test */
-/* ./test */
-
 /* Этот файл содердит в себе примитивы и предикаты:
 - cons, car, cdr, set_car, set_cdr, reverse, append, length, last-pair, make_list, map,
   add, sub, mul, division, assoc
@@ -16,9 +12,11 @@
 /* возможные типы значений */
 enum list_of_types {
     TYPE_INT,
-    TYPE_CHAR,
+    TYPE_STRING,
+    TYPE_SYMBOL,
     TYPE_NIL,
     TYPE_CELL,
+    TYPE_ERROR
 };
 
 /* тип списка */
@@ -40,6 +38,8 @@ typedef struct val {
 } val;
 
 /* forward declarations */
+int error_predicate(val* cell);
+
 int atom_predicate (val* cell);
 
 int dotpair_predicate (val* cell);
@@ -75,15 +75,39 @@ val* int_val_constructor ( int* val ) {
     return retval;
 }
 
-/* конструктор значения-ссылки на копию буквы */
-val* char_val_constructor ( char* val ) {
+/* /\* конструктор значения-ссылки на копию буквы *\/ */
+/* val* char_val_constructor ( char* val ) { */
+/*     struct val * retval = malloc(sizeof(val)); */
+/*     char* pnt = malloc(sizeof(char)); */
+/*     retval->uni_val.char_val = val; /\* copy val, may be not need (todo) *\/ */
+/*     retval->type_num = TYPE_CHAR; */
+/*     return retval; */
+/* } */
+
+val* symbol_val_constructor ( char* val ) {
     struct val * retval = malloc(sizeof(val));
     char* pnt = malloc(sizeof(char));
     retval->uni_val.char_val = val; /* copy val, may be not need (todo) */
-    retval->type_num = TYPE_CHAR;
+    retval->type_num = TYPE_SYMBOL;
     return retval;
 }
 
+val* string_val_constructor ( char* val ) {
+    struct val * retval = malloc(sizeof(val));
+    char* pnt = malloc(sizeof(char));
+    retval->uni_val.char_val = val; /* copy val, may be not need (todo) */
+    retval->type_num = TYPE_STRING;
+    return retval;
+}
+
+/* конструктор значения-ссылки на копию буквы */
+val* error_val_constructor ( char* val ) {
+    struct val * retval = malloc(sizeof(val));
+    char* pnt = malloc(sizeof(char));
+    retval->uni_val.char_val = val; /* copy val, may be not need (todo) */
+    retval->type_num = TYPE_ERROR;
+    return retval;
+}
 /* конструктор NIL-значения */
 val* nil_constructor () {
     struct val * retval = malloc(sizeof(cell));
@@ -202,7 +226,7 @@ val* reverse_rec(val* list, val* new_cell ) {
         val* car_cell = car ( list );
         val* car_new_cell = malloc(sizeof(val));
         int* int_value = malloc(sizeof(int));
-        char* char_value = malloc(sizeof(char[1]));
+        char* char_value = malloc(sizeof(char[100]));
         cell* cell_value = malloc(sizeof(cell));
 
         switch ( car_cell->type_num ) {
@@ -213,9 +237,15 @@ val* reverse_rec(val* list, val* new_cell ) {
             reverse_rec(cdr( list ), cons( car_new_cell, new_cell ));
             break;
 
-        case TYPE_CHAR:
+        case TYPE_SYMBOL:
             *char_value = *car_cell->uni_val.char_val;
-            car_new_cell = char_val_constructor( char_value );
+            car_new_cell = symbol_val_constructor( char_value );
+            reverse_rec(cdr( list ), cons( car_new_cell, new_cell ));
+            break;
+
+        case TYPE_STRING:
+            *char_value = *car_cell->uni_val.char_val;
+            car_new_cell = symbol_val_constructor( char_value );
             reverse_rec(cdr( list ), cons( car_new_cell, new_cell ));
             break;
 
@@ -519,8 +549,16 @@ int true_predicate(val* cell) {
     return 0;
 }
 
+int error_predicate(val* cell) {
+    if ( TYPE_ERROR  == cell->type_num ) {
+        return 1;
+    }
+    return 0;
+}
+
 int number_predicate(val* cell) {
-    if ( ( TYPE_CHAR != cell->type_num ) &&
+    if ( ( TYPE_SYMBOL != cell->type_num ) &&
+         ( TYPE_STRING != cell->type_num ) &&
          ( TYPE_CELL != cell->type_num ) &&
          ( TYPE_NIL  != cell->type_num )) {
         return 1;
@@ -529,14 +567,22 @@ int number_predicate(val* cell) {
 }
 
 int symbol_predicate(val* cell) {
-    if ( TYPE_CHAR == cell->type_num ) {
+    if ( TYPE_SYMBOL == cell->type_num ) {
+        return 1;
+    }
+    return 0;
+}
+
+int string_predicate(val* cell) {
+    if ( TYPE_STRING == cell->type_num ) {
         return 1;
     }
     return 0;
 }
 
 int atom_predicate (val* cell) {
-    if ( ( TYPE_CHAR == cell->type_num ) ||
+    if ( ( TYPE_STRING == cell->type_num ) ||
+         ( TYPE_SYMBOL == cell->type_num ) ||
          ( TYPE_INT == cell->type_num ) ) {
         return 1;
     }
@@ -565,7 +611,8 @@ int dotpair_predicate (val* cell) {
         val* cdr_cell = cdr( cell );
 
         if( ( cdr_cell->type_num == TYPE_INT ) ||
-            ( cdr_cell->type_num == TYPE_CHAR ) ) {
+            ( cdr_cell->type_num == TYPE_STRING ) ||
+            ( cdr_cell->type_num == TYPE_SYMBOL ) ) {
             return 1;
         } else {
             return 0;
@@ -596,7 +643,7 @@ void ipprint (val* param) {
 /* выводит список */
 void pprint(val* param) {
     int tmp_int;
-    char tmp_char[1];
+    char tmp_char[100];
     val* car_pnt;
     val* cdr_pnt;
     switch ( param->type_num ) {
@@ -604,12 +651,21 @@ void pprint(val* param) {
         tmp_int = *param->uni_val.int_val;
         printf( "%d", tmp_int );
         return;
-    case TYPE_CHAR:
-        strncpy( tmp_char, ((char*)(param->uni_val.char_val)), 1 );
+    case TYPE_SYMBOL:
+        strncpy( tmp_char, ((char*)(param->uni_val.char_val)), 100 );
         printf( "%s", tmp_char );
+        return;
+    case TYPE_STRING:
+        strncpy( tmp_char, ((char*)(param->uni_val.char_val)), 100 );
+        printf( "'%s'", tmp_char );
         return;
     case TYPE_NIL:
         printf( "()" );
+        return;
+
+    case TYPE_ERROR:
+        strncpy( tmp_char, ((char*)(param->uni_val.char_val)), 100 );
+        printf( "%s", tmp_char );
         return;
     case TYPE_CELL:
         car_pnt = car( param );
@@ -646,19 +702,19 @@ void pprint(val* param) {
 void test_assoc() {
     char* ptr_a = malloc(sizeof(char[1]));
     strncpy( ptr_a, "a", 1 );
-    val* a_val = char_val_constructor( ptr_a );
+    val* a_val = string_val_constructor( ptr_a );
 
     char* ptr_b = malloc(sizeof(char[1]));
     strncpy( ptr_b, "b", 1 );
-    val* b_val = char_val_constructor( ptr_b );
+    val* b_val = string_val_constructor( ptr_b );
 
     char* ptr_c = malloc(sizeof(char[1]));
     strncpy( ptr_c, "c", 1 );
-    val* c_val = char_val_constructor( ptr_c );
+    val* c_val = string_val_constructor( ptr_c );
 
     char* ptr_d = malloc(sizeof(char[1]));
     strncpy( ptr_d, "d", 1 );
-    val* d_val = char_val_constructor( ptr_d );
+    val* d_val = string_val_constructor( ptr_d );
 
     int* ptr_1 = malloc(sizeof(int));
     *ptr_1 = 1;
@@ -735,7 +791,7 @@ void test_make_list() {
 
     char* ptr_b = malloc(sizeof(char[1]));
     strncpy( ptr_b, "b", 1 );
-    val* b_val = char_val_constructor( ptr_b );
+    val* b_val = symbol_val_constructor( ptr_b );
 
     int* ptr_c = malloc(sizeof(int));
     *ptr_c = 5;
@@ -784,7 +840,7 @@ void test_add_sub_mu_division(){
 
     char* ptr_b = malloc(sizeof(char[1]));
     strncpy( ptr_b, "b", 1 );
-    val* b_val = char_val_constructor( ptr_b );
+    val* b_val = string_val_constructor( ptr_b );
 
     int* ptr_c = malloc(sizeof(int));
     *ptr_c = 5;
@@ -892,7 +948,7 @@ void test_set_car_and_set_cdr () {
 
     char* ptr_b = malloc(sizeof(char[1]));
     strncpy( ptr_b, "b", 1 );
-    val* b_val = char_val_constructor( ptr_b );
+    val* b_val = symbol_val_constructor( ptr_b );
 
     int* ptr_c = malloc(sizeof(int));
     *ptr_c = 5;
@@ -954,7 +1010,7 @@ void test_map() {
 
     char* ptr_b = malloc(sizeof(char[1]));
     strncpy( ptr_b, "b", 1 );
-    val* b_val = char_val_constructor( ptr_b );
+    val* b_val = string_val_constructor( ptr_b );
 
     int* ptr_c = malloc(sizeof(int));
     *ptr_c = 5;
@@ -1019,7 +1075,7 @@ void test_car_and_cdr () {
 
     char* ptr_b = malloc(sizeof(char[1]));
     strncpy( ptr_b, "b", 1 );
-    val* b_val = char_val_constructor( ptr_b );
+    val* b_val = string_val_constructor( ptr_b );
 
     int* ptr_c = malloc(sizeof(int));
     *ptr_c = 5;
@@ -1052,7 +1108,7 @@ void test_reverse() {
 
     char* ptr_b = malloc(sizeof(char[1]));
     strncpy( ptr_b, "b", 1 );
-    val* b_val = char_val_constructor( ptr_b );
+    val* b_val = string_val_constructor( ptr_b );
 
     int* ptr_c = malloc(sizeof(int));
     *ptr_c = 5;
@@ -1117,7 +1173,7 @@ void test_pair () {
 
     char* ptr_b = malloc(sizeof(char[1]));
     strncpy( ptr_b, "b", 1 );
-    val* b_val = char_val_constructor( ptr_b );
+    val* b_val = string_val_constructor( ptr_b );
 
     int* ptr_c = malloc(sizeof(int));
     *ptr_c = 5;
@@ -1168,7 +1224,7 @@ void test_append () {
 
     char* ptr_b = malloc(sizeof(char[1]));
     strncpy( ptr_b, "b", 1 );
-    val* b_val = char_val_constructor( ptr_b );
+    val* b_val = symbol_val_constructor( ptr_b );
 
     int* ptr_c = malloc(sizeof(int));
     *ptr_c = 5;
@@ -1258,7 +1314,7 @@ void test_ipprint() {
 
     char* ptr_b = malloc(sizeof(char[1]));
     strncpy( ptr_b, "b", 1 );
-    val* b_val = char_val_constructor( ptr_b );
+    val* b_val = string_val_constructor( ptr_b );
 
     int* ptr_c = malloc(sizeof(int));
     *ptr_c = 5;
@@ -1346,7 +1402,7 @@ void test_length() {
 
     char* ptr_b = malloc(sizeof(char[1]));
     strncpy( ptr_b, "b", 1 );
-    val* b_val = char_val_constructor( ptr_b );
+    val* b_val = symbol_val_constructor( ptr_b );
 
     int* ptr_c = malloc(sizeof(int));
     *ptr_c = 5;

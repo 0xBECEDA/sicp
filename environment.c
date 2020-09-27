@@ -93,19 +93,19 @@ void test_frames() {
 
     char* ptr_a = malloc(sizeof(char[1]));
     strncpy( ptr_a, "a", 1 );
-    val* a_val = char_val_constructor( ptr_a );
+    val* a_val = string_val_constructor( ptr_a );
 
     char* ptr_b = malloc(sizeof(char[1]));
     strncpy( ptr_b, "b", 1 );
-    val* b_val = char_val_constructor( ptr_b );
+    val* b_val = symbol_val_constructor( ptr_b );
 
     char* ptr_c = malloc(sizeof(char[1]));
     strncpy( ptr_c, "c", 1 );
-    val* c_val = char_val_constructor( ptr_c );
+    val* c_val = string_val_constructor( ptr_c );
 
     char* ptr_d = malloc(sizeof(char[1]));
     strncpy( ptr_d, "d", 1 );
-    val* d_val = char_val_constructor( ptr_d );
+    val* d_val = symbol_val_constructor( ptr_d );
 
     int* ptr_1 = malloc(sizeof(int));
     *ptr_1 = 1;
@@ -144,7 +144,7 @@ void test_frames() {
     /* пробуем найти значение переменной, которой нет - тест обработчика ошибки*/
     char* ptr_f = malloc(sizeof(char[1]));
     strncpy( ptr_d, "f", 1 );
-    val* f_val = char_val_constructor( ptr_f );
+    val* f_val = string_val_constructor( ptr_f );
 
     value = lookup_value(frame, f_val);
     ipprint(value);
@@ -160,27 +160,27 @@ void test_env() {
 
     char* ptr_a = malloc(sizeof(char[1]));
     strncpy( ptr_a, "a", 1 );
-    val* a_val = char_val_constructor( ptr_a );
+    val* a_val = symbol_val_constructor( ptr_a );
 
     char* ptr_b = malloc(sizeof(char[1]));
     strncpy( ptr_b, "b", 1 );
-    val* b_val = char_val_constructor( ptr_b );
+    val* b_val = symbol_val_constructor( ptr_b );
 
     char* ptr_c = malloc(sizeof(char[1]));
     strncpy( ptr_c, "c", 1 );
-    val* c_val = char_val_constructor( ptr_c );
+    val* c_val = symbol_val_constructor( ptr_c );
 
     char* ptr_d = malloc(sizeof(char[1]));
     strncpy( ptr_d, "d", 1 );
-    val* d_val = char_val_constructor( ptr_d );
+    val* d_val = symbol_val_constructor( ptr_d );
 
     char* ptr_e = malloc(sizeof(char[1]));
     strncpy( ptr_e, "e", 1 );
-    val* e_val = char_val_constructor( ptr_e );
+    val* e_val = symbol_val_constructor( ptr_e );
 
     char* ptr_f = malloc(sizeof(char[1]));
     strncpy( ptr_f, "f", 1 );
-    val* f_val = char_val_constructor( ptr_f );
+    val* f_val = symbol_val_constructor( ptr_f );
 
     int* ptr_1 = malloc(sizeof(int));
     *ptr_1 = 1;
@@ -253,8 +253,8 @@ void test_env() {
     printf("\n");
 }
 
-int main (void) {
-    test_frames();
-    test_env();
-    return 0;
-}
+/* int main (void) { */
+/*     test_frames(); */
+/*     test_env(); */
+/*     return 0; */
+/* } */

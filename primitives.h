@@ -13,12 +13,14 @@
    symbol_predicate, true_predicate, false_predicate*/
 
 /* возможные типы значений */
-
+/* возможные типы значений */
 enum list_of_types {
     TYPE_INT,
-    TYPE_CHAR,
+    TYPE_STRING,
+    TYPE_SYMBOL,
     TYPE_NIL,
     TYPE_CELL,
+    TYPE_ERROR
 };
 
 /* тип списка */
@@ -48,11 +50,17 @@ void error_handler(char* str);
 
 val* int_val_constructor ( int* val );
 
-val* char_val_constructor ( char* val );
+/* val* char_val_constructor ( char* val ); */
+
+val* symbol_val_constructor ( char* val );
+
+val* string_val_constructor ( char* val );
 
 val* nil_constructor();
 
 val* cell_val_constructor ( cell* val );
+
+val* error_val_constructor ( char* val );
 
 val* cons  (val* car, val* cdr );
 
@@ -109,6 +117,10 @@ int null_predicate (val* cell);
 int pair_predicate (val* cell);
 
 int dotpair_predicate (val* cell);
+
+int error_predicate (val* cell);
+
+int string_predicate(val* cell);
 
 void wrap_brackets_if_not_atom_or_empty_cell (val* car);
 
