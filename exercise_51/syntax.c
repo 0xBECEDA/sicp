@@ -9,6 +9,7 @@ char** read_input(int max_input_size, int max_str_size);
 
 val* transform_rec(val* param_list, int parenthesis_cnt, val* retval_list);
 
+/* типы возможных состояний */
 enum list_of_state_types {
     TYPE_UNDONE_EXP,
     TYPE_UNDONE_STRING,
@@ -20,6 +21,7 @@ enum list_of_state_types {
 
 int brackets_cnt = 0;
 
+/* анализирует текущую строку ввода  */
 int analyse_cur_string( int state, char* string) {
     int i = 0;
 
@@ -33,10 +35,12 @@ int analyse_cur_string( int state, char* string) {
             if ( string[i] == 0 ) {
                 return state;
 
+                /* если двойная кавычка - переходим в состояние чтения строки */
             } else if ( string[i] == '"' ) {
                 state = TYPE_ANALYSE_STRING;
                 i += 1;
 
+                /* если какая-то из скобок - переходим в состояние чтения выражения */
             } else if ( string[i] == '(' ) {
                 brackets_cnt += 1;
                 i += 1;
@@ -47,6 +51,7 @@ int analyse_cur_string( int state, char* string) {
                 i += 1;
                 state = TYPE_ANALYSE_EXP;
 
+                /* иначе пропускаем символ */
             } else {
                 i += 1;
             }
@@ -57,10 +62,14 @@ int analyse_cur_string( int state, char* string) {
             /* printf("analyse_cur_string: анализирую строку\n"); */
             /* printf("i %d\n", i); */
             /* printf("analyse_cur_string: char %d\n", string[i]); */
+
+            /* текущая строка ввода кончилась, а закрывающих кавычек так и не было  */
             if ( string[i] == 0 ) {
                 state = TYPE_UNDONE_STRING;
                 return state;
 
+                /* встретили закрывающую кавычку - вернуться в состояние
+                   разбора символов */
             } else if ( string[i] == '"' ) {
                 state = TYPE_ANALYSE_CUR_INPUT_STRING;
                 i += 1;
@@ -68,14 +77,16 @@ int analyse_cur_string( int state, char* string) {
             } else {
                 i += 1;
             }
-
             break;
 
             /* проверяем скобки */
         case TYPE_ANALYSE_EXP:
+
+            /* текущая строка ввода кончилась, а кол-во скобок неравное */
             if ( ( string[i] == 0 ) && ( brackets_cnt != 0) ) {
                 return TYPE_UNDONE_EXP;
 
+            /* считаем скобки */
             } else if ( string[i] == '(' ) {
                 brackets_cnt += 1;
                 i += 1;
@@ -83,6 +94,7 @@ int analyse_cur_string( int state, char* string) {
             } else if ( string[i] == ')' ) {
                 brackets_cnt -= 1;
 
+                /* количество скобок совпало - возвращаемся к разбору символов */
                 if ( brackets_cnt == 0) {
                     state = TYPE_ANALYSE_CUR_INPUT_STRING;
                     i += 1;
@@ -96,6 +108,7 @@ int analyse_cur_string( int state, char* string) {
     return state;
 }
 
+/* анализирует весь ввод построчно */
 int analyse_input( int state, char* array_strings[] ) {
     int i = 0;
 
