@@ -10,7 +10,7 @@ char** read_input(int max_input_size, int max_str_size);
 val* transform_rec(val* param_list, int parenthesis_cnt, val* retval_list);
 
 /* типы возможных состояний */
-enum list_of_state_types {
+enum list_of_analyse_state_types {
     TYPE_UNDONE_EXP,
     TYPE_UNDONE_STRING,
     TYPE_ANALYSE_EXP,
@@ -367,254 +367,303 @@ char* clear_array(char array[], int max_size) {
     return array;
 }
 
-/* почищает ввод от пробелов и переводов строки; */
-/* заводит структру под каждое слово, число или иной символ; */
-/* возвращает список, составленный из этих структур */
-val* parse_input(char** array_strings, int max_size_input, int max_size_str) {
+val* flush_array_symbol ( char cur_symbol_array[], int string_flag,
+                          int cur_symbol_max_size, int *array_cnt ) {
+    val* new_struct = malloc(sizeof(val));
 
-    /* максимальный размер одного слова или числа */
+    new_struct = transform_symbol_string_to_val_struct( cur_symbol_array,
+                                                        string_flag );
+
+    clear_array( cur_symbol_array, cur_symbol_max_size );
+    *array_cnt = 0;
+    return cons( new_struct, nil_constructor() );
+}
+
+val* add_token_to_list( char cur_symbol_array[], int string_flag,
+                        int  cur_symbol_max_size, val* list, int* array_cnt ) {
+    val* new_pair = flush_array_symbol( cur_symbol_array,
+                                        string_flag, cur_symbol_max_size,
+                                        array_cnt);
+    list = append( list, new_pair );
+    return list;
+}
+
+enum list_of_parse_state_types {
+    PARSE_CUR_INPUT_STRING,
+    PARSE_EXP,
+    PARSE_STRING,
+    PARSE_QUOTE,
+    PARSE_CUR_INPUT_STRING_DONE,
+};
+
+val* parse_string(int state, char* string) {
+    val* cur_str_list = nil_constructor();
+    val* new_pair;
+
+    int cur_symbol_cnt = *(int*)malloc(sizeof(int));
+    cur_symbol_cnt = 0;
     int cur_symbol_max_size = 100;
-    int string_flag = 0;
-    /* счетчик  */
-    int cur_symbol_cnt = 0;
+    int i = 0;
+
     char cur_symbol[cur_symbol_max_size];
-    val* new_struct;
-    val* retval_list = nil_constructor();
+    clear_array(cur_symbol, cur_symbol_max_size);
 
+    while(1) {
 
-    /* париснг текущей строки */
-    val* parse_string( char* string) {
+        switch (state) {
 
-        /* printf("parse_string строка:  '%s' \n", string); */
-        val* cur_str_list = nil_constructor();
+        case PARSE_CUR_INPUT_STRING_DONE:
+            if ( cur_symbol_cnt != 0 ) {
+                cur_str_list = add_token_to_list(cur_symbol, 0, cur_symbol_max_size,
+                                                 cur_str_list,
+                                                 &cur_symbol_cnt);
+            }
+            return cur_str_list;
+            break;
 
-        for(int i = 0; ; i++) {
+        case PARSE_CUR_INPUT_STRING:
 
-            /* printf("string %d\n", string[i]); */
-            switch (string[i]) {
-                /* строка кончилась */
+            switch ( string[i] ) {
+
             case 0:
-                if (cur_symbol_cnt != 0) {
-
-                    new_struct = malloc(sizeof(val));
-                    new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 );
-
-                    cur_str_list = append(cur_str_list,
-                                          cons( new_struct, nil_constructor()));
-                }
-                return cur_str_list;
-                /* встретили двойные кавычки */
-            case '"':
-                /* printf("двойные кавычки\n"); */
-
-                if ( string_flag == 0 ) {
-                    string_flag += 1;
-
-                    ipprint( new_struct );
-                    printf("\n");
-
-                } else {
-                    string_flag--;
-
-                    cur_symbol[cur_symbol_cnt] = 0;
-
-                    new_struct = malloc(sizeof(val));
-                    new_struct = transform_symbol_string_to_val_struct( cur_symbol, 1 );
-
-                    ipprint( new_struct );
-                    printf("\n");
-
-                    cur_str_list = append(cur_str_list,
-                                          cons( new_struct, nil_constructor()));
-                    cur_symbol_cnt = 0;
-                    clear_array(cur_symbol, cur_symbol_max_size);
-                }
+                state = PARSE_CUR_INPUT_STRING_DONE;
                 break;
 
             case '(':
-                /* printf("открывающая скобка\n"); */
-                /* если что-то есть в буфере знаков строки - преобразовать */
-                if ( ( cur_symbol_cnt != 0 ) && ( string_flag == 0 ) ) {
-
-                    new_struct = malloc(sizeof(val));
-                    new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 );
-
-                    cur_str_list = append(cur_str_list,
-                                          cons( new_struct, nil_constructor()));
-
-                    ipprint( cur_str_list );
-                    printf("\n");
-                    cur_symbol_cnt = 0;
-                    clear_array(cur_symbol, cur_symbol_max_size);
-
-                    cur_symbol[cur_symbol_cnt] = string[i];
-
-                    new_struct = malloc(sizeof(val));
-                    new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 );
-
-                    cur_str_list = append(cur_str_list,
-                                          cons( new_struct, nil_constructor()));
-
-                } else if ( string_flag == 0 ) {
-
-                    cur_symbol[cur_symbol_cnt] = string[i];
-
-                    new_struct = malloc(sizeof(val));
-                    new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 );
-
-                    cur_str_list = append(cur_str_list,
-                                          cons( new_struct, nil_constructor()));
-
-                    ipprint( cur_str_list );
-                    printf("\n");
-
-                    cur_symbol_cnt = 0;
-                    clear_array(cur_symbol, cur_symbol_max_size);
-
-                } else {
-                    cur_symbol[cur_symbol_cnt] = string[i];
-                    cur_symbol_cnt++;
-                }
+                state = PARSE_EXP;
                 break;
-                /* встретили закрывающую скобку */
+
             case ')':
-                printf("закрывающая скобка\n");
-                if ( ( cur_symbol_cnt != 0 ) && ( string_flag == 0 ) ) {
-
-                    new_struct = malloc(sizeof(val));
-                    new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 );
-
-                    cur_str_list = append(cur_str_list,
-                                          cons( new_struct, nil_constructor()));
-
-                    ipprint( cur_str_list );
-                    printf("\n");
-
-                    cur_symbol_cnt = 0;
-                    clear_array(cur_symbol, cur_symbol_max_size);
-
-                    cur_symbol[cur_symbol_cnt] = string[i];
-
-                    new_struct = malloc(sizeof(val));
-                    new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 );
-
-                    cur_str_list = append(cur_str_list,
-                                          cons( new_struct, nil_constructor()));
-
-                } else if ( string_flag == 0 ) {
-
-                    cur_symbol[cur_symbol_cnt] = string[i];
-
-                    new_struct = malloc(sizeof(val));
-                    new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 );
-
-                    cur_str_list = append(cur_str_list,
-                                          cons( new_struct, nil_constructor()));
-
-                    ipprint( cur_str_list );
-                    printf("\n");
-
-                    cur_symbol_cnt = 0;
-                    clear_array(cur_symbol, cur_symbol_max_size);
-
-                } else {
-                    cur_symbol[cur_symbol_cnt] = string[i];
-                    cur_symbol_cnt++;
-                }
+                state = PARSE_EXP;
                 break;
-                /* встретили пробел */
-            case ' ':
-                printf("пробел\n");
-                if ( ( cur_symbol_cnt != 0 ) && ( string_flag == 0 ) ) {
-                    new_struct = malloc(sizeof(val));
-                    new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 );
-                    cur_str_list = append(cur_str_list,
-                                          cons( new_struct, nil_constructor()));
 
-                    cur_symbol_cnt = 0;
-                    clear_array(cur_symbol, cur_symbol_max_size);
-
-                } else if ( string_flag == 1 ) {
-                    cur_symbol[cur_symbol_cnt] = string[i];
-                    cur_symbol_cnt++;
-                }
-
+            case'"':
+                state = PARSE_STRING;
                 break;
-                /* встретили перевод строки */
+
+            case' ':
+                if ( cur_symbol_cnt != 0 ) {
+                    cur_str_list = add_token_to_list(cur_symbol, 0,
+                                                     cur_symbol_max_size,
+                                                     cur_str_list,
+                                                     &cur_symbol_cnt);
+                }
+                i++;
+                break;
+
             case'\n':
-                printf("перевод строки\n");
-                if ( ( cur_symbol_cnt != 0 ) && ( string_flag == 0 ) ) {
-
-                    /* printf("здесь\n"); */
-                    new_struct = malloc(sizeof(val));
-                    new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 );
-                    cur_str_list = append(cur_str_list,
-                                          cons( new_struct, nil_constructor()));
-
-                    ipprint( cur_str_list );
-                    printf("\n");
-
-                    cur_symbol_cnt = 0;
-                    clear_array(cur_symbol, cur_symbol_max_size);
-
-                } else if ( string_flag == 1 ) {
-                    printf("flag\n");
-                    cur_symbol[cur_symbol_cnt] = string[i];
-                    cur_symbol_cnt++;
+                if ( cur_symbol_cnt != 0 ) {
+                    cur_str_list = add_token_to_list(cur_symbol, 0,
+                                                     cur_symbol_max_size,
+                                                     cur_str_list,
+                                                     &cur_symbol_cnt);
                 }
-
+                i++;
                 break;
-                /* встретили одинарную кавычку ' */
+
             case 39:
-                /* printf("кавычка\n"); */
-                if ( ( cur_symbol_cnt != 0 ) && ( string_flag == 0 ) ) {
+                state = PARSE_QUOTE;
+                break;
 
-                    new_struct = malloc(sizeof(val));
-                    new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 );
-                    cur_str_list = append(cur_str_list,
-                                          cons( new_struct, nil_constructor()));
+            default:
+                cur_symbol[cur_symbol_cnt] = string[i];
+                cur_symbol_cnt++;
+                i++;
+            }
+            break;
 
-                    ipprint( cur_str_list );
-                    printf("\n");
+        case PARSE_STRING:
 
-                    cur_symbol_cnt = 0;
-                    clear_array(cur_symbol, cur_symbol_max_size);
+            switch ( string[i] ) {
+            case 0:
+                state = PARSE_CUR_INPUT_STRING_DONE;
+                break;
 
-                } else if ( string_flag == 0 ) {
+            case '"':
+                if (double_quotes_cnt > 0) {
+                    double_quotes_cnt--;
 
-                    cur_symbol[cur_symbol_cnt] = string[i];
+                    if ( double_quotes_cnt == 0 ) {
+                        cur_str_list = add_token_to_list(cur_symbol, 1,
+                                                         cur_symbol_max_size,
+                                                         cur_str_list,
+                                                         &cur_symbol_cnt);
 
-                    new_struct = malloc(sizeof(val));
-                    new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 );
-
-                    cur_str_list = append(cur_str_list,
-                                          cons( new_struct, nil_constructor()));
-
-                    ipprint( cur_str_list );
-                    printf("\n");
-
-                    cur_symbol_cnt = 0;
-                    clear_array(cur_symbol, cur_symbol_max_size);
-
-                } else if ( string_flag == 1 ) {
-                    cur_symbol[cur_symbol_cnt] = string[i];
-                    cur_symbol_cnt++;
+                        state = PARSE_CUR_INPUT_STRING;
+                        i++;
+                    }
+                } else {
+                    double_quotes_cnt++;
+                    i++;
                 }
                 break;
 
             default:
-                /* printf("%d\n", string[i]); */
                 cur_symbol[cur_symbol_cnt] = string[i];
                 cur_symbol_cnt++;
+                i++;
             }
+            break;
+
+        case PARSE_EXP:
+            switch ( string[i] ) {
+
+            case 0:
+                state = PARSE_CUR_INPUT_STRING_DONE;
+                break;
+
+            case '(':
+                if ( cur_symbol_cnt != 0 ) {
+                    cur_str_list = add_token_to_list(cur_symbol, 0,
+                                                     cur_symbol_max_size,
+                                                     cur_str_list,
+                                                     &cur_symbol_cnt);
+
+                }
+                cur_symbol[cur_symbol_cnt] = string[i];
+                cur_str_list = add_token_to_list(cur_symbol, 0,
+                                                 cur_symbol_max_size,
+                                                 cur_str_list,
+                                                 &cur_symbol_cnt);
+
+                i++;
+                break;
+
+            case ')':
+                if ( cur_symbol_cnt != 0 ) {
+                    cur_str_list = add_token_to_list(cur_symbol, 0,
+                                                     cur_symbol_max_size,
+                                                     cur_str_list,
+                                                     &cur_symbol_cnt);
+
+                }
+                cur_symbol[cur_symbol_cnt] = string[i];
+                cur_str_list = add_token_to_list(cur_symbol, 0,
+                                                 cur_symbol_max_size,
+                                                 cur_str_list,
+                                                 &cur_symbol_cnt);
+
+                i++;
+                break;
+
+            case '"':
+                state = PARSE_STRING;
+                break;
+
+            case ' ':
+                if ( cur_symbol_cnt != 0 ) {
+                    cur_str_list = add_token_to_list(cur_symbol, 0,
+                                                     cur_symbol_max_size,
+                                                     cur_str_list,
+                                                     &cur_symbol_cnt);
+
+                }
+                i++;
+                break;
+
+            case 39:
+                state = PARSE_QUOTE;
+                break;
+
+            case'\n':
+                if ( cur_symbol_cnt != 0 ) {
+                    cur_str_list = add_token_to_list(cur_symbol, 0,
+                                                     cur_symbol_max_size,
+                                                     cur_str_list,
+                                                     &cur_symbol_cnt);
+                }
+                i++;
+                break;
+
+            default:
+                cur_symbol[cur_symbol_cnt] = string[i];
+                cur_symbol_cnt++;
+                i++;
+            }
+            break;
+
+        case PARSE_QUOTE:
+            switch ( string[i] ) {
+
+            case 0:
+                state = PARSE_CUR_INPUT_STRING_DONE;
+                break;
+
+            case 39:
+                if ( cur_symbol_cnt != 0 ) {
+                    cur_str_list = add_token_to_list(cur_symbol, 0,
+                                                     cur_symbol_max_size,
+                                                     cur_str_list,
+                                                     &cur_symbol_cnt);
+                }
+                cur_symbol[cur_symbol_cnt] = string[i];
+                cur_str_list = add_token_to_list(cur_symbol, 0,
+                                                 cur_symbol_max_size,
+                                                 cur_str_list,
+                                                 &cur_symbol_cnt);
+                i++;
+
+            case '(':
+                state = PARSE_EXP;
+                break;
+
+            case ')':
+
+                state = PARSE_EXP;
+                break;
+
+            case'"':
+                state = PARSE_STRING;
+                break;
+
+            case' ':
+                if ( cur_symbol_cnt != 0 ) {
+                    cur_str_list = add_token_to_list(cur_symbol, 0,
+                                                     cur_symbol_max_size,
+                                                     cur_str_list,
+                                                     &cur_symbol_cnt);
+                }
+                i++;
+                break;
+
+            case'\n':
+                if ( cur_symbol_cnt != 0 ) {
+                    cur_str_list = add_token_to_list(cur_symbol, 0,
+                                                     cur_symbol_max_size,
+                                                     cur_str_list,
+                                                     &cur_symbol_cnt);
+                }
+                i++;
+                break;
+
+            default:
+                cur_symbol[cur_symbol_cnt] = string[i];
+                cur_symbol_cnt++;
+                i++;
+            }
+            break;
         }
     }
+}
+
+val* parse_input(char** array_strings, int max_size_input, int max_size_str) {
+
+    val* retval_list = nil_constructor();
+    val* list;
+    double_quotes_cnt = 0;
 
     /* парисм строку за строкой, пока они не кончатся */
     for (int i = 0; ; i++) {
         if (array_strings[i] != NULL) {
-            val* list = parse_string (array_strings[i]);
-            retval_list = append(retval_list, list);
+
+            if ( double_quotes_cnt > 0 ) {
+                list = parse_string (PARSE_STRING, array_strings[i]);
+                retval_list = append(retval_list, list);
+            } else {
+                list = parse_string (PARSE_CUR_INPUT_STRING, array_strings[i]);
+                retval_list = append(retval_list, list);
+            }
+
             /* ipprint( list ); */
             /* printf("\n"); */
         } else {
@@ -623,67 +672,268 @@ val* parse_input(char** array_strings, int max_size_input, int max_size_str) {
     }
 }
 
-/* val* copy_num_or_symbol_to_new_cell (val* elt) { */
-/*     val* new_struct_car = malloc(sizeof(val)); */
-/*     val *new_struct_cdr = malloc(sizeof(val));; */
-/*     val* new_cell; */
-/*     char* string = malloc(sizeof(char[100])); */
-/*     int* num = malloc(sizeof(int)); */
 
-/*     if ( symbol_predicate ( elt ) ) { */
-/*         strncpy( string, elt->uni_val.char_val, 100 ); */
-/*         new_struct_car = symbol_val_constructor( string  ); */
-/*         new_struct_cdr = nil_constructor(); */
-/*         new_cell = cons( new_struct_car, new_struct_cdr ); */
-/*         return new_cell; */
 
-/*     } else if ( number_predicate ( elt ) ){ */
-/*         *num = *elt->uni_val.int_val; */
-/*         new_struct_car = int_val_constructor( num ); */
-/*         new_struct_cdr = nil_constructor(); */
-/*         new_cell = cons( new_struct_car, new_struct_cdr ); */
-/*         return new_cell; */
 
-/*     } else { */
-/*         error_handler("COPY_NUM_OR_SYMBOL_TO_NEW_CELL ERR: VALUE ISN'T NUM OR SYMBOL"); */
+
+
+
+
+
+/* /\* почищает ввод от пробелов и переводов строки; *\/ */
+/* /\* заводит структру под каждое слово, число или иной символ; *\/ */
+/* /\* возвращает список, составленный из этих структур *\/ */
+/* val* parse_input(char** array_strings, int max_size_input, int max_size_str) { */
+
+/*     /\* максимальный размер одного слова или числа *\/ */
+/*     int cur_symbol_max_size = 100; */
+/*     int string_flag = 0; */
+/*     /\* счетчик  *\/ */
+/*     int cur_symbol_cnt = 0; */
+/*     char cur_symbol[cur_symbol_max_size]; */
+/*     val* new_struct; */
+/*     val* retval_list = nil_constructor(); */
+
+
+/*     /\* париснг текущей строки *\/ */
+/*     val* parse_string( char* string) { */
+
+/*         /\* printf("parse_string строка:  '%s' \n", string); *\/ */
+/*         val* cur_str_list = nil_constructor(); */
+
+/*         for(int i = 0; ; i++) { */
+
+/*             /\* printf("string %d\n", string[i]); *\/ */
+/*             switch (string[i]) { */
+/*                 /\* строка кончилась *\/ */
+/*             case 0: */
+/*                 if (cur_symbol_cnt != 0) { */
+
+/*                     new_struct = malloc(sizeof(val)); */
+/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
+
+/*                     cur_str_list = append(cur_str_list, */
+/*                                           cons( new_struct, nil_constructor())); */
+/*                 } */
+/*                 return cur_str_list; */
+/*                 /\* встретили двойные кавычки *\/ */
+/*             case '"': */
+/*                 /\* printf("двойные кавычки\n"); *\/ */
+
+/*                 if ( string_flag == 0 ) { */
+/*                     string_flag += 1; */
+
+/*                     ipprint( new_struct ); */
+/*                     printf("\n"); */
+
+/*                 } else { */
+/*                     string_flag--; */
+
+/*                     cur_symbol[cur_symbol_cnt] = 0; */
+
+/*                     new_struct = malloc(sizeof(val)); */
+/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 1 ); */
+
+/*                     ipprint( new_struct ); */
+/*                     printf("\n"); */
+
+/*                     cur_str_list = append(cur_str_list, */
+/*                                           cons( new_struct, nil_constructor())); */
+/*                     cur_symbol_cnt = 0; */
+/*                     clear_array(cur_symbol, cur_symbol_max_size); */
+/*                 } */
+/*                 break; */
+
+/*             case '(': */
+/*                 /\* printf("открывающая скобка\n"); *\/ */
+/*                 /\* если что-то есть в буфере знаков строки - преобразовать *\/ */
+/*                 if ( ( cur_symbol_cnt != 0 ) && ( string_flag == 0 ) ) { */
+
+/*                     new_struct = malloc(sizeof(val)); */
+/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
+
+/*                     cur_str_list = append(cur_str_list, */
+/*                                           cons( new_struct, nil_constructor())); */
+
+/*                     ipprint( cur_str_list ); */
+/*                     printf("\n"); */
+/*                     cur_symbol_cnt = 0; */
+/*                     clear_array(cur_symbol, cur_symbol_max_size); */
+
+/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
+
+/*                     new_struct = malloc(sizeof(val)); */
+/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
+
+/*                     cur_str_list = append(cur_str_list, */
+/*                                           cons( new_struct, nil_constructor())); */
+
+/*                 } else if ( string_flag == 0 ) { */
+
+/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
+
+/*                     new_struct = malloc(sizeof(val)); */
+/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
+
+/*                     cur_str_list = append(cur_str_list, */
+/*                                           cons( new_struct, nil_constructor())); */
+
+/*                     ipprint( cur_str_list ); */
+/*                     printf("\n"); */
+
+/*                     cur_symbol_cnt = 0; */
+/*                     clear_array(cur_symbol, cur_symbol_max_size); */
+
+/*                 } else { */
+/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
+/*                     cur_symbol_cnt++; */
+/*                 } */
+/*                 break; */
+/*                 /\* встретили закрывающую скобку *\/ */
+/*             case ')': */
+/*                 printf("закрывающая скобка\n"); */
+/*                 if ( ( cur_symbol_cnt != 0 ) && ( string_flag == 0 ) ) { */
+
+/*                     new_struct = malloc(sizeof(val)); */
+/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
+
+/*                     cur_str_list = append(cur_str_list, */
+/*                                           cons( new_struct, nil_constructor())); */
+
+/*                     ipprint( cur_str_list ); */
+/*                     printf("\n"); */
+
+/*                     cur_symbol_cnt = 0; */
+/*                     clear_array(cur_symbol, cur_symbol_max_size); */
+
+/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
+
+/*                     new_struct = malloc(sizeof(val)); */
+/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
+
+/*                     cur_str_list = append(cur_str_list, */
+/*                                           cons( new_struct, nil_constructor())); */
+
+/*                 } else if ( string_flag == 0 ) { */
+
+/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
+
+/*                     new_struct = malloc(sizeof(val)); */
+/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
+
+/*                     cur_str_list = append(cur_str_list, */
+/*                                           cons( new_struct, nil_constructor())); */
+
+/*                     ipprint( cur_str_list ); */
+/*                     printf("\n"); */
+
+/*                     cur_symbol_cnt = 0; */
+/*                     clear_array(cur_symbol, cur_symbol_max_size); */
+
+/*                 } else { */
+/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
+/*                     cur_symbol_cnt++; */
+/*                 } */
+/*                 break; */
+/*                 /\* встретили пробел *\/ */
+/*             case ' ': */
+/*                 printf("пробел\n"); */
+/*                 if ( ( cur_symbol_cnt != 0 ) && ( string_flag == 0 ) ) { */
+/*                     new_struct = malloc(sizeof(val)); */
+/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
+/*                     cur_str_list = append(cur_str_list, */
+/*                                           cons( new_struct, nil_constructor())); */
+
+/*                     cur_symbol_cnt = 0; */
+/*                     clear_array(cur_symbol, cur_symbol_max_size); */
+
+/*                 } else if ( string_flag == 1 ) { */
+/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
+/*                     cur_symbol_cnt++; */
+/*                 } */
+
+/*                 break; */
+/*                 /\* встретили перевод строки *\/ */
+/*             case'\n': */
+/*                 printf("перевод строки\n"); */
+/*                 if ( ( cur_symbol_cnt != 0 ) && ( string_flag == 0 ) ) { */
+
+/*                     /\* printf("здесь\n"); *\/ */
+/*                     new_struct = malloc(sizeof(val)); */
+/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
+/*                     cur_str_list = append(cur_str_list, */
+/*                                           cons( new_struct, nil_constructor())); */
+
+/*                     ipprint( cur_str_list ); */
+/*                     printf("\n"); */
+
+/*                     cur_symbol_cnt = 0; */
+/*                     clear_array(cur_symbol, cur_symbol_max_size); */
+
+/*                 } else if ( string_flag == 1 ) { */
+/*                     printf("flag\n"); */
+/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
+/*                     cur_symbol_cnt++; */
+/*                 } */
+
+/*                 break; */
+/*                 /\* встретили одинарную кавычку ' *\/ */
+/*             case 39: */
+/*                 /\* printf("кавычка\n"); *\/ */
+/*                 if ( ( cur_symbol_cnt != 0 ) && ( string_flag == 0 ) ) { */
+
+/*                     new_struct = malloc(sizeof(val)); */
+/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
+/*                     cur_str_list = append(cur_str_list, */
+/*                                           cons( new_struct, nil_constructor())); */
+
+/*                     ipprint( cur_str_list ); */
+/*                     printf("\n"); */
+
+/*                     cur_symbol_cnt = 0; */
+/*                     clear_array(cur_symbol, cur_symbol_max_size); */
+
+/*                 } else if ( string_flag == 0 ) { */
+
+/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
+
+/*                     new_struct = malloc(sizeof(val)); */
+/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
+
+/*                     cur_str_list = append(cur_str_list, */
+/*                                           cons( new_struct, nil_constructor())); */
+
+/*                     ipprint( cur_str_list ); */
+/*                     printf("\n"); */
+
+/*                     cur_symbol_cnt = 0; */
+/*                     clear_array(cur_symbol, cur_symbol_max_size); */
+
+/*                 } else if ( string_flag == 1 ) { */
+/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
+/*                     cur_symbol_cnt++; */
+/*                 } */
+/*                 break; */
+
+/*             default: */
+/*                 /\* printf("%d\n", string[i]); *\/ */
+/*                 cur_symbol[cur_symbol_cnt] = string[i]; */
+/*                 cur_symbol_cnt++; */
+/*             } */
+/*         } */
 /*     } */
-/* } */
 
-/* void test_copy_num_or_symbol_to_new_cell() { */
-/*     int* ptr_a = malloc(sizeof(int)); */
-/*     *ptr_a = 4; */
-/*     val* a_val = int_val_constructor( ptr_a ); */
-
-/*     char* ptr_b = malloc(sizeof(char[1])); */
-/*     strncpy( ptr_b, "b", 1 ); */
-/*     val* b_val = char_val_constructor( ptr_b ); */
-
-/*     char* ptr_c = malloc(sizeof(char[4])); */
-/*     strncpy( ptr_c, "book", 4 ); */
-/*     val* c_val = char_val_constructor( ptr_c ); */
-
-/*     val* d_val = nil_constructor(); */
-
-/*     int* ptr_f = malloc(sizeof(int)); */
-/*     *ptr_f = 6; */
-/*     val* f_val = int_val_constructor( ptr_f ); */
-
-/*     val* test; */
-
-/*     test = copy_num_or_symbol_to_new_cell(f_val); */
-/*     free( f_val ); */
-/*     ipprint(test); */
-/*     printf("\n"); */
-
-/*     test = copy_num_or_symbol_to_new_cell(b_val); */
-/*     free( b_val ); */
-/*     ipprint(test); */
-/*     printf("\n"); */
-
-/*     test = copy_num_or_symbol_to_new_cell(c_val); */
-/*     free( c_val ); */
-/*     ipprint(test); */
-/*     printf("\n"); */
+/*     /\* парисм строку за строкой, пока они не кончатся *\/ */
+/*     for (int i = 0; ; i++) { */
+/*         if (array_strings[i] != NULL) { */
+/*             val* list = parse_string (array_strings[i]); */
+/*             retval_list = append(retval_list, list); */
+/*             /\* ipprint( list ); *\/ */
+/*             /\* printf("\n"); *\/ */
+/*         } else { */
+/*             return retval_list; */
+/*         } */
+/*     } */
 /* } */
 
 val* push (val* elt, val* list) {
