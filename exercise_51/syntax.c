@@ -330,6 +330,7 @@ int num_str_predicate(char* symbol_str) {
 
 char* copy_str_in_memory(char cur_symbol[]) {
     /* printf("copy_str_in_memory: '%s' \n", cur_symbol); */
+    /* fflush(stdout); */
     char* str_pnt = malloc(sizeof(char[100]));
     strncpy( str_pnt, cur_symbol, 100 );
     return str_pnt;
@@ -347,13 +348,16 @@ val* transform_symbol_string_to_val_struct(char cur_symbol[], int string_flag) {
         return new_struct;
 
     } else if ( string_flag == 1 ) {
+        /* printf("трансформирую строку\n"); */
         copy_str = copy_str_in_memory( cur_symbol );
+        /* printf("строка %s\n", copy_str); */
         new_struct = string_val_constructor( copy_str );
 
         return new_struct;
 
 
     } else {
+        /* printf("трансформация прочего символа\n"); */
         copy_str = copy_str_in_memory( cur_symbol );
         new_struct = symbol_val_constructor( copy_str );
         return new_struct;
@@ -396,33 +400,31 @@ enum list_of_parse_state_types {
     PARSE_CUR_INPUT_STRING_DONE,
 };
 
-val* parse_string(int state, char* string) {
+val* parse_string(int state, char* string, char cur_symbol[], int* array_cnt) {
     val* cur_str_list = nil_constructor();
     val* new_pair;
 
     int cur_symbol_cnt = *(int*)malloc(sizeof(int));
-    cur_symbol_cnt = 0;
+    cur_symbol_cnt = *array_cnt;
     int cur_symbol_max_size = 100;
     int i = 0;
-
-    char cur_symbol[cur_symbol_max_size];
-    clear_array(cur_symbol, cur_symbol_max_size);
 
     while(1) {
 
         switch (state) {
 
         case PARSE_CUR_INPUT_STRING_DONE:
-            if ( cur_symbol_cnt != 0 ) {
+            if ( cur_symbol_cnt != 0 && double_quotes_cnt == 0 ) {
                 cur_str_list = add_token_to_list(cur_symbol, 0, cur_symbol_max_size,
                                                  cur_str_list,
                                                  &cur_symbol_cnt);
             }
+            *array_cnt = cur_symbol_cnt;
             return cur_str_list;
             break;
 
         case PARSE_CUR_INPUT_STRING:
-
+            /* printf("PARSE_CUR_INPUT_STRING\n"); */
             switch ( string[i] ) {
 
             case 0:
@@ -438,6 +440,7 @@ val* parse_string(int state, char* string) {
                 break;
 
             case'"':
+                /* printf("строка!\n"); */
                 state = PARSE_STRING;
                 break;
 
@@ -474,16 +477,20 @@ val* parse_string(int state, char* string) {
 
         case PARSE_STRING:
 
+            /* printf("PARSE_STRING\n"); */
             switch ( string[i] ) {
             case 0:
+                /* printf("смена состояния\n"); */
                 state = PARSE_CUR_INPUT_STRING_DONE;
                 break;
 
             case '"':
+                /* printf("double_quotes_cnt %d\n", double_quotes_cnt); */
                 if (double_quotes_cnt > 0) {
                     double_quotes_cnt--;
 
                     if ( double_quotes_cnt == 0 ) {
+                        /* printf("cur_symbol %s\n", cur_symbol); */
                         cur_str_list = add_token_to_list(cur_symbol, 1,
                                                          cur_symbol_max_size,
                                                          cur_str_list,
@@ -499,7 +506,10 @@ val* parse_string(int state, char* string) {
                 break;
 
             default:
+                /* printf( "прочий символ строки %d \n", string[i] ); */
+                fflush(stdout);
                 cur_symbol[cur_symbol_cnt] = string[i];
+                /* printf("cur_symbol %s\n", cur_symbol); */
                 cur_symbol_cnt++;
                 i++;
             }
@@ -513,6 +523,7 @@ val* parse_string(int state, char* string) {
                 break;
 
             case '(':
+                /* printf("открывающая скобка"); */
                 if ( cur_symbol_cnt != 0 ) {
                     cur_str_list = add_token_to_list(cur_symbol, 0,
                                                      cur_symbol_max_size,
@@ -547,6 +558,7 @@ val* parse_string(int state, char* string) {
                 break;
 
             case '"':
+                /* printf("строка!\n"); */
                 state = PARSE_STRING;
                 break;
 
@@ -566,6 +578,8 @@ val* parse_string(int state, char* string) {
                 break;
 
             case'\n':
+                /* printf("перевод строки\n"); */
+
                 if ( cur_symbol_cnt != 0 ) {
                     cur_str_list = add_token_to_list(cur_symbol, 0,
                                                      cur_symbol_max_size,
@@ -576,6 +590,7 @@ val* parse_string(int state, char* string) {
                 break;
 
             default:
+                /* printf("прочий символ\n"); */
                 cur_symbol[cur_symbol_cnt] = string[i];
                 cur_symbol_cnt++;
                 i++;
@@ -650,6 +665,13 @@ val* parse_input(char** array_strings, int max_size_input, int max_size_str) {
 
     val* retval_list = nil_constructor();
     val* list;
+    int cur_symbol_max_size = 100;
+    int buf_symbol_cnt = *(int*)malloc(sizeof(int));
+    buf_symbol_cnt = 0;
+    char buf_symbols[cur_symbol_max_size];
+    clear_array( buf_symbols, cur_symbol_max_size );
+
+
     double_quotes_cnt = 0;
 
     /* парисм строку за строкой, пока они не кончатся */
@@ -657,10 +679,16 @@ val* parse_input(char** array_strings, int max_size_input, int max_size_str) {
         if (array_strings[i] != NULL) {
 
             if ( double_quotes_cnt > 0 ) {
-                list = parse_string (PARSE_STRING, array_strings[i]);
+                list = parse_string (PARSE_STRING, array_strings[i], buf_symbols,
+                                     &buf_symbol_cnt);
+                printf("buf_symbols %s\n", buf_symbols);
                 retval_list = append(retval_list, list);
             } else {
-                list = parse_string (PARSE_CUR_INPUT_STRING, array_strings[i]);
+                clear_array( buf_symbols, cur_symbol_max_size );
+                buf_symbol_cnt = 0;
+
+                list = parse_string (PARSE_STRING, array_strings[i], buf_symbols,
+                                     &buf_symbol_cnt);
                 retval_list = append(retval_list, list);
             }
 
@@ -671,270 +699,6 @@ val* parse_input(char** array_strings, int max_size_input, int max_size_str) {
         }
     }
 }
-
-
-
-
-
-
-
-
-
-/* /\* почищает ввод от пробелов и переводов строки; *\/ */
-/* /\* заводит структру под каждое слово, число или иной символ; *\/ */
-/* /\* возвращает список, составленный из этих структур *\/ */
-/* val* parse_input(char** array_strings, int max_size_input, int max_size_str) { */
-
-/*     /\* максимальный размер одного слова или числа *\/ */
-/*     int cur_symbol_max_size = 100; */
-/*     int string_flag = 0; */
-/*     /\* счетчик  *\/ */
-/*     int cur_symbol_cnt = 0; */
-/*     char cur_symbol[cur_symbol_max_size]; */
-/*     val* new_struct; */
-/*     val* retval_list = nil_constructor(); */
-
-
-/*     /\* париснг текущей строки *\/ */
-/*     val* parse_string( char* string) { */
-
-/*         /\* printf("parse_string строка:  '%s' \n", string); *\/ */
-/*         val* cur_str_list = nil_constructor(); */
-
-/*         for(int i = 0; ; i++) { */
-
-/*             /\* printf("string %d\n", string[i]); *\/ */
-/*             switch (string[i]) { */
-/*                 /\* строка кончилась *\/ */
-/*             case 0: */
-/*                 if (cur_symbol_cnt != 0) { */
-
-/*                     new_struct = malloc(sizeof(val)); */
-/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
-
-/*                     cur_str_list = append(cur_str_list, */
-/*                                           cons( new_struct, nil_constructor())); */
-/*                 } */
-/*                 return cur_str_list; */
-/*                 /\* встретили двойные кавычки *\/ */
-/*             case '"': */
-/*                 /\* printf("двойные кавычки\n"); *\/ */
-
-/*                 if ( string_flag == 0 ) { */
-/*                     string_flag += 1; */
-
-/*                     ipprint( new_struct ); */
-/*                     printf("\n"); */
-
-/*                 } else { */
-/*                     string_flag--; */
-
-/*                     cur_symbol[cur_symbol_cnt] = 0; */
-
-/*                     new_struct = malloc(sizeof(val)); */
-/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 1 ); */
-
-/*                     ipprint( new_struct ); */
-/*                     printf("\n"); */
-
-/*                     cur_str_list = append(cur_str_list, */
-/*                                           cons( new_struct, nil_constructor())); */
-/*                     cur_symbol_cnt = 0; */
-/*                     clear_array(cur_symbol, cur_symbol_max_size); */
-/*                 } */
-/*                 break; */
-
-/*             case '(': */
-/*                 /\* printf("открывающая скобка\n"); *\/ */
-/*                 /\* если что-то есть в буфере знаков строки - преобразовать *\/ */
-/*                 if ( ( cur_symbol_cnt != 0 ) && ( string_flag == 0 ) ) { */
-
-/*                     new_struct = malloc(sizeof(val)); */
-/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
-
-/*                     cur_str_list = append(cur_str_list, */
-/*                                           cons( new_struct, nil_constructor())); */
-
-/*                     ipprint( cur_str_list ); */
-/*                     printf("\n"); */
-/*                     cur_symbol_cnt = 0; */
-/*                     clear_array(cur_symbol, cur_symbol_max_size); */
-
-/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
-
-/*                     new_struct = malloc(sizeof(val)); */
-/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
-
-/*                     cur_str_list = append(cur_str_list, */
-/*                                           cons( new_struct, nil_constructor())); */
-
-/*                 } else if ( string_flag == 0 ) { */
-
-/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
-
-/*                     new_struct = malloc(sizeof(val)); */
-/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
-
-/*                     cur_str_list = append(cur_str_list, */
-/*                                           cons( new_struct, nil_constructor())); */
-
-/*                     ipprint( cur_str_list ); */
-/*                     printf("\n"); */
-
-/*                     cur_symbol_cnt = 0; */
-/*                     clear_array(cur_symbol, cur_symbol_max_size); */
-
-/*                 } else { */
-/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
-/*                     cur_symbol_cnt++; */
-/*                 } */
-/*                 break; */
-/*                 /\* встретили закрывающую скобку *\/ */
-/*             case ')': */
-/*                 printf("закрывающая скобка\n"); */
-/*                 if ( ( cur_symbol_cnt != 0 ) && ( string_flag == 0 ) ) { */
-
-/*                     new_struct = malloc(sizeof(val)); */
-/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
-
-/*                     cur_str_list = append(cur_str_list, */
-/*                                           cons( new_struct, nil_constructor())); */
-
-/*                     ipprint( cur_str_list ); */
-/*                     printf("\n"); */
-
-/*                     cur_symbol_cnt = 0; */
-/*                     clear_array(cur_symbol, cur_symbol_max_size); */
-
-/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
-
-/*                     new_struct = malloc(sizeof(val)); */
-/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
-
-/*                     cur_str_list = append(cur_str_list, */
-/*                                           cons( new_struct, nil_constructor())); */
-
-/*                 } else if ( string_flag == 0 ) { */
-
-/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
-
-/*                     new_struct = malloc(sizeof(val)); */
-/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
-
-/*                     cur_str_list = append(cur_str_list, */
-/*                                           cons( new_struct, nil_constructor())); */
-
-/*                     ipprint( cur_str_list ); */
-/*                     printf("\n"); */
-
-/*                     cur_symbol_cnt = 0; */
-/*                     clear_array(cur_symbol, cur_symbol_max_size); */
-
-/*                 } else { */
-/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
-/*                     cur_symbol_cnt++; */
-/*                 } */
-/*                 break; */
-/*                 /\* встретили пробел *\/ */
-/*             case ' ': */
-/*                 printf("пробел\n"); */
-/*                 if ( ( cur_symbol_cnt != 0 ) && ( string_flag == 0 ) ) { */
-/*                     new_struct = malloc(sizeof(val)); */
-/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
-/*                     cur_str_list = append(cur_str_list, */
-/*                                           cons( new_struct, nil_constructor())); */
-
-/*                     cur_symbol_cnt = 0; */
-/*                     clear_array(cur_symbol, cur_symbol_max_size); */
-
-/*                 } else if ( string_flag == 1 ) { */
-/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
-/*                     cur_symbol_cnt++; */
-/*                 } */
-
-/*                 break; */
-/*                 /\* встретили перевод строки *\/ */
-/*             case'\n': */
-/*                 printf("перевод строки\n"); */
-/*                 if ( ( cur_symbol_cnt != 0 ) && ( string_flag == 0 ) ) { */
-
-/*                     /\* printf("здесь\n"); *\/ */
-/*                     new_struct = malloc(sizeof(val)); */
-/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
-/*                     cur_str_list = append(cur_str_list, */
-/*                                           cons( new_struct, nil_constructor())); */
-
-/*                     ipprint( cur_str_list ); */
-/*                     printf("\n"); */
-
-/*                     cur_symbol_cnt = 0; */
-/*                     clear_array(cur_symbol, cur_symbol_max_size); */
-
-/*                 } else if ( string_flag == 1 ) { */
-/*                     printf("flag\n"); */
-/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
-/*                     cur_symbol_cnt++; */
-/*                 } */
-
-/*                 break; */
-/*                 /\* встретили одинарную кавычку ' *\/ */
-/*             case 39: */
-/*                 /\* printf("кавычка\n"); *\/ */
-/*                 if ( ( cur_symbol_cnt != 0 ) && ( string_flag == 0 ) ) { */
-
-/*                     new_struct = malloc(sizeof(val)); */
-/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
-/*                     cur_str_list = append(cur_str_list, */
-/*                                           cons( new_struct, nil_constructor())); */
-
-/*                     ipprint( cur_str_list ); */
-/*                     printf("\n"); */
-
-/*                     cur_symbol_cnt = 0; */
-/*                     clear_array(cur_symbol, cur_symbol_max_size); */
-
-/*                 } else if ( string_flag == 0 ) { */
-
-/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
-
-/*                     new_struct = malloc(sizeof(val)); */
-/*                     new_struct = transform_symbol_string_to_val_struct( cur_symbol, 0 ); */
-
-/*                     cur_str_list = append(cur_str_list, */
-/*                                           cons( new_struct, nil_constructor())); */
-
-/*                     ipprint( cur_str_list ); */
-/*                     printf("\n"); */
-
-/*                     cur_symbol_cnt = 0; */
-/*                     clear_array(cur_symbol, cur_symbol_max_size); */
-
-/*                 } else if ( string_flag == 1 ) { */
-/*                     cur_symbol[cur_symbol_cnt] = string[i]; */
-/*                     cur_symbol_cnt++; */
-/*                 } */
-/*                 break; */
-
-/*             default: */
-/*                 /\* printf("%d\n", string[i]); *\/ */
-/*                 cur_symbol[cur_symbol_cnt] = string[i]; */
-/*                 cur_symbol_cnt++; */
-/*             } */
-/*         } */
-/*     } */
-
-/*     /\* парисм строку за строкой, пока они не кончатся *\/ */
-/*     for (int i = 0; ; i++) { */
-/*         if (array_strings[i] != NULL) { */
-/*             val* list = parse_string (array_strings[i]); */
-/*             retval_list = append(retval_list, list); */
-/*             /\* ipprint( list ); *\/ */
-/*             /\* printf("\n"); *\/ */
-/*         } else { */
-/*             return retval_list; */
-/*         } */
-/*     } */
-/* } */
 
 val* push (val* elt, val* list) {
     return cons( elt, list);
@@ -1193,13 +957,32 @@ void test_parse_input() {
     int max_input_size = 10000;
     int max_str_size = 1000;
 
-    while(1) {
+    /* while(1) { */
+    /*     char** array = read_input( max_input_size, max_str_size ); */
+    /*     printf("read done \n"); */
+
+    /*     val*  list = parse_input( array, max_input_size, max_str_size); */
+
+
+    /*     printf("\n"); */
+    /*     printf("Вывод: "); */
+    /*     ipprint(list); */
+    /*     printf("\n"); */
+
+    /* } */
+
         char** array = read_input( max_input_size, max_str_size );
         printf("read done \n");
-        printf("\n");
-        /* val*  list = parse_input( array, max_input_size, max_str_size); */
 
-    }
+        val*  list = parse_input( array, max_input_size, max_str_size);
+
+        printf("Вывод : ");
+        ipprint(list);
+        printf("\n");
+
+        printf("Рабоча окончена\n");
+        printf("\n");
+
     /* printf("\n"); */
     /* ipprint(list); */
     /* printf("\n"); */
