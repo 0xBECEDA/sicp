@@ -33,11 +33,28 @@ if test -x "$PROGA"; then
 
     sleep 1
 
-    echo " \" 'Monday Friday Sommer Nacht \" () " | ./proga
+    echo " \" 'Monday Friday Sommer Nacht \" ()" | ./proga
 
     sleep 1
     echo "( \"( '(dsac) \" 1 2 'd + \"\" x)" | ./proga
 
+    sleep 1
+    echo "( ' \"2\")" | ./proga
+
+    sleep 1
+    echo "( ')" | ./proga
+
+    sleep 1
+    echo "( )" | ./proga
+
+    sleep 1
+    echo "( ''d ) " | ./proga
+
+    sleep 1
+    echo " '''d " | ./proga
+
+    sleep 1
+    echo " ''() " | ./proga
 
 
 else
