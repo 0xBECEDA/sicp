@@ -472,15 +472,6 @@ void test_predicates ( val* exp ) {
     }
 }
 
-int test() {
-    char str1[5] = "quote";
-    char str2[100] = "quote";
-
-    if(strcmp( str1, str2 ) == 0 ) {
-        printf("true\n");
-    }
-}
-
 int driver_loop( int max_input_size, int max_str_size ) {
 
     /* while(1) { */
