@@ -1,6 +1,8 @@
 #ifndef SYNTAX_PROCS_H
 #define SYNTAX_PROCS_H
 
+#include "primitives.h"
+
 int var_predicate( val* exp );
 
 int self_evaluating_predicate( val* exp );

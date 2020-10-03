@@ -9,7 +9,6 @@ char** read_input(int max_input_size, int max_str_size);
 
 val* transform_rec(val* param_list, int parenthesis_cnt, val* retval_list);
 
-val* quote_exp_rec ( val* param_list, int parenthesis_cnt );
 val* quote_exp_fn (val* param_list);
 
 /* типы возможных состояний */
@@ -1037,8 +1036,8 @@ void test_parse_input() {
     if ( array!= NULL ) {
         list = parse_input( array, max_input_size, max_str_size);
 
-        printf("Вывод parse_input: ");
-        ipprint( list );
+        /* printf("Вывод parse_input: "); */
+        /* ipprint( list ); */
 
         list = transform_list( list );
 
@@ -1051,9 +1050,9 @@ void test_parse_input() {
 }
 
 
-int main(void) {
-    /* test_depth_list(); */
-    /* test_copy_num_or_symbol_to_new_cell(); */
-    test_parse_input();
-    return 0;
-}
+/* int main(void) { */
+/*     /\* test_depth_list(); *\/ */
+/*     /\* test_copy_num_or_symbol_to_new_cell(); *\/ */
+/*     test_parse_input(); */
+/*     return 0; */
+/* } */
