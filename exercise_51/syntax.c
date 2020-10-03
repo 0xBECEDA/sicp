@@ -822,8 +822,8 @@ val* quote_exp_fn (val* param_list) {
 
         } else if ( next_elt_str[0] == ')' && next_elt_str[1] == 0 ) {
 
-            char *string = malloc( sizeof( char[12] ) );
-            strncpy( string, "syntax error", 12 );
+            char *string = malloc( sizeof( char[100] ) );
+            strncpy( string, "quote: syntax error", 100 );
             return error_val_constructor( string );
 
         } else if ( next_elt_str[0] == 39 && next_elt_str[1] == 0 ) {

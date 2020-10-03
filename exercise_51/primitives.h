@@ -86,13 +86,13 @@ val* reverse_rec(val* list, val* new_cell );
 
 val* reverse(val* cell);
 
-val* add(int n, ...);
+val* add( val* args );
 
-val* mul(int n, ...);
+val* mul( val* args );
 
-val* sub(int n, ...);
+val* sub( val* args );
 
-val* division(int n, ...);
+val* division( val* args );
 
 val* map(val* (*op)(val*),  val* arg_list);
 

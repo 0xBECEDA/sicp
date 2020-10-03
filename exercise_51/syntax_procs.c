@@ -501,10 +501,10 @@ int driver_loop( int max_input_size, int max_str_size ) {
     }
 }
 
-/* int main () { */
+int main () {
 
-/*     int max_input_size = 10000; */
-/*     int max_str_size = 1000; */
+    int max_input_size = 10000;
+    int max_str_size = 1000;
 
-/*     driver_loop(max_input_size, max_str_size); */
-/* } */
+    driver_loop(max_input_size, max_str_size);
+}
