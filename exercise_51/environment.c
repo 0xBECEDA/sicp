@@ -12,7 +12,10 @@ val* make_binding(val* var_name, val* var_value) {
     if ( symbol_predicate( var_name ) ) {
         return cons( var_name, var_value );
     }
-    error_handler("ERR MAKE_BINDING: VAR_NAME ISTN'T A SYMBOL");
+    char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "ERR MAKE_BINDING: var name isn't a symbol",
+             max_symbol_name_length );
+    return error_val_constructor( string );
 }
 
 val* var_binding(val* binding) {
@@ -33,6 +36,32 @@ val* add_binding(val* frame, val* var_name, val* var_value) {
     } else {
         set_cdr(record, var_value);
         return frame;
+    }
+}
+/* (define (extend-environment vars vals base-env) */
+/*  (if (= (length vars) (length vals)) */
+/*      (cons (make-frame vars vals) base-env) */
+/*          (if (< (length vars) (length vals)) */
+/*              (error "Получено слишком много аргументов" vars vals) */
+/*                  (error "Получено слишком мало аргументов" vars vals)))) */
+
+val* make_frame( val* vars, val* values ) {
+    if (null_predicate ( vars ) ) {
+     return make_empty_frame();
+    }  else {
+        return cons (cons ( car( vars ), car( values ) ),
+                     make_frame( cdr( vars ), cdr( values ) ) );
+    }
+}
+
+val* extend_environment(val* vars, val* values, val* base_env ) {
+    if ( ( length( vars ) ) == ( length( values ) ) ) {
+        return cons( make_frame( vars, values ), base_env );
+    } else {
+        char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+        strncpy( string, "extend_environment: every variable should have a value",
+                 max_symbol_name_length );
+        return error_val_constructor( string );
     }
 }
 
@@ -74,7 +103,10 @@ val* rest_frames(val* env) {
 /* ищет значение пременной в окружении, если она есть */
 val* lookup_variable(val* var_name, val* env) {
     if ( null_predicate( env ) ) {
-        error_handler("ERR LOOKUP_VARIABLE: UNUSSIGNED VARIABLE");
+        char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+        strncpy( string, "ERR LOOKUP_VARIABLE:: unussigned variable",
+                 max_symbol_name_length );
+        return error_val_constructor( string );
 
     } else {
         val* first = first_frame( env );

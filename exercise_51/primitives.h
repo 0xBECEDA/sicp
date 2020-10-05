@@ -41,6 +41,7 @@ typedef struct val {
     } uni_val;
 } val;
 
+int max_symbol_name_length;
 
 val* last_pair (val* cell);
 

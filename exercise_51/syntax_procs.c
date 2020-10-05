@@ -41,7 +41,8 @@ val* text_of_quotation( val* exp ) {
 }
 
 int assigment_predicate( val* exp ) {
-    char set[5] = "set!";
+    int max_length = max_symbol_name_length;
+    char set[100] = "set!";
     if ( pair_predicate( exp ) ) {
         if ( symbol_predicate( car( exp ) ) ) {
             val* symbol = car( exp );
@@ -67,7 +68,7 @@ val* assignment_value( val* exp ) {
 }
 
 int lambda_predicate( val* exp ) {
-    char lambda[6] = "lambda";
+    char lambda[100] = "lambda";
     if ( pair_predicate( exp ) ) {
         if ( symbol_predicate( car( exp ) ) ) {
 
@@ -94,15 +95,15 @@ val* lambda_body( val* exp ) {
 }
 
 val* make_lambda( val* params, val*body ) {
-    char* lambda_str = (char*)malloc( sizeof( char[6] ) );
-    strncpy( lambda_str, "lambda", 6 );
+    char* lambda_str = (char*)malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( lambda_str, "lambda", max_symbol_name_length );
     val* lambda = symbol_val_constructor( lambda_str );
 
     return cons( lambda, (cons( params, body ) ) );
 }
 
 int let_predicate( val* exp ) {
-    char let[6] = "let";
+    char let[100] = "let";
     if ( pair_predicate( exp ) ) {
         if ( symbol_predicate( car( exp ) ) ) {
 
@@ -129,7 +130,7 @@ val* let_body( val* exp ) {
 }
 
 int if_predicate( val* exp ) {
-    char if_str[6] = "if";
+    char if_str[100] = "if";
     if ( pair_predicate( exp ) ) {
         if ( symbol_predicate( car( exp ) ) ) {
 
@@ -157,8 +158,8 @@ val* if_consequent( val* exp ) {
 
 val* if_alternative( val* exp ) {
     if (null_predicate( cdr( cdr( cdr( exp ) ) ) ) ) {
-        char *err_str = malloc( sizeof( char[6] ) );
-        strncpy( err_str, "false", 5 );
+        char *err_str = malloc( sizeof( char[max_symbol_name_length] ) );
+        strncpy( err_str, "false", max_symbol_name_length );
         return error_val_constructor( err_str );
 
     } else {
@@ -167,15 +168,15 @@ val* if_alternative( val* exp ) {
 }
 
 val* make_if( val* predicate, val* consequent, val* alternative ) {
-    char* if_str = (char*)malloc( sizeof( char[2] ) );
-    strncpy( if_str, "if", 2 );
+    char* if_str = (char*)malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( if_str, "if", max_symbol_name_length );
     val* if_val = symbol_val_constructor( if_str );
 
     return make_list(4, if_val, predicate, consequent, alternative);
 }
 
 int define_predicate( val* exp ) {
-    char define[6] = "define";
+    char define[100] = "define";
     if ( pair_predicate( exp ) ) {
         if ( symbol_predicate( car( exp ) ) ) {
 
@@ -213,7 +214,7 @@ val* definition_value( val* exp ) {
 }
 
 int begin_predicate( val* exp ) {
-    char begin[6] = "begin";
+    char begin[100] = "begin";
     if ( pair_predicate( exp ) ) {
         if ( symbol_predicate( car( exp ) ) ) {
 
@@ -251,8 +252,8 @@ val* rest_exps( val* seq ) {
 }
 
 val* make_begin( val* seq ) {
-    char* begin_str = (char*)malloc( sizeof( char[5] ) );
-    strncpy( begin_str, "begin", 5 );
+    char* begin_str = (char*)malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( begin_str, "begin", max_symbol_name_length );
     val* begin = symbol_val_constructor( begin_str );
     return cons( begin, seq);
 }
@@ -284,7 +285,7 @@ val* operands( val* exp ) {
 int no_operands_predicate( val* ops ) {
     return null_predicate( ops );
 }
-val* firs_operand( val* ops ) {
+val* first_operand( val* ops ) {
     return car( ops );
 }
 
@@ -404,7 +405,7 @@ void test_application_procs( val* exp ) {
 
     val* opr = operator( exp );
     val* opers = operands( exp );
-    val* first_opers = firs_operand( opers );
+    val* first_opers = first_operand( opers );
     val* rest_opers = rest_operands( opers );
 
     printf(" application operand: ");
@@ -474,7 +475,7 @@ void test_predicates ( val* exp ) {
 
 int driver_loop( int max_input_size, int max_str_size ) {
 
-    /* while(1) { */
+    while(1) {
 
         /* printf("\n"); */
         /* printf("Ввод: "); */
@@ -493,18 +494,18 @@ int driver_loop( int max_input_size, int max_str_size ) {
             printf("\n");
             printf("\n");
 
-            test_predicates ( list );
+            /* test_predicates ( list ); */
             /* пока что очищаем память */
             free(array);
             free(list);
-        /* } */
+        }
     }
 }
 
-int main () {
+/* int main () { */
 
-    int max_input_size = 10000;
-    int max_str_size = 1000;
+/*     int max_input_size = 10000; */
+/*     int max_str_size = 1000; */
 
-    driver_loop(max_input_size, max_str_size);
-}
+/*     driver_loop(max_input_size, max_str_size); */
+/* } */

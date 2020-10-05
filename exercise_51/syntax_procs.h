@@ -2,6 +2,8 @@
 #define SYNTAX_PROCS_H
 
 #include "primitives.h"
+#include "syntax.h"
+#include "env.h"
 
 int var_predicate( val* exp );
 
@@ -56,6 +58,10 @@ int last_exp_predicate( val* seq );
 val* first_exp( val* seq );
 
 val* rest_exps( val* seq );
+
+val* first_operand( val* operands );
+
+val* rest_operands( val* operands );
 
 val* make_begin( val* seq );
 

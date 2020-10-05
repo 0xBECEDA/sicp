@@ -37,6 +37,7 @@ typedef struct val {
     } uni_val;
 } val;
 
+int max_symbol_name_length = 100;
 /* forward declarations */
 int error_predicate(val* cell);
 
@@ -231,7 +232,7 @@ val* reverse_rec(val* list, val* new_cell ) {
         val* car_cell = car ( list );
         val* car_new_cell = malloc(sizeof(val));
         int* int_value = malloc(sizeof(int));
-        char* char_value = malloc(sizeof(char[100]));
+        char* char_value = malloc(sizeof(char[max_symbol_name_length]));
         cell* cell_value = malloc(sizeof(cell));
 
         switch ( car_cell->type_num ) {
@@ -323,8 +324,8 @@ val* add ( val* args ) {
             *sum = the_sum;
             add_rec( cdr( args ) );
         } else {
-            char *string = malloc( sizeof( char[100] ) );
-            strncpy( string, "ADD ERROR: add gets only numbers", 100 );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+            strncpy( string, "ADD ERROR: add gets only numbers", max_symbol_name_length );
             return error_val_constructor( string );
         }
     }
@@ -348,8 +349,8 @@ val* mul ( val* args ) {
             mul_rec( cdr( args ) );
 
         } else {
-            char *string = malloc( sizeof( char[100] ) );
-            strncpy( string, "MUL ERROR: mul gets only numbers", 100 );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+            strncpy( string, "MUL ERROR: mul gets only numbers", max_symbol_name_length );
             return error_val_constructor( string );
         }
     }
@@ -370,8 +371,8 @@ val* sub_rec( val* args, int* diff ) {
             sub_rec( cdr( args ), diff );
 
         } else {
-            char *string = malloc( sizeof( char[100] ) );
-            strncpy( string, "MUL ERROR: mul gets only numbers", 100 );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+            strncpy( string, "MUL ERROR: mul gets only numbers", max_symbol_name_length );
             return error_val_constructor( string );
         }
     }
@@ -380,8 +381,8 @@ val* sub_rec( val* args, int* diff ) {
 val* sub( val* args ) {
     /* если аргументов нет, выдать ошибку */
     if ( null_predicate( args ) ) {
-        char *string = malloc( sizeof( char[100] ) );
-        strncpy( string, "SUB ERROR: sub needs at least 1 arg", 100 );
+        char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+        strncpy( string, "SUB ERROR: sub needs at least 1 arg", max_symbol_name_length );
         return error_val_constructor( string );
 
     } else {
@@ -397,8 +398,9 @@ val* sub( val* args ) {
                 return int_val_constructor( diff );
 
             } else {
-                char *string = malloc( sizeof( char[100] ) );
-                strncpy( string, "SUB ERROR: sub gets only numbers", 100 );
+                char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+                strncpy( string, "SUB ERROR: sub gets only numbers",
+                         max_symbol_name_length );
                 return error_val_constructor( string );
             }
         }
@@ -420,15 +422,16 @@ val* division_rec( val* args, int* quotient ) {
             int term = *cur_arg->uni_val.int_val;
 
             if ( the_quotient == 0 ) {
-                string = malloc( sizeof( char[100] ) );
-                strncpy( string, "DIVISION ERROR: division by zero", 100 );
+                string = malloc( sizeof( char[max_symbol_name_length] ) );
+                strncpy( string, "DIVISION ERROR: division by zero",
+                         max_symbol_name_length );
                 return error_val_constructor( string );
 
             } else if ( term > the_quotient ){
-                string = malloc( sizeof( char[100] ) );
+                string = malloc( sizeof( char[max_symbol_name_length] ) );
                 strncpy( string,
                          "DIVISION ERROR: division does't support fractional numbers",
-                         100 );
+                         max_symbol_name_length );
                 return error_val_constructor( string );
 
             } else {
@@ -437,8 +440,9 @@ val* division_rec( val* args, int* quotient ) {
                 division_rec( cdr( args ), quotient );
             }
         } else {
-            string = malloc( sizeof( char[100] ) );
-            strncpy( string, "DIVISION ERROR: division gets only numbers", 100 );
+            string = malloc( sizeof( char[max_symbol_name_length] ) );
+            strncpy( string, "DIVISION ERROR: division gets only numbers",
+                     max_symbol_name_length );
             return error_val_constructor( string );
         }
     }
@@ -448,8 +452,9 @@ val* division( val* args ) {
     char* string;
     /* если аргументов нет или аргумент 1, выдать ошибку */
     if ( null_predicate( args ) || (length( args ) == 1) ) {
-        string = malloc( sizeof( char[100] ) );
-        strncpy( string, "DIVISION ERROR: division needs at least 2 args", 100 );
+        string = malloc( sizeof( char[max_symbol_name_length] ) );
+        strncpy( string, "DIVISION ERROR: division needs at least 2 args",
+                 max_symbol_name_length );
         return error_val_constructor( string );
 
     } else {
@@ -461,8 +466,9 @@ val* division( val* args ) {
                 return division_rec( cdr( args ), quotient );
 
         } else {
-            string = malloc( sizeof( char[100] ) );
-            strncpy( string, "DIVISION ERROR: division gets only numbers", 100 );
+            string = malloc( sizeof( char[max_symbol_name_length] ) );
+            strncpy( string, "DIVISION ERROR: division gets only numbers",
+                     max_symbol_name_length );
             return error_val_constructor( string );
         }
     }
@@ -709,7 +715,8 @@ int false_predicate(val* cell) {
 }
 
 int true_predicate(val* cell) {
-    if( !false_predicate( cell ) ) {
+    if( ( !false_predicate( cell ) ) &&
+        ( TYPE_ERROR != cell->type_num ) ) {
         return 1;
     }
     return 0;
@@ -811,7 +818,7 @@ void ipprint (val* param) {
 /* выводит список */
 void pprint(val* param) {
     int tmp_int;
-    char tmp_char[100];
+    char tmp_char[max_symbol_name_length];
     val* car_pnt;
     val* cdr_pnt;
     switch ( param->type_num ) {
@@ -821,12 +828,12 @@ void pprint(val* param) {
         /* fflush(stdout); */
         return;
     case TYPE_SYMBOL:
-        strncpy( tmp_char, ((char*)(param->uni_val.char_val)), 100 );
+        strncpy( tmp_char, ((char*)(param->uni_val.char_val)), max_symbol_name_length );
         printf( "%s", tmp_char );
         /* fflush(stdout); */
         return;
     case TYPE_STRING:
-        strncpy( tmp_char, ((char*)(param->uni_val.char_val)), 100 );
+        strncpy( tmp_char, ((char*)(param->uni_val.char_val)), max_symbol_name_length );
         printf( "'%s'", tmp_char );
         /* fflush(stdout); */
         return;
@@ -836,7 +843,7 @@ void pprint(val* param) {
         return;
 
     case TYPE_ERROR:
-        strncpy( tmp_char, ((char*)(param->uni_val.char_val)), 100 );
+        strncpy( tmp_char, ((char*)(param->uni_val.char_val)), max_symbol_name_length );
         printf( "%s", tmp_char );
         /* fflush(stdout); */
         return;
@@ -1623,20 +1630,20 @@ void test_length() {
 
 }
 
-int main (void) {
-    /* тесты */
+/* int main (void) { */
+/*     /\* тесты *\/ */
 
-    /* test_reverse(); */
-    /* test_set_car_and_set_cdr(); */
-    /* test_make_list(); */
-    test_map();
-    /* test_add_sub_mu_division(); */
-    /* test_assoc(); */
-    /* test_pair(); */
-    /* test_ipprint(); */
-    /* test_append (); */
-    /* test_car_and_cdr (); */
-    /* test_length(); */
+/*     /\* test_reverse(); *\/ */
+/*     /\* test_set_car_and_set_cdr(); *\/ */
+/*     /\* test_make_list(); *\/ */
+/*     test_map(); */
+/*     /\* test_add_sub_mu_division(); *\/ */
+/*     /\* test_assoc(); *\/ */
+/*     /\* test_pair(); *\/ */
+/*     /\* test_ipprint(); *\/ */
+/*     /\* test_append (); *\/ */
+/*     /\* test_car_and_cdr (); *\/ */
+/*     /\* test_length(); *\/ */
 
-    return 0;
-}
+/*     return 0; */
+/* } */
