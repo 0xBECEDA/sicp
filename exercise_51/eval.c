@@ -7,6 +7,7 @@ val* global_environment;
 
 val* ttrue;
 val* ffalse;
+val* ok;
 
 val* eval ( val* exp, val * env );
 
@@ -128,7 +129,6 @@ val* apply_primitive_application( val* proc, val* args ) {
     /* ipprint( args ); */
     /* printf("\n"); */
     /* fflush(stdout); */
-
 
     if ( eq_names_predicate( proc_name, "car" ) ) {
         if ( length( args ) == 1 ) {
@@ -418,7 +418,7 @@ int primitive_procedure_predicate( val* proc ) {
 val* apply( val* proc, val* args ) {
     if ( primitive_procedure_predicate( proc ) ) {
         return apply_primitive_application( proc, args );
-        /* } else if () { */
+        /* } else if ( compound_procedure_predicate( proc ) ) { */
 
     } else {
         char *string = malloc( sizeof( char[100] ) );
@@ -434,8 +434,53 @@ val* eval_assigment( val* exp, val * env ) {
 
 }
 
-val* eval_definition( val* exp, val * env ) {
+/* (define (eval-definition exp env) */
+/*  (define-variable! (definition-variable exp) */
+/*   (eval (definition-value exp) env) */
+/*   env) */
+/*  ’ok) */
 
+/* (define (define-variable! var val env) */
+/*  (let ((frame (first-frame env))) */
+/*   (define (scan vars vals) */
+/*    (cond ((null? vars) */
+/*           (add-binding-to-frame! var val frame)) */
+/*     ((eq? var (car vars)) */
+/*      (set-car! vals val)) */
+/*     (else (scan (cdr vars) (cdr vals))))) */
+/*   (scan (frame-variables frame) */
+/*    (frame-values frame)))) */
+
+val* define_variable( val* var, val* value, val* env ) {
+    val* frame = first_frame( env );
+    frame = add_binding( frame, var, value );
+
+    set_car( env, frame );
+    return frame;
+}
+
+val* eval_definition( val* exp, val * env ) {
+    printf("eval_definition exp\n");
+    ipprint( exp );
+    printf("\n");
+
+    printf("definition_var\n");
+    ipprint( definition_var( exp ) );
+    printf("\n");
+
+    printf("definition_value\n");
+    ipprint( definition_value( exp ) );
+    printf("\n");
+
+    define_variable( definition_var( exp ),
+                     eval( definition_value( exp ), env ),
+                     env );
+
+    printf(" env after define_variable: \n");
+    ipprint( global_environment );
+    printf("\n");
+
+    return ok;
 }
 
 val* eval_if( val* exp, val * env ) {
@@ -451,10 +496,10 @@ val* make_procedure( val* params, val* body ) {
 }
 
 val* eval ( val* exp, val * env ) {
-    /* printf("eval exp\n"); */
-    /* ipprint( exp ); */
-    /* printf("\n"); */
-    /* fflush(stdout); */
+    printf("eval exp\n");
+    ipprint( exp );
+    printf("\n");
+    fflush(stdout);
     if ( self_evaluating_predicate( exp ) ) {
         return exp;
 
@@ -495,7 +540,7 @@ val* eval ( val* exp, val * env ) {
 }
 
 int eval_driver_loop( int max_input_size, int max_str_size ) {
-    /* while(1) { */
+    while(1) {
 
         printf("\n");
         printf("Ввод: ");
@@ -526,7 +571,7 @@ int eval_driver_loop( int max_input_size, int max_str_size ) {
             free(array);
             free(list);
 
-        /* } */
+        }
     }
 }
 
@@ -548,7 +593,17 @@ int main () {
              max_symbol_name_length );
     ffalse = symbol_val_constructor( string );
 
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string,
+             "ok",
+             max_symbol_name_length );
+    ok = symbol_val_constructor( string );
+
     global_environment = setup_env();
+
+    /* ipprint( global_environment ); */
+    /* printf("\n"); */
+
     eval_driver_loop( 10000, 1000 );
     return 1;
 }

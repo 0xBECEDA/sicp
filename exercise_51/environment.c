@@ -28,22 +28,43 @@ val* value_binding(val* binding) {
 
 /* добавляет связывание в кадр, если имя переменной раньше не встречалось в кадре
    иначе присваивает имени новое значение */
-val* add_binding(val* frame, val* var_name, val* var_value) {
-    val* record = assoc(var_name, frame);
-    if ( null_predicate( record ) ) {
-        frame = cons(make_binding( var_name, var_value), frame);
-        return frame;
-    } else {
-        set_cdr(record, var_value);
-        return frame;
+/* val* add_binding(val* frame, val* var_name, val* var_value) { */
+/*     val* record = assoc(var_name, frame); */
+/*     if ( null_predicate( record ) ) { */
+/*         frame = cons(make_binding( var_name, var_value), frame); */
+/*         return frame; */
+/*     } else { */
+/*         set_cdr(record, var_value); */
+/*         return frame; */
+/*     } */
+/* } */
+
+
+val* add_binding( val* frame, val* var_name, val* var_value ) {
+
+    val* add_binding_rec( val* cur_frame, val* var_name, val* var_value ) {
+        if ( null_predicate( cur_frame ) ) {
+            frame = cons(make_binding( var_name, var_value), frame);
+            return frame;
+
+        }  else {
+            val* record = car( cur_frame );
+            val* key = car( record );
+
+           if ( ( symbol_predicate( key ) )  &&
+                ( symbol_predicate( var_name ) ) &&
+                (strcmp
+                 ( key->uni_val.char_val, var_name->uni_val.char_val ) == 0 ) ) {
+
+               set_cdr( record, var_value );
+               return frame;
+           } else {
+               add_binding_rec( cdr( cur_frame ), var_name, var_value );
+           }
+        }
     }
+    return add_binding_rec( frame, var_name, var_value );
 }
-/* (define (extend-environment vars vals base-env) */
-/*  (if (= (length vars) (length vals)) */
-/*      (cons (make-frame vars vals) base-env) */
-/*          (if (< (length vars) (length vals)) */
-/*              (error "Получено слишком много аргументов" vars vals) */
-/*                  (error "Получено слишком мало аргументов" vars vals)))) */
 
 val* make_frame( val* vars, val* values ) {
     if (null_predicate ( vars ) ) {
@@ -66,13 +87,33 @@ val* extend_environment(val* vars, val* values, val* base_env ) {
 }
 
 /* ищет значение переменной в кадре, если она есть */
-val* lookup_value(val* frame, val* var_name) {
-    val * record = assoc(var_name, frame);
-    if ( null_predicate( record ) ) {
-        return nil_constructor ();
-    } else {
-        return value_binding( record );
+/* val* lookup_value(val* frame, val* var_name) { */
+/*     val * record = assoc(var_name, frame); */
+/*     if ( null_predicate( record ) ) { */
+/*         return nil_constructor (); */
+/*     } else { */
+/*         return value_binding( record ); */
+/*     } */
+/* } */
+
+val* lookup_value( val* frame, val* var_name ) {
+    val* lookup_value_rec( val* frame, val* var_name ) {
+        if ( null_predicate( frame ) ) {
+            return nil_constructor();
+        } else {
+            val* record = car( frame );
+            val* key = car( record );
+
+            if ( ( symbol_predicate( key ) )  &&
+                 ( symbol_predicate( var_name ) ) &&
+                 (strcmp
+                  ( key->uni_val.char_val, var_name->uni_val.char_val ) == 0 ) ) {
+                return cdr( record );
+            }
+            lookup_value_rec( cdr( frame ), var_name );
+        }
     }
+    return lookup_value_rec( frame, var_name );
 }
 
 val* make_empty_environment() {
