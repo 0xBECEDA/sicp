@@ -372,7 +372,7 @@ val* sub_rec( val* args, int* diff ) {
 
         } else {
             char *string = malloc( sizeof( char[max_symbol_name_length] ) );
-            strncpy( string, "MUL ERROR: mul gets only numbers", max_symbol_name_length );
+            strncpy( string, "SUB ERROR: mul gets only numbers", max_symbol_name_length );
             return error_val_constructor( string );
         }
     }
@@ -421,7 +421,7 @@ val* division_rec( val* args, int* quotient ) {
             int the_quotient = *quotient;
             int term = *cur_arg->uni_val.int_val;
 
-            if ( the_quotient == 0 ) {
+            if ( term == 0 ) {
                 string = malloc( sizeof( char[max_symbol_name_length] ) );
                 strncpy( string, "DIVISION ERROR: division by zero",
                          max_symbol_name_length );
@@ -613,8 +613,8 @@ val* division( val* args ) {
 /* в отличие от map из схемы принимает только 1 список аргументов и функцию, принимающую
 только 1 аргумент */
 val* map(val* (*op)(val*),  val* arg_list) {
-    if ((atom_predicate( arg_list )) ||
-        (dotpair_predicate( arg_list )) ) {
+    if ( ( atom_predicate( arg_list ) ) ||
+        ( dotpair_predicate( arg_list ) ) ) {
         error_handler( "ERR MAP: ARG ISN'T A PAIR");
 
     }else if (null_predicate(arg_list)) {
@@ -797,13 +797,26 @@ int dotpair_predicate (val* cell) {
 }
 
 /* печатает и элемент в скобки, если это не атом и не пустой список*/
-void wrap_brackets_if_not_atom_or_empty_cell (val* car) {
-    if ( ( atom_predicate( car ) ) ||
-         ( null_predicate( car ) ) ) {
-        pprint( car );
+void wrap_brackets_if_not_atom_or_empty_cell (val* param) {
+    if ( ( atom_predicate( param ) ) ||
+         ( null_predicate( param ) ) ) {
+        pprint( param );
+
+    /* }else if ( dotpair_predicate( param ) ) { */
+    /*     val* car_pnt = car( param ); */
+    /*     val* cdr_pnt = cdr( param ); */
+
+    /*     printf( "(" ); */
+    /*     pprint( car_pnt ); */
+    /*     printf(" . "); */
+    /*     pprint( cdr_pnt ); */
+    /*     printf( ")" ); */
+
     } else {
+        /* printf( "not atom\n" ); */
+
         printf("(");
-        pprint( car );
+        pprint( param );
         printf(")");
         fflush(stdout);
     }
@@ -822,31 +835,31 @@ void pprint(val* param) {
     val* car_pnt;
     val* cdr_pnt;
     switch ( param->type_num ) {
+
     case TYPE_INT:
         tmp_int = *param->uni_val.int_val;
         printf( "%d", tmp_int );
-        /* fflush(stdout); */
         return;
+
     case TYPE_SYMBOL:
         strncpy( tmp_char, ((char*)(param->uni_val.char_val)), max_symbol_name_length );
         printf( "%s", tmp_char );
-        /* fflush(stdout); */
         return;
+
     case TYPE_STRING:
         strncpy( tmp_char, ((char*)(param->uni_val.char_val)), max_symbol_name_length );
         printf( "'%s'", tmp_char );
-        /* fflush(stdout); */
         return;
+
     case TYPE_NIL:
         printf( "()" );
-        /* fflush(stdout); */
         return;
 
     case TYPE_ERROR:
         strncpy( tmp_char, ((char*)(param->uni_val.char_val)), max_symbol_name_length );
         printf( "%s", tmp_char );
-        /* fflush(stdout); */
         return;
+
     case TYPE_CELL:
         car_pnt = car( param );
         cdr_pnt = cdr( param );
@@ -855,21 +868,41 @@ void pprint(val* param) {
             /* это одноэлементный список (cdr = NIL) */
             wrap_brackets_if_not_atom_or_empty_cell ( car_pnt );
         } else if ( dotpair_predicate( param ) ) {
+
             /* это точечная пара (cdr = ATOM)  */
+            /* wrap_brackets_if_not_atom_or_empty_cell ( param ); */
+
+            /* printf("dotpair\n"); */
+            /* fflush(stdout); */
+            /* printf( "(" ); */
+            if ( dotpair_predicate( car_pnt ) || pair_predicate( car_pnt ) ) {
+                wrap_brackets_if_not_atom_or_empty_cell( car_pnt );
+                printf(" ");
+                pprint( cdr_pnt );
+
+            } else {
             pprint( car_pnt );
             printf(" . ");
-            /* fflush(stdout); */
             pprint( cdr_pnt );
+            }
+            /* printf( ")" ); */
+
         } else if ( pair_predicate( param ) ) {
             /* это список (cdr = CELL) */
+            /* printf("пара\n"); */
             if ( atom_predicate( car_pnt ) ) {
+                /* printf("атом\n"); */
                 pprint( car_pnt );
+
             } else {
+                /* printf("car ячейки - не атом\n"); */
                 wrap_brackets_if_not_atom_or_empty_cell( car_pnt );
             }
             printf(" ");
             /* fflush(stdout); */
             pprint( cdr_pnt );
+            /* wrap_brackets_if_not_atom_or_empty_cell( cdr_pnt ); */
+
         } else {
             printf( "\nERR: UNIMPLEMENTED CELL %d : %d", car_pnt->type_num,
                     cdr_pnt->type_num);

@@ -5,6 +5,9 @@ val* primitives_bindings;
 val* primitives_names;
 val* global_environment;
 
+val* ttrue;
+val* ffalse;
+
 val* eval ( val* exp, val * env );
 
 val* setup_env() {
@@ -71,7 +74,7 @@ val* primitives_procedures_bindings() {
               bind_proc_name_and_proc_fn( "map", "map" ),
               bind_proc_name_and_proc_fn( "assoc", "assoc" ),
               bind_proc_name_and_proc_fn( "length", "length" ),
-              bind_proc_name_and_proc_fn( "last_pair", "last_pair" ),
+              bind_proc_name_and_proc_fn( "last-pair", "last_pair" ),
               bind_proc_name_and_proc_fn( "true?", "true_predicate" ),
               bind_proc_name_and_proc_fn( "false?", "false_predicate" ),
               bind_proc_name_and_proc_fn( "null?", "null_predicate" ),
@@ -93,11 +96,18 @@ val* list_of_values(val* exps, val* env ) {
     /* printf(" list_of_values exps: "); */
     /* ipprint( exps ); */
     /* printf("\n"); */
+    /* fflush(stdout); */
 
     if ( no_operands_predicate( exps ) ) {
-        nil_constructor();
+        return nil_constructor();
     } else {
-        return cons( eval( first_operand( exps ),  env ),
+        val* first_exp = eval( first_operand( exps ),  env );
+        /* printf(" list_of_values first exp evaluated: "); */
+        /* ipprint( first_exp ); */
+        /* printf("\n"); */
+        /* fflush(stdout); */
+
+        return cons( first_exp,
                      list_of_values(rest_operands( exps ), env ) );
     }
 }
@@ -114,13 +124,20 @@ val* apply_primitive_application( val* proc, val* args ) {
     char* proc_name = proc->uni_val.char_val;
     int result = *(int*)malloc(sizeof(int));;
 
+    /* printf(" apply_primitive_application: "); */
+    /* ipprint( args ); */
+    /* printf("\n"); */
+    /* fflush(stdout); */
+
+
     if ( eq_names_predicate( proc_name, "car" ) ) {
         if ( length( args ) == 1 ) {
             return car( car( args ) );
 
         } else {
-            char *string = malloc( sizeof( char[100] ) );
-            strncpy( string, "CAR ERROR: car needs exactly 1 arg", 100 );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+            strncpy( string, "CAR ERROR: car needs exactly 1 arg",
+                     max_symbol_name_length );
             return error_val_constructor( string );
         }
 
@@ -129,8 +146,9 @@ val* apply_primitive_application( val* proc, val* args ) {
             return cdr( car( args ) );
 
         } else {
-            char *string = malloc( sizeof( char[100] ) );
-            strncpy( string, "CDR ERROR: cdr needs exactly 1 arg", 100 );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+            strncpy( string, "CDR ERROR: cdr needs exactly 1 arg",
+                     max_symbol_name_length );
             return error_val_constructor( string );
         }
 
@@ -142,8 +160,9 @@ val* apply_primitive_application( val* proc, val* args ) {
             return cons( car( args ), car( cdr ( args ) ) );
 
         } else {
-            char *string = malloc( sizeof( char[100] ) );
-            strncpy( string, "CONS ERROR: cons needs exactly 2 args", 100 );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+            strncpy( string, "CONS ERROR: cons needs exactly 2 args",
+                     max_symbol_name_length);
             return error_val_constructor( string );
         }
 
@@ -154,8 +173,9 @@ val* apply_primitive_application( val* proc, val* args ) {
             return set_car( list, new_value );
 
         } else {
-            char *string = malloc( sizeof( char[100] ) );
-            strncpy( string, "SET-CAR! ERROR: set-car! needs exactly 2 args", 100 );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+            strncpy( string, "SET-CAR! ERROR: set-car! needs exactly 2 args",
+                     max_symbol_name_length );
             return error_val_constructor( string );
         }
     } else if ( eq_names_predicate( proc_name, "set_cdr" ) ) {
@@ -165,8 +185,9 @@ val* apply_primitive_application( val* proc, val* args ) {
             return set_cdr( list, new_value );
 
         } else {
-            char *string = malloc( sizeof( char[100] ) );
-            strncpy( string, "SET-CDR! ERROR: set-cdr! needs exactly 2 args", 100 );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+            strncpy( string, "SET-CDR! ERROR: set-cdr! needs exactly 2 args",
+                     max_symbol_name_length );
             return error_val_constructor( string );
         }
 
@@ -192,8 +213,9 @@ val* apply_primitive_application( val* proc, val* args ) {
             return append( list1, list2 );
 
         } else {
-            char *string = malloc( sizeof( char[100] ) );
-            strncpy( string, "APPEND ERROR: append needs exactly 2 args", 100 );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+            strncpy( string, "APPEND ERROR: append needs exactly 2 args",
+                     max_symbol_name_length);
             return error_val_constructor( string );
         }
         /* } else if ( eq_names_predicate( proc_name, "map" ) ) { */
@@ -205,8 +227,9 @@ val* apply_primitive_application( val* proc, val* args ) {
             return assoc( key, list );
 
         } else {
-            char *string = malloc( sizeof( char[100] ) );
-            strncpy( string, "ASSOC ERROR: assoc needs exactly 2 args", 100 );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+            strncpy( string, "ASSOC ERROR: assoc needs exactly 2 args",
+                     max_symbol_name_length );
             return error_val_constructor( string );
         }
 
@@ -216,8 +239,9 @@ val* apply_primitive_application( val* proc, val* args ) {
             return int_val_constructor( &result );
 
         } else {
-            char *string = malloc( sizeof( char[100] ) );
-            strncpy( string, "LENGTH ERROR: length needs exactly 1 arg", 100 );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+            strncpy( string, "LENGTH ERROR: length needs exactly 1 arg",
+                     max_symbol_name_length );
             return error_val_constructor( string );
         }
 
@@ -226,98 +250,124 @@ val* apply_primitive_application( val* proc, val* args ) {
             return last_pair( car( args ) );
 
         } else {
-            char *string = malloc( sizeof( char[100] ) );
-            strncpy( string, "LAST-PAIR ERROR: last-pair needs exactly 1 arg", 100 );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+            strncpy( string, "LAST-PAIR ERROR: last-pair needs exactly 1 arg",
+                     max_symbol_name_length );
             return error_val_constructor( string );
         }
 
     } else if ( eq_names_predicate( proc_name, "true_predicate" ) ) {
         if ( length ( args ) == 1 ) {
             result = true_predicate( car( args ) );
-            return int_val_constructor( &result );
+
+            if ( result == 1 ) {
+                return ttrue;
+            }
+            return ffalse;
 
         } else {
-            char *string = malloc( sizeof( char[100] ) );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
             strncpy( string, "TRUE? ERROR: true_predicate needs exactly 1 arg",
-                     100 );
+                     max_symbol_name_length );
             return error_val_constructor( string );
         }
 
     } else if ( eq_names_predicate( proc_name, "false_predicate" ) ) {
         if ( length ( args ) == 1 ) {
             result = false_predicate( car( args ) );
-            return int_val_constructor( &result );
+
+            if ( result == 1 ) {
+                return ttrue;
+            }
+            return ffalse;
 
         } else {
-            char *string = malloc( sizeof( char[100] ) );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
             strncpy( string,
                      "FALSE? ERROR: false needs exactly 1 arg",
-                     100 );
+                     max_symbol_name_length );
             return error_val_constructor( string );
         }
 
     } else if ( eq_names_predicate( proc_name, "null_predicate" ) ) {
         if ( length ( args ) == 1 ) {
             result = null_predicate( car( args ) );
-            return int_val_constructor( &result );
+            if ( result == 1 ) {
+                return ttrue;
+            }
+            return ffalse;
 
         } else {
-            char *string = malloc( sizeof( char[100] ) );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
             strncpy( string,
                      "NULL? ERROR: null needs exactly 1 arg",
-                     100 );
+                     max_symbol_name_length );
             return error_val_constructor( string );
         }
 
     } else if ( eq_names_predicate( proc_name, "pair_predicate" ) ) {
         if ( length ( args ) == 1 ) {
             result = pair_predicate( car( args ) );
-            return int_val_constructor( &result );
+
+            if ( result == 1 ) {
+                return ttrue;
+            }
+            return ffalse;
 
         } else {
-            char *string = malloc( sizeof( char[100] ) );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
             strncpy( string,
                      "PAIR? ERROR: pair? needs exactly 1 arg",
-                     100 );
+                     max_symbol_name_length );
             return error_val_constructor( string );
         }
 
     } else if ( eq_names_predicate( proc_name, "symbol_predicate" ) ) {
         if ( length ( args ) == 1 ) {
             result = symbol_predicate( car( args ) );
-            return int_val_constructor( &result );
+
+            if ( result == 1 ) {
+                return ttrue;
+            }
+            return ffalse;
 
         } else {
-            char *string = malloc( sizeof( char[100] ) );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
             strncpy( string,
                      "SYMBOL? ERROR: symbol? needs exactly 1 arg",
-                     100 );
+                     max_symbol_name_length );
             return error_val_constructor( string );
         }
 
     } else if ( eq_names_predicate( proc_name, "atom_predicate" ) ) {
         if ( length ( args ) == 1 ) {
             result = atom_predicate( car( args ) );
-            return int_val_constructor( &result );
+            if ( result == 1 ) {
+                return ttrue;
+            }
+            return ffalse;
 
         } else {
-            char *string = malloc( sizeof( char[100] ) );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
             strncpy( string,
                      "ATOM? ERROR: atom? needs exactly 1 arg",
-                     100 );
+                     max_symbol_name_length );
             return error_val_constructor( string );
         }
 
     } else if ( eq_names_predicate( proc_name, "string_predicate" ) ) {
         if ( length ( args ) == 1 ) {
             result = string_predicate( car( args ) );
-            return int_val_constructor( &result );
+            if ( result == 1 ) {
+                return ttrue;
+            }
+            return ffalse;
 
         } else {
-            char *string = malloc( sizeof( char[100] ) );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
             strncpy( string,
                      "STRING? ERROR: string? needs exactly 1 arg",
-                     100 );
+                     max_symbol_name_length );
             return error_val_constructor( string );
         }
 
@@ -325,13 +375,17 @@ val* apply_primitive_application( val* proc, val* args ) {
 
         if ( length ( args ) == 1 ) {
             result = dotpair_predicate( car( args ) );
-            return int_val_constructor( &result );
+
+            if ( result == 1 ) {
+                return ttrue;
+            }
+            return ffalse;
 
         } else {
-            char *string = malloc( sizeof( char[100] ) );
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
             strncpy( string,
-                     "DOTPAIR?? ERROR: dotpair? needs exactly 1 arg",
-                     100 );
+                     "DOTPAIR? ERROR: dotpair? needs exactly 1 arg",
+                     max_symbol_name_length );
             return error_val_constructor( string );
         }
 
@@ -400,7 +454,7 @@ val* eval ( val* exp, val * env ) {
     /* printf("eval exp\n"); */
     /* ipprint( exp ); */
     /* printf("\n"); */
-
+    /* fflush(stdout); */
     if ( self_evaluating_predicate( exp ) ) {
         return exp;
 
@@ -441,7 +495,7 @@ val* eval ( val* exp, val * env ) {
 }
 
 int eval_driver_loop( int max_input_size, int max_str_size ) {
-    while(1) {
+    /* while(1) { */
 
         printf("\n");
         printf("Ввод: ");
@@ -472,13 +526,28 @@ int eval_driver_loop( int max_input_size, int max_str_size ) {
             free(array);
             free(list);
 
-        }
+        /* } */
     }
 }
 
 int main () {
     primitives_bindings = primitives_procedures_bindings();
     primitives_names = primitives_procedures_names();
+
+    char *string;
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string,
+             "true",
+             max_symbol_name_length );
+
+    ttrue = symbol_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string,
+             "false",
+             max_symbol_name_length );
+    ffalse = symbol_val_constructor( string );
+
     global_environment = setup_env();
     eval_driver_loop( 10000, 1000 );
     return 1;
