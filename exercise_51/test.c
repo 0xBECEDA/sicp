@@ -639,7 +639,7 @@ val* assoc(val* key, val* args_list) {
             /* если ключ и car текущей точечной пары - числа */
             if ( ( number_predicate( key ) )  &&
                  ( number_predicate( car_cur_arg ) ) &&
-                 (*key->uni_val.int_val == *car_cur_arg->uni_val.int_val) ) {
+                 ( *key->uni_val.int_val == *car_cur_arg->uni_val.int_val ) ) {
                 return cur_arg;
                 /* если ключ и car текущей точечной пары - символы */
             } else if ( ( symbol_predicate( key ) )  &&

@@ -13,7 +13,7 @@ int quote_predicate( val* exp );
 
 val* text_of_quotation( val* exp );
 
-int assigment_predicate( val* exp );
+int assignment_predicate( val* exp );
 
 val* assignment_variable( val* exp );
 
@@ -42,6 +42,14 @@ val* if_consequent( val* exp );
 val* if_alternative( val* exp );
 
 val* make_if( val* predicate, val* consequent, val* alternative );
+
+val* make_procedure( val* params, val* body, val* env );
+
+val* procedure_parameters( val* proc );
+
+val* procedure_body( val* proc );
+
+val* procedure_environment( val* proc );
 
 int define_predicate( val* exp );
 

@@ -18,14 +18,17 @@ val* setup_env() {
 val* bind_proc_name_and_proc_fn ( char *proc_name, char *proc_fn_name ) {
     char* name = malloc(sizeof(char[100]));
     char* fn_name = malloc(sizeof(char[100]));
+    char* primitive_str = malloc(sizeof(char[100]));
 
     strncpy( name, proc_name, 100 );
     strncpy( fn_name, proc_fn_name, 100 );
+    strncpy( primitive_str, "primitive", 100 );
 
     val* proc_name_struct = symbol_val_constructor( proc_name );
     val* proc_fn_name_struct = symbol_val_constructor( fn_name );
+    val* primitive = symbol_val_constructor( primitive_str );
 
-    return cons( proc_name_struct, proc_fn_name_struct );
+    return cons( proc_name_struct, make_list( 2, primitive,  proc_fn_name_struct ) );
     /* return make_list( 2, proc_name_struct, proc_fn_name_struct ); */
 }
 
@@ -86,8 +89,6 @@ val* primitives_procedures_bindings() {
               bind_proc_name_and_proc_fn( "dotpair?", "dotpair_predicate" )
               );
 }
-
-/* val* primitives = primitives_procedures(); */
 
 val* lookup_primitive_implementation_name( val* key, val* primitives ) {
     return ( assoc( key,  primitives ) );
@@ -408,16 +409,43 @@ val* apply_primitive_application( val* proc, val* args ) {
 /*       (error */
 /*        "Неизвестный тип процедуры -- APPLY" procedure)))) */
 
-int primitive_procedure_predicate( val* proc ) {
-    if ( !null_predicate( assoc(proc, primitives_names ) ) ) {
-        return 1;
+int compound_procedure_predicate( val* proc ) {
+    if( pair_predicate ( proc ) ) {
+        val* first_elt = car( proc );
+        if (eq_names_predicate( first_elt->uni_val.char_val, "procedure" ) ) {
+            return 1;
+        }
     }
     return 0;
 }
 
+int primitive_procedure_predicate( val* proc ) {
+    if( pair_predicate ( proc ) ) {
+        val* first_elt = car( proc );
+
+        if (eq_names_predicate( first_elt->uni_val.char_val, "primitive" ) ) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* (define (primitive-implementation proc) (cadr proc)) */
+
+/* int primitive_procedure_predicate( val* proc ) { */
+/*     if ( !null_predicate( assoc(proc, primitives_names ) ) ) { */
+/*         return 1; */
+/*     } */
+/*     return 0; */
+/* } */
+
+val* primitive_implementation( val* proc ) {
+    return car( cdr( proc ) );
+}
+
 val* apply( val* proc, val* args ) {
     if ( primitive_procedure_predicate( proc ) ) {
-        return apply_primitive_application( proc, args );
+        return apply_primitive_application( primitive_implementation( proc ), args );
         /* } else if ( compound_procedure_predicate( proc ) ) { */
 
     } else {
@@ -426,30 +454,68 @@ val* apply( val* proc, val* args ) {
                  "APPLY: unknown type of procedure",
                  100 );
         return error_val_constructor( string );
-
     }
 }
 
-val* eval_assigment( val* exp, val * env ) {
+val* set_variable_in_frame( val* var, val* value, val* frame ) {
 
+    val* set_variable_in_frame_rec( val* var, val* value, val* cur_frame ) {
+
+        if ( null_predicate ( cur_frame ) ) {
+            return nil_constructor();
+
+        } else {
+            val* record = car( cur_frame );
+            val* key = car( record );
+
+                if ( ( symbol_predicate( key ) )  &&
+                     ( symbol_predicate( var ) ) &&
+                     (strcmp
+                      ( key->uni_val.char_val, var->uni_val.char_val ) == 0 ) ) {
+                    set_cdr(record, value );
+                    return frame;
+
+                } else {
+                    set_variable_in_frame_rec( var, value, cdr( cur_frame ) );
+                }
+        }
+    }
+    return set_variable_in_frame_rec( var, value, frame );
 }
 
-/* (define (eval-definition exp env) */
-/*  (define-variable! (definition-variable exp) */
-/*   (eval (definition-value exp) env) */
-/*   env) */
-/*  ’ok) */
+val* set_variable_value( val* var, val* value, val* env ) {
 
-/* (define (define-variable! var val env) */
-/*  (let ((frame (first-frame env))) */
-/*   (define (scan vars vals) */
-/*    (cond ((null? vars) */
-/*           (add-binding-to-frame! var val frame)) */
-/*     ((eq? var (car vars)) */
-/*      (set-car! vals val)) */
-/*     (else (scan (cdr vars) (cdr vals))))) */
-/*   (scan (frame-variables frame) */
-/*    (frame-values frame)))) */
+    if ( null_predicate( env ) ) {
+        char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+        strncpy( string, "ERR SET_VARIABLE_VALUE: unussigned variable",
+                 max_symbol_name_length );
+        return error_val_constructor( string );
+
+    } else {
+
+        val* retval = set_variable_in_frame( var, value, first_frame( env ) );
+        if ( null_predicate ( retval ) ) {
+            set_variable_value( var, value, rest_frames( env ) );
+        } else {
+            return ok;
+        }
+    }
+}
+
+val* eval_assignment( val* exp, val * env ) {
+    /* printf("eval_assignment exp: "); */
+    /* ipprint( exp ); */
+    /* printf("\n"); */
+
+    /* printf("assignment_value: "); */
+    /* ipprint( assignment_value( exp ) ); */
+    /* printf("\n"); */
+
+    val* retval = set_variable_value( assignment_variable( exp ),
+                               eval ( assignment_value( exp ), env ), env );
+    return retval;
+}
+
 
 val* define_variable( val* var, val* value, val* env ) {
     val* frame = first_frame( env );
@@ -460,25 +526,25 @@ val* define_variable( val* var, val* value, val* env ) {
 }
 
 val* eval_definition( val* exp, val * env ) {
-    printf("eval_definition exp\n");
-    ipprint( exp );
-    printf("\n");
+    /* printf("eval_definition exp\n"); */
+    /* ipprint( exp ); */
+    /* printf("\n"); */
 
-    printf("definition_var\n");
-    ipprint( definition_var( exp ) );
-    printf("\n");
+    /* printf("definition_var\n"); */
+    /* ipprint( definition_var( exp ) ); */
+    /* printf("\n"); */
 
-    printf("definition_value\n");
-    ipprint( definition_value( exp ) );
-    printf("\n");
+    /* printf("definition_value\n"); */
+    /* ipprint( definition_value( exp ) ); */
+    /* printf("\n"); */
 
     define_variable( definition_var( exp ),
                      eval( definition_value( exp ), env ),
                      env );
 
-    printf(" env after define_variable: \n");
-    ipprint( global_environment );
-    printf("\n");
+    /* printf(" env after define_variable: \n"); */
+    /* ipprint( global_environment ); */
+    /* printf("\n"); */
 
     return ok;
 }
@@ -491,15 +557,12 @@ val* eval_sequence( val* exp, val * env ) {
 
 }
 
-val* make_procedure( val* params, val* body ) {
-
-}
-
 val* eval ( val* exp, val * env ) {
-    printf("eval exp\n");
-    ipprint( exp );
-    printf("\n");
-    fflush(stdout);
+    /* printf("eval exp\n"); */
+    /* ipprint( exp ); */
+    /* printf("\n"); */
+    /* fflush(stdout); */
+
     if ( self_evaluating_predicate( exp ) ) {
         return exp;
 
@@ -516,8 +579,8 @@ val* eval ( val* exp, val * env ) {
         /* printf("\n"); */
         return text_of_quotation( exp );
 
-    } else if ( assigment_predicate( exp ) ) {
-        return eval_assigment ( exp, env );
+    } else if ( assignment_predicate( exp ) ) {
+        return eval_assignment ( exp, env );
 
     } else if ( define_predicate( exp ) ) {
         return eval_definition ( exp, env );
@@ -527,7 +590,7 @@ val* eval ( val* exp, val * env ) {
 
     } else if ( lambda_predicate( exp ) ) {
         return make_procedure( lambda_params( exp ),
-                               lambda_body( exp ) );
+                               lambda_body( exp ), env );
     } else if ( begin_predicate( exp ) ) {
         return eval_sequence ( begin_actions( exp ), env );
 
@@ -540,7 +603,7 @@ val* eval ( val* exp, val * env ) {
 }
 
 int eval_driver_loop( int max_input_size, int max_str_size ) {
-    while(1) {
+    /* while(1) { */
 
         printf("\n");
         printf("Ввод: ");
@@ -571,7 +634,7 @@ int eval_driver_loop( int max_input_size, int max_str_size ) {
             free(array);
             free(list);
 
-        }
+        /* } */
     }
 }
 

@@ -40,7 +40,7 @@ val* text_of_quotation( val* exp ) {
     return car( cdr ( exp ) );
 }
 
-int assigment_predicate( val* exp ) {
+int assignment_predicate( val* exp ) {
     int max_length = max_symbol_name_length;
     char set[100] = "set!";
     if ( pair_predicate( exp ) ) {
@@ -204,7 +204,7 @@ val* definition_var( val* exp ) {
 }
 
 val* definition_value( val* exp ) {
-    if ( symbol_predicate( car( cdr( cdr ( exp ) ) ) ) ) {
+    if ( symbol_predicate( car( cdr ( exp ) ) ) )  {
         return car( cdr( cdr( exp ) ) );
 
     } else {
@@ -270,6 +270,27 @@ val* trasform_seq_to_exp( val* seq ) {
     }
 }
 
+/*  (tagged-list? p ’procedure)) */
+
+val* make_procedure( val* params, val* body, val* env ) {
+    char* procedure_str = (char*)malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( procedure_str, "procedure", max_symbol_name_length );
+    val* procedure = symbol_val_constructor( procedure_str );
+    return make_list( 4, procedure, params, body, env );
+}
+
+val* procedure_parameters( val* proc ) {
+    return car( cdr( proc ) );
+}
+
+val* procedure_body( val* proc ) {
+    return car( cdr( cdr( proc ) ) );
+}
+
+val* procedure_environment( val* proc ) {
+    return car( cdr( cdr( cdr( proc ) ) ) );
+}
+
 int application_predicate( val* exp ) {
     return pair_predicate( exp );
 }
@@ -285,6 +306,7 @@ val* operands( val* exp ) {
 int no_operands_predicate( val* ops ) {
     return null_predicate( ops );
 }
+
 val* first_operand( val* ops ) {
     return car( ops );
 }
@@ -350,7 +372,7 @@ void test_lambda_procs( val* exp ) {
 
 }
 
-void test_assigment_procs( val* exp ) {
+void test_assignment_procs( val* exp ) {
     val* var = assignment_variable( exp );
     val* value = assignment_value( exp );
 
@@ -440,9 +462,9 @@ void test_predicates ( val* exp ) {
     } else if ( self_evaluating_predicate( exp ) ) {
         printf("self evaluating exp\n");
 
-    } else if ( assigment_predicate( exp ) ) {
-        printf("assigment exp\n");
-        test_assigment_procs( exp );
+    } else if ( assignment_predicate( exp ) ) {
+        printf("assignment exp\n");
+        test_assignment_procs( exp );
 
     } else if ( lambda_predicate( exp ) ) {
         printf("lambda exp\n");
