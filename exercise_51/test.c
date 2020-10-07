@@ -57,7 +57,9 @@ int false_predicate(val* cell);
 
 int symbol_predicate(val* cell);
 
-val* last_pair (val* cell);
+int equal_numbers_predicate( val* n1, val* n2 );
+
+val* last_pair(val* cell);
 
 val* reverse(val* cell);
 
@@ -778,6 +780,20 @@ int pair_predicate (val* cell) {
     }else {
         return 0;
     }
+}
+
+int equal_numbers_predicate( val* n1, val* n2 ) {
+    if ( ( number_predicate( n1 ) ) &&
+         ( number_predicate( n2 ) ) ) {
+        int num1 = *n1->uni_val.int_val;
+        int num2 = *n2->uni_val.int_val;
+
+        if ( num1 == num2 ) {
+            return 1;
+        }
+        return 0;
+    }
+    return 0;
 }
 
 int dotpair_predicate (val* cell) {

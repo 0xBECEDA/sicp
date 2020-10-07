@@ -123,6 +123,8 @@ int error_predicate (val* cell);
 
 int string_predicate(val* cell);
 
+int equal_numbers_predicate( val* n1, val* n2 );
+
 void wrap_brackets_if_not_atom_or_empty_cell (val* car);
 
 void ipprint (val* param);

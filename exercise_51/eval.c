@@ -11,6 +11,8 @@ val* ok;
 
 val* eval ( val* exp, val * env );
 
+val* eval_sequence( val* exps, val * env );
+
 val* setup_env() {
     add_frame(primitives_bindings, make_empty_environment());
 }
@@ -62,7 +64,7 @@ val* primitives_procedures_names() {
 }
 
 val* primitives_procedures_bindings() {
-    make_list(24,
+    make_list(26,
               bind_proc_name_and_proc_fn( "car", "car" ),
               bind_proc_name_and_proc_fn( "cdr", "cdr" ),
               bind_proc_name_and_proc_fn( "cons", "cons" ),
@@ -73,6 +75,7 @@ val* primitives_procedures_bindings() {
               bind_proc_name_and_proc_fn( "-", "sub" ),
               bind_proc_name_and_proc_fn( "*", "mul" ),
               bind_proc_name_and_proc_fn( "/", "division" ),
+              bind_proc_name_and_proc_fn( "=", "equal_numbers_predicate" ),
               bind_proc_name_and_proc_fn( "reverse", "reverse" ),
               bind_proc_name_and_proc_fn( "append", "append" ),
               bind_proc_name_and_proc_fn( "map", "map" ),
@@ -86,7 +89,8 @@ val* primitives_procedures_bindings() {
               bind_proc_name_and_proc_fn( "symbol?", "symbol_predicate" ),
               bind_proc_name_and_proc_fn( "atom?", "atom_predicate" ),
               bind_proc_name_and_proc_fn( "string?", "string_predicate" ),
-              bind_proc_name_and_proc_fn( "dotpair?", "dotpair_predicate" )
+              bind_proc_name_and_proc_fn( "dotpair?", "dotpair_predicate"),
+              bind_proc_name_and_proc_fn( "print", "ipprint")
               );
 }
 
@@ -115,9 +119,13 @@ val* list_of_values(val* exps, val* env ) {
 }
 
 int eq_names_predicate ( char* name1, char* name2 ) {
+    /* printf("name1 %s\n", name1); */
+    /* printf("name2 %s\n", name2); */
     if(strcmp( name1, name2 ) == 0 ) {
+        /* printf("true\n"); */
         return 1;
     }
+    /* printf("false\n"); */
     return 0;
 }
 
@@ -188,6 +196,39 @@ val* apply_primitive_application( val* proc, val* args ) {
         } else {
             char *string = malloc( sizeof( char[max_symbol_name_length] ) );
             strncpy( string, "SET-CDR! ERROR: set-cdr! needs exactly 2 args",
+                     max_symbol_name_length );
+            return error_val_constructor( string );
+        }
+
+    } else if ( eq_names_predicate( proc_name, "ipprint" ) ) {
+        ipprint( args );
+        printf("\n");
+        return ok;
+
+    } else if ( eq_names_predicate( proc_name, "equal_numbers_predicate" ) ) {
+        if ( length( args ) == 2 ) {
+            val* n1 = car( args );
+            val* n2 = car(cdr ( args ) );
+
+            printf("n1: ");
+            ipprint(n1);
+            printf("\n");
+
+            printf("n2: ");
+            ipprint(n2);
+            printf("\n");
+
+            result = equal_numbers_predicate( n1, n2 );
+            printf("result =: %d\n ", result );
+            if ( result == 1 ) {
+                return ttrue;
+
+            } else {
+                return ffalse;
+            }
+        } else {
+            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+            strncpy( string, "EQUALITY ERROR: '=' needs exactly 2 args",
                      max_symbol_name_length );
             return error_val_constructor( string );
         }
@@ -395,20 +436,6 @@ val* apply_primitive_application( val* proc, val* args ) {
     }
 }
 
-/* (define (apply procedure arguments) */
-/*  (cond ((primitive-procedure? procedure) */
-/*         (apply-primitive-procedure procedure arguments)) */
-/*   ((compound-procedure? procedure) */
-/*    (eval-sequence */
-/*     (procedure-body procedure) */
-/*     (extend-environment */
-/*      (procedure-parameters procedure) */
-/*      arguments */
-/*      (procedure-environment procedure)))) */
-/*   (else */
-/*       (error */
-/*        "Неизвестный тип процедуры -- APPLY" procedure)))) */
-
 int compound_procedure_predicate( val* proc ) {
     if( pair_predicate ( proc ) ) {
         val* first_elt = car( proc );
@@ -444,10 +471,17 @@ val* primitive_implementation( val* proc ) {
 }
 
 val* apply( val* proc, val* args ) {
+    /* printf ("apply args: "); */
+    /* ipprint( args ); */
+    /* printf("\n"); */
+
     if ( primitive_procedure_predicate( proc ) ) {
         return apply_primitive_application( primitive_implementation( proc ), args );
-        /* } else if ( compound_procedure_predicate( proc ) ) { */
 
+    } else if ( compound_procedure_predicate( proc ) ) {
+        return eval_sequence( procedure_body( proc ),
+                              extend_environment( procedure_parameters( proc ),
+                                                  args, procedure_environment( proc ) ) );
     } else {
         char *string = malloc( sizeof( char[100] ) );
         strncpy( string,
@@ -550,11 +584,33 @@ val* eval_definition( val* exp, val * env ) {
 }
 
 val* eval_if( val* exp, val * env ) {
+    val* if_predicate_result = eval ( if_condition( exp ), env );
+    printf("if_predicate_result: ");
+    ipprint( if_predicate_result );
+    printf("\n");
+    if ( symbol_predicate( if_predicate_result ) ) {
+        printf("eval_if symbol\n");
+        if ( eq_names_predicate("true",
+                                if_predicate_result->uni_val.char_val ) ) {
+            printf("if predicate is true \n");
+            return eval( if_consequent( exp ), env );
+        } else {
+            return eval( if_alternative( exp ), env );
+        }
+    } else if (true_predicate ( if_predicate_result ) ) {
+        return eval( if_consequent( exp ), env );
 
+    } else {
+        return eval( if_alternative( exp ), env );
+    }
 }
 
-val* eval_sequence( val* exp, val * env ) {
-
+val* eval_sequence( val* exps, val * env ) {
+    if ( last_exp_predicate( exps ) ) {
+        return eval( first_exp( exps ), env );
+    }
+    eval( first_exp( exps ), env );
+    return eval_sequence( rest_exps( exps ), env );
 }
 
 val* eval ( val* exp, val * env ) {
@@ -580,19 +636,19 @@ val* eval ( val* exp, val * env ) {
         return text_of_quotation( exp );
 
     } else if ( assignment_predicate( exp ) ) {
-        return eval_assignment ( exp, env );
+        return eval_assignment( exp, env );
 
     } else if ( define_predicate( exp ) ) {
-        return eval_definition ( exp, env );
+        return eval_definition( exp, env );
 
     } else if ( if_predicate( exp ) ) {
-        return eval_if ( exp, env );
+        return eval_if( exp, env );
 
     } else if ( lambda_predicate( exp ) ) {
         return make_procedure( lambda_params( exp ),
                                lambda_body( exp ), env );
     } else if ( begin_predicate( exp ) ) {
-        return eval_sequence ( begin_actions( exp ), env );
+        return eval_sequence( begin_actions( exp ), env );
 
     } else if ( application_predicate( exp ) ) {
         apply( eval( operator( exp ), env ), list_of_values( operands( exp), env) );
@@ -603,7 +659,7 @@ val* eval ( val* exp, val * env ) {
 }
 
 int eval_driver_loop( int max_input_size, int max_str_size ) {
-    /* while(1) { */
+    while(1) {
 
         printf("\n");
         printf("Ввод: ");
@@ -634,9 +690,10 @@ int eval_driver_loop( int max_input_size, int max_str_size ) {
             free(array);
             free(list);
 
-        /* } */
+        }
     }
 }
+
 
 int main () {
     primitives_bindings = primitives_procedures_bindings();
