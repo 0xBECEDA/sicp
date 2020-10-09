@@ -9,6 +9,8 @@ int var_predicate( val* exp );
 
 int self_evaluating_predicate( val* exp );
 
+val* init_syntax_procs_errors();
+
 int quote_predicate( val* exp );
 
 val* text_of_quotation( val* exp );

@@ -4,6 +4,33 @@
 /* gcc test.c environment.c -o env */
 /* ./env */
 
+val* make_bilding_error;
+val* extend_environment_error;
+val* lookup_value_error;
+val* lookup_variable_error;
+
+val* init_env_errors() {
+    char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "ERR MAKE_BINDING: var name isn't a symbol",
+             max_symbol_name_length );
+    make_bilding_error = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "ERR EXTEND_ENVIRONMENT: every variable should have a value",
+             max_symbol_name_length );
+    extend_environment_error = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "lookup_value: value doens't found in that frame",
+             max_symbol_name_length );
+    lookup_value_error = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "ERR LOOKUP_VARIABLE: unussigned variable",
+             max_symbol_name_length );
+    lookup_variable_error = error_val_constructor( string );
+}
+
 val* make_empty_frame() {
     return nil_constructor();
 }
@@ -12,10 +39,11 @@ val* make_binding(val* var_name, val* var_value) {
     if ( symbol_predicate( var_name ) ) {
         return cons( var_name, var_value );
     }
-    char *string = malloc( sizeof( char[max_symbol_name_length] ) );
-    strncpy( string, "ERR MAKE_BINDING: var name isn't a symbol",
-             max_symbol_name_length );
-    return error_val_constructor( string );
+    /* char *string = malloc( sizeof( char[max_symbol_name_length] ) ); */
+    /* strncpy( string, "ERR MAKE_BINDING: var name isn't a symbol", */
+    /*          max_symbol_name_length ); */
+    /* return error_val_constructor( string ); */
+    return make_bilding_error;
 }
 
 val* var_binding(val* binding) {
@@ -28,92 +56,73 @@ val* value_binding(val* binding) {
 
 /* добавляет связывание в кадр, если имя переменной раньше не встречалось в кадре
    иначе присваивает имени новое значение */
-/* val* add_binding(val* frame, val* var_name, val* var_value) { */
-/*     val* record = assoc(var_name, frame); */
-/*     if ( null_predicate( record ) ) { */
-/*         frame = cons(make_binding( var_name, var_value), frame); */
-/*         return frame; */
-/*     } else { */
-/*         set_cdr(record, var_value); */
-/*         return frame; */
-/*     } */
-/* } */
 
+
+/* (define (add-binding-to-frame! var val frame) */
+/*  (set-car! frame (cons var (car frame))) */
+/*  (set-cdr! frame (cons val (cdr frame)))) */
 
 val* add_binding( val* frame, val* var_name, val* var_value ) {
+    /* printf("add_binding: frame: "); */
+    /* ipprint( frame ); */
+    /* printf("\n"); */
 
-    val* add_binding_rec( val* cur_frame, val* var_name, val* var_value ) {
-        if ( null_predicate( cur_frame ) ) {
-            frame = cons(make_binding( var_name, var_value), frame);
-            return frame;
-
-        }  else {
-            val* record = car( cur_frame );
-            val* key = car( record );
-
-           if ( ( symbol_predicate( key ) )  &&
-                ( symbol_predicate( var_name ) ) &&
-                (strcmp
-                 ( key->uni_val.char_val, var_name->uni_val.char_val ) == 0 ) ) {
-
-               set_cdr( record, var_value );
-               return frame;
-           } else {
-               add_binding_rec( cdr( cur_frame ), var_name, var_value );
-           }
-        }
-    }
-    return add_binding_rec( frame, var_name, var_value );
+    set_car( frame, cons( var_name, car( frame ) ) );
+    set_cdr( frame, cons(var_value, cdr( frame ) ) );
+    return frame;
 }
 
 val* make_frame( val* vars, val* values ) {
-    if (null_predicate ( vars ) ) {
-     return make_empty_frame();
-    }  else {
-        return cons (cons ( car( vars ), car( values ) ),
-                     make_frame( cdr( vars ), cdr( values ) ) );
-    }
+    return cons( vars, values );
+}
+
+val* frame_variables( val* frame ) {
+    car( frame );
+}
+
+val* frame_values( val* frame ) {
+    cdr( frame );
 }
 
 val* extend_environment(val* vars, val* values, val* base_env ) {
     if ( ( length( vars ) ) == ( length( values ) ) ) {
+        /* printf("extend_environment: new_frame: "); */
+        /* ipprint( make_frame( vars, values ) ); */
+        /* printf("\n"); */
         return cons( make_frame( vars, values ), base_env );
     } else {
-        char *string = malloc( sizeof( char[max_symbol_name_length] ) );
-        strncpy( string, "extend_environment: every variable should have a value",
-                 max_symbol_name_length );
-        return error_val_constructor( string );
+        /* char *string = malloc( sizeof( char[max_symbol_name_length] ) ); */
+        /* strncpy( string, "extend_environment: every variable should have a value", */
+        /*          max_symbol_name_length ); */
+        /* return error_val_constructor( string ); */
+        return extend_environment_error;
     }
 }
 
 /* ищет значение переменной в кадре, если она есть */
-/* val* lookup_value(val* frame, val* var_name) { */
-/*     val * record = assoc(var_name, frame); */
-/*     if ( null_predicate( record ) ) { */
-/*         return nil_constructor (); */
-/*     } else { */
-/*         return value_binding( record ); */
-/*     } */
-/* } */
-
 val* lookup_value( val* frame, val* var_name ) {
-    val* lookup_value_rec( val* frame, val* var_name ) {
-        if ( null_predicate( frame ) ) {
-            return nil_constructor();
-        } else {
-            val* record = car( frame );
-            val* key = car( record );
+    val* lookup_value_rec( val* vars, val* values ) {
+        if ( null_predicate( vars ) ) {
 
+            /* char *string = malloc( sizeof( char[max_symbol_name_length] ) ); */
+            /* strncpy( string, "lookup_value: value doens't found in that frame", */
+            /*          max_symbol_name_length ); */
+            /* return error_val_constructor( string ); */
+            return lookup_value_error;
+        } else {
+            val* key = car( vars );
             if ( ( symbol_predicate( key ) )  &&
                  ( symbol_predicate( var_name ) ) &&
                  (strcmp
                   ( key->uni_val.char_val, var_name->uni_val.char_val ) == 0 ) ) {
-                return cdr( record );
+
+                /* printf("lookup_value: value is found\n "); */
+                return car( values );
             }
-            lookup_value_rec( cdr( frame ), var_name );
+            lookup_value_rec( cdr( vars ), cdr( values ) );
         }
     }
-    return lookup_value_rec( frame, var_name );
+    return lookup_value_rec( frame_variables( frame ), frame_values( frame ) );
 }
 
 val* make_empty_environment() {
@@ -141,21 +150,34 @@ val* rest_frames(val* env) {
     cdr( env );
 }
 
+
 /* ищет значение пременной в окружении, если она есть */
 val* lookup_variable(val* var_name, val* env) {
-    if ( null_predicate( env ) ) {
-        char *string = malloc( sizeof( char[max_symbol_name_length] ) );
-        strncpy( string, "ERR LOOKUP_VARIABLE:: unussigned variable",
-                 max_symbol_name_length );
-        return error_val_constructor( string );
+    /* printf("lookup_variable: search value for variable: \n"); */
+    /* ipprint( var_name ); */
+    /* printf("\n"); */
 
+    if ( null_predicate( env ) ) {
+        /* printf("lookup_variable: value for variable "); */
+        /* ipprint( var_name ); */
+        /* printf(" is NOT found \n "); */
+
+        /* char *string = malloc( sizeof( char[max_symbol_name_length] ) ); */
+        /* strncpy( string, "ERR LOOKUP_VARIABLE: unussigned variable", */
+        /*          max_symbol_name_length ); */
+        /* return error_val_constructor( string ); */
+
+        return lookup_variable_error;
     } else {
         val* first = first_frame( env );
         val* value = lookup_value(first, var_name);
 
-        if ( null_predicate( value ) ) {
-            lookup_variable(var_name, rest_frames( env ));
+        if ( error_predicate( value ) ) {
+            lookup_variable(var_name, rest_frames( env ) );
         } else {
+            /* printf("lookup_variable: value for variable "); */
+            /* ipprint( var_name ); */
+            /* printf(" is found \n "); */
             return value;
         }
     }
@@ -280,10 +302,15 @@ void test_env() {
     val* val_6 = int_val_constructor( ptr_6 );
 
     /* создаем 2 кадра */
-    frame1 = add_binding(frame1, a_val, val_1);
-    frame1 = add_binding(frame1, b_val, val_2);
-    frame1 = add_binding(frame1, c_val, val_3);
-    frame1 = add_binding(frame1, d_val, val_4);
+    /* frame1 = add_binding(frame1, a_val, val_1); */
+    /* frame1 = add_binding(frame1, b_val, val_2); */
+    /* frame1 = add_binding(frame1, c_val, val_3); */
+    /* frame1 = add_binding(frame1, d_val, val_4); */
+
+    add_binding(frame1, a_val, val_1);
+    add_binding(frame1, b_val, val_2);
+    add_binding(frame1, c_val, val_3);
+    add_binding(frame1, d_val, val_4);
 
     printf("frame1: \n");
     ipprint(frame1);
@@ -327,7 +354,7 @@ void test_env() {
 }
 
 /* int main (void) { */
-/*     test_frames(); */
+/*     /\* test_frames(); *\/ */
 /*     test_env(); */
 /*     return 0; */
 /* } */

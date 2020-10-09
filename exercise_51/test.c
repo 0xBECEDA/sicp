@@ -69,6 +69,26 @@ void error_handler(char* str);
 
 void ipprint (val* param);
 
+/* объясления ошибок */
+val* car_error;
+val* cdr_error;
+val* last_pair_error;
+val* append_error;
+val* reverse_rec_error;
+val* reverse_error;
+val* add_error;
+val* mul_error;
+val* sub_rec_error;
+val* sub_error1;
+val* sub_error2;
+val* division_rec_error1;
+val* division_rec_error2;
+val* division_error1;
+val* division_error2;
+val* map_error;
+val* assoc_error;
+val* ipprint_error;
+
 /* конструктор значения-ссылки на копию числа */
 val* int_val_constructor ( int* val ) {
     struct val * retval = malloc(sizeof(val));
@@ -77,15 +97,6 @@ val* int_val_constructor ( int* val ) {
     retval->type_num = TYPE_INT;
     return retval;
 }
-
-/* /\* конструктор значения-ссылки на копию буквы *\/ */
-/* val* char_val_constructor ( char* val ) { */
-/*     struct val * retval = malloc(sizeof(val)); */
-/*     char* pnt = malloc(sizeof(char)); */
-/*     retval->uni_val.char_val = val; /\* copy val, may be not need (todo) *\/ */
-/*     retval->type_num = TYPE_CHAR; */
-/*     return retval; */
-/* } */
 
 val* symbol_val_constructor ( char* val ) {
     struct val * retval = malloc(sizeof(val));
@@ -126,6 +137,77 @@ val* cell_val_constructor ( cell* val ) {
     return retval;
 }
 
+/* инициализирует сообщения об ошибках */
+val* init_primitives_errors () {
+    char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "ERR CAR: arg isn't a pair", max_symbol_name_length );
+    car_error = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "ERR CDR: arg isn't a pair", max_symbol_name_length );
+    cdr_error = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "ERR LAST_PAIR: empty cell", max_symbol_name_length );
+    last_pair_error = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "ERR APPEND: args schold be a lists", max_symbol_name_length );
+    append_error = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "ERR REVERSE: wrong type of cell", max_symbol_name_length );
+    reverse_rec_error = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "ERR REVERSE: arg ist't a pair", max_symbol_name_length );
+    reverse_error = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "ADD ERROR: add gets only numbers", max_symbol_name_length );
+    add_error = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "MUL ERROR: mul gets only numbers", max_symbol_name_length );
+    mul_error = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "SUB ERROR: sub gets only numbers", max_symbol_name_length );
+    sub_rec_error = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "SUB ERROR: sub needs at least 1 arg", max_symbol_name_length );
+    sub_error1 = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "DIVISION ERROR: division by zero", max_symbol_name_length );
+    division_rec_error1 = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "DIVISION ERROR: division does't support fractional numbers",
+             max_symbol_name_length );
+    division_rec_error2 = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "DIVISION ERROR: division gets only numbers",
+             max_symbol_name_length );
+    division_error1 = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "DIVISION ERROR: division needs at least 2 args",
+             max_symbol_name_length );
+    division_error2 = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "ERR MAP: arg isn't a pair", max_symbol_name_length );
+    map_error = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "ERR ASSOC: list of args should be an association list",
+             max_symbol_name_length );
+    assoc_error = error_val_constructor( string );
+}
+
 /* конструктор списка */
 val* cons  (val* car, val* cdr ) {
     cell *cell = malloc(sizeof(cell));
@@ -140,7 +222,8 @@ val* car (val* cell) {
          ( !null_predicate( cell )) ){
         return cell->uni_val.cell_val->car;
     }else {
-        error_handler ("ERR CAR: ARG ISN'T A PAIR");
+        /* error_handler ("ERR CAR: ARG ISN'T A PAIR"); */
+        return car_error;
     }
 }
 /* возвращает cdr ячейки */
@@ -149,7 +232,8 @@ val* cdr (val* cell) {
          (!null_predicate ( cell ) ) ) {
         return cell->uni_val.cell_val->cdr;
     } else {
-        error_handler ("ERR CDR: ARG ISN'T A PAIR");
+        /* error_handler ("ERR CDR: ARG ISN'T A PAIR"); */
+        return cdr_error;
     }
 }
 
@@ -197,9 +281,9 @@ int length (val* cell) {
 /* возвращает последнюю пару списка */
 val* last_pair (val* cell) {
     if ( cell->type_num == TYPE_NIL ) {
-        printf( "\nERR LAST_PAIR: EMPTY CELL %d ", cell->type_num);
-        fflush(stdout);
-
+        /* printf( "\nERR LAST_PAIR: EMPTY CELL %d ", cell->type_num); */
+        /* fflush(stdout); */
+        return last_pair_error;
     } else {
         val* cdr_pnt = cdr( cell );
         if ( cdr_pnt->type_num == TYPE_NIL) {
@@ -216,8 +300,8 @@ val* append (val* cell1, val* cell2) {
     if ( ( dotpair_predicate(cell1) ) ||
          ( dotpair_predicate(cell2) ) ||
          (atom_predicate( cell1 )) ) {
-        error_handler( "APPEND ERR: ARGS SCHOULD BE LISTS");
-
+        /* error_handler( "APPEND ERR: ARGS SCHOULD BE LISTS"); */
+        return append_error;
     }else if ( cell1->type_num == TYPE_NIL ) {
         return cell2;
 
@@ -269,8 +353,8 @@ val* reverse_rec(val* list, val* new_cell ) {
             break;
 
         default:
-            error_handler("ERR REVERSE: WRONG TYPE OF LIST CELL");
-
+            /* error_handler("ERR REVERSE: WRONG TYPE OF LIST CELL"); */
+            return reverse_rec_error;
         }
     }
 }
@@ -280,40 +364,9 @@ val* reverse(val* cell) {
     if ( pair_predicate( cell )) {
         return reverse_rec( cell, nil_constructor() );
     }
-    error_handler( "ERR REVERSE: ARG ISN'T A PAIR");
+    return reverse_error;
+    /* error_handler( "ERR REVERSE: ARG ISN'T A PAIR"); */
 }
-
-/* val* add(int n, ...) { */
-
-/*     int* result = malloc(sizeof(int)); */
-/*     *result = 0; */
-/*     val* result_val = int_val_constructor( result ); */
-
-/*     if ( n == 0 ) { */
-/*         return result_val; */
-
-/*     } else { */
-/*         val* cur_arg = malloc(sizeof(val)); */
-/*         va_list ptr; */
-/*         va_start(ptr, n); */
-
-/*         for (int i = 0; i < n; i++) { */
-/*             cur_arg = va_arg(ptr, val*); */
-
-/*             if ( number_predicate( cur_arg ) ){ */
-/*                 int the_sum = *result_val->uni_val.int_val; */
-/*                 int cur_num = *cur_arg->uni_val.int_val; */
-/*                 the_sum = the_sum + cur_num; */
-/*                 *result_val->uni_val.int_val = the_sum; */
-
-/*             } else { */
-/*                 error_handler( "ERR ADD: ARG ISN'T A NUMBER"); */
-/*             } */
-/*         } */
-/*         va_end(ptr); */
-/*         return result_val; */
-/*     } */
-/* } */
 
 val* add ( val* args ) {
     int* sum = malloc(sizeof(int));
@@ -331,9 +384,10 @@ val* add ( val* args ) {
             *sum = the_sum;
             add_rec( cdr( args ) );
         } else {
-            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
-            strncpy( string, "ADD ERROR: add gets only numbers", max_symbol_name_length );
-            return error_val_constructor( string );
+            /* char *string = malloc( sizeof( char[max_symbol_name_length] ) ); */
+            /* strncpy( string, "ADD ERROR: add gets only numbers", max_symbol_name_length ); */
+            /* return error_val_constructor( string ); */
+            return add_error;
         }
     }
     return add_rec( args );
@@ -356,9 +410,10 @@ val* mul ( val* args ) {
             mul_rec( cdr( args ) );
 
         } else {
-            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
-            strncpy( string, "MUL ERROR: mul gets only numbers", max_symbol_name_length );
-            return error_val_constructor( string );
+            /* char *string = malloc( sizeof( char[max_symbol_name_length] ) ); */
+            /* strncpy( string, "MUL ERROR: mul gets only numbers", max_symbol_name_length ); */
+            /* return error_val_constructor( string ); */
+            return mul_error;
         }
     }
     return mul_rec( args );
@@ -378,9 +433,10 @@ val* sub_rec( val* args, int* diff ) {
             sub_rec( cdr( args ), diff );
 
         } else {
-            char *string = malloc( sizeof( char[max_symbol_name_length] ) );
-            strncpy( string, "SUB ERROR: mul gets only numbers", max_symbol_name_length );
-            return error_val_constructor( string );
+            /* char *string = malloc( sizeof( char[max_symbol_name_length] ) ); */
+            /* strncpy( string, "SUB ERROR: sub gets only numbers", max_symbol_name_length ); */
+            /* return error_val_constructor( string ); */
+            return sub_rec_error;
         }
     }
 }
@@ -388,10 +444,10 @@ val* sub_rec( val* args, int* diff ) {
 val* sub( val* args ) {
     /* если аргументов нет, выдать ошибку */
     if ( null_predicate( args ) ) {
-        char *string = malloc( sizeof( char[max_symbol_name_length] ) );
-        strncpy( string, "SUB ERROR: sub needs at least 1 arg", max_symbol_name_length );
-        return error_val_constructor( string );
-
+        /* char *string = malloc( sizeof( char[max_symbol_name_length] ) ); */
+        /* strncpy( string, "SUB ERROR: sub needs at least 1 arg", max_symbol_name_length ); */
+        /* return error_val_constructor( string ); */
+        return sub_error1;
     } else {
         int* diff = malloc(sizeof(int));
         *diff = 0;
@@ -405,10 +461,11 @@ val* sub( val* args ) {
                 return int_val_constructor( diff );
 
             } else {
-                char *string = malloc( sizeof( char[max_symbol_name_length] ) );
-                strncpy( string, "SUB ERROR: sub gets only numbers",
-                         max_symbol_name_length );
-                return error_val_constructor( string );
+                /* char *string = malloc( sizeof( char[max_symbol_name_length] ) ); */
+                /* strncpy( string, "SUB ERROR: sub gets only numbers", */
+                /*          max_symbol_name_length ); */
+                /* return error_val_constructor( string ); */
+                return sub_rec_error;
             }
         }
         val* first_elt = car( args );
@@ -430,27 +487,28 @@ val* division_rec( val* args, int* quotient ) {
 
             if ( term == 0 ) {
                 string = malloc( sizeof( char[max_symbol_name_length] ) );
-                strncpy( string, "DIVISION ERROR: division by zero",
-                         max_symbol_name_length );
-                return error_val_constructor( string );
-
+                /* strncpy( string, "DIVISION ERROR: division by zero", */
+                /*          max_symbol_name_length ); */
+                /* return error_val_constructor( string ); */
+                return division_rec_error1;
             } else if ( term > the_quotient ){
                 string = malloc( sizeof( char[max_symbol_name_length] ) );
-                strncpy( string,
-                         "DIVISION ERROR: division does't support fractional numbers",
-                         max_symbol_name_length );
-                return error_val_constructor( string );
-
+                /* strncpy( string, */
+                /*          "DIVISION ERROR: division does't support fractional numbers", */
+                /*          max_symbol_name_length ); */
+                /* return error_val_constructor( string ); */
+                return division_rec_error2;
             } else {
                 the_quotient /= term;
                 *quotient = the_quotient;
                 division_rec( cdr( args ), quotient );
             }
         } else {
-            string = malloc( sizeof( char[max_symbol_name_length] ) );
-            strncpy( string, "DIVISION ERROR: division gets only numbers",
-                     max_symbol_name_length );
-            return error_val_constructor( string );
+            /* string = malloc( sizeof( char[max_symbol_name_length] ) ); */
+            /* strncpy( string, "DIVISION ERROR: division gets only numbers", */
+            /*          max_symbol_name_length ); */
+            /* return error_val_constructor( string ); */
+            return division_error1;
         }
     }
 }
@@ -460,10 +518,10 @@ val* division( val* args ) {
     /* если аргументов нет или аргумент 1, выдать ошибку */
     if ( null_predicate( args ) || (length( args ) == 1) ) {
         string = malloc( sizeof( char[max_symbol_name_length] ) );
-        strncpy( string, "DIVISION ERROR: division needs at least 2 args",
-                 max_symbol_name_length );
-        return error_val_constructor( string );
-
+        /* strncpy( string, "DIVISION ERROR: division needs at least 2 args", */
+        /*          max_symbol_name_length ); */
+        /* return error_val_constructor( string ); */
+        return division_error2;
     } else {
         int* quotient = malloc(sizeof(int));
         val* first_elt = car( args );
@@ -473,147 +531,14 @@ val* division( val* args ) {
                 return division_rec( cdr( args ), quotient );
 
         } else {
-            string = malloc( sizeof( char[max_symbol_name_length] ) );
-            strncpy( string, "DIVISION ERROR: division gets only numbers",
-                     max_symbol_name_length );
-            return error_val_constructor( string );
+            /* string = malloc( sizeof( char[max_symbol_name_length] ) ); */
+            /* strncpy( string, "DIVISION ERROR: division gets only numbers", */
+            /*          max_symbol_name_length ); */
+            /* return error_val_constructor( string ); */
+            return division_error1;
         }
     }
 }
-
-/* val* mul(int n, ...) { */
-
-/*     int* result = malloc(sizeof(int)); */
-/*     *result = 1; */
-/*     val* result_val = int_val_constructor( result ); */
-
-/*     if ( n == 0 ) { */
-/*         return result_val; */
-
-/*     } else { */
-/*         val* cur_arg = malloc(sizeof(val)); */
-/*         va_list ptr; */
-/*         va_start(ptr, n); */
-
-/*         for (int i = 0; i < n; i++) { */
-/*             cur_arg = va_arg(ptr, val*); */
-
-/*             if ( number_predicate( cur_arg ) ){ */
-/*                 int the_sum = *result_val->uni_val.int_val; */
-/*                 int cur_num = *cur_arg->uni_val.int_val; */
-/*                 the_sum = the_sum * cur_num; */
-/*                 *result_val->uni_val.int_val = the_sum; */
-
-/*             } else { */
-/*                 error_handler( "ERR MUL: ARG ISN'T A NUMBER"); */
-/*             } */
-/*         } */
-/*         va_end(ptr); */
-/*         return result_val; */
-/*     } */
-/* } */
-
-/* val* sub(int n, ...) { */
-/*     /\* если аргументов нет, выдать ошибку *\/ */
-/*     if ( n == 0 ) { */
-/*         error_handler( "ERR SUB: PROCEDURE CALLED WITH NO ARGS"); */
-
-/*     } else { */
-/*         int* result = malloc(sizeof(int)); */
-/*         *result = 0; */
-/*         val* result_val = int_val_constructor( result ); */
-/*         val* cur_arg = malloc(sizeof(val)); */
-/*         int cur_num; */
-/*         int difference; */
-/*         va_list ptr; */
-/*         va_start(ptr, n); */
-
-/*         /\* аргумент один *\/ */
-/*         if (n == 1) { */
-/*             cur_arg = va_arg(ptr, val*); */
-
-/*             if  (number_predicate( cur_arg ) ) { */
-/*                 difference = *result_val->uni_val.int_val; */
-/*                 cur_num = *cur_arg->uni_val.int_val; */
-/*                 difference = difference - cur_num; */
-/*                 *result_val->uni_val.int_val = difference; */
-/*                 return result_val; */
-
-/*             }else { */
-/*                 error_handler( "ERR SUB: ARG ISN'T A NUMBER"); */
-/*             } */
-/*             /\* кол-во аргументов >= 2 *\/ */
-/*         } else { */
-/*             cur_arg = va_arg(ptr, val*); */
-/*             *result_val->uni_val.int_val = *cur_arg->uni_val.int_val; */
-/*             n--; */
-
-/*             for (int i = 0; i < n; i++) { */
-/*                 cur_arg = va_arg(ptr, val*); */
-
-/*                 if ( number_predicate( cur_arg ) ){ */
-/*                     difference = *result_val->uni_val.int_val; */
-/*                     cur_num = *cur_arg->uni_val.int_val; */
-/*                     difference = difference - cur_num; */
-/*                     *result_val->uni_val.int_val = difference; */
-
-/*                 } else { */
-/*                     error_handler( "ERR SUB: ARG ISN'T A NUMBER"); */
-/*                 } */
-/*             } */
-/*             va_end(ptr); */
-/*             return result_val; */
-/*         } */
-/*     } */
-/* } */
-
-/* val* division(int n, ...) { */
-/*     /\* если аргументов нет, выдать ошибку *\/ */
-/*     if ( n == 0 ) { */
-/*         error_handler("ERR DIVISION: PROCEDURE CALLED WITH NO ARGS"); */
-
-/*     } else if (n == 1) { */
-/*         error_handler("ERR DIVISION: PROSEDURE NEEDS AT LEAST 2 ARGS"); */
-/*         /\* кол-во аргументов >= 2 *\/ */
-/*     } else { */
-/*         int* result = malloc(sizeof(int)); */
-/*         *result = 1; */
-/*         val* result_val = int_val_constructor( result ); */
-/*         val* cur_arg = malloc(sizeof(val)); */
-/*         int cur_num; */
-/*         int quotient; */
-/*         va_list ptr; */
-/*         va_start(ptr, n); */
-
-/*         cur_arg = va_arg(ptr, val*); */
-/*         *result_val->uni_val.int_val = *cur_arg->uni_val.int_val; */
-/*         n--; */
-
-/*         for (int i = 0; i < n; i++) { */
-/*             cur_arg = va_arg(ptr, val*); */
-/*             /\* аргумент - число? *\/ */
-/*             if ( number_predicate( cur_arg ) ) { */
-/*                 quotient = *result_val->uni_val.int_val; */
-/*                 cur_num = *cur_arg->uni_val.int_val; */
-/*                 /\* аргумент - ноль? *\/ */
-/*                 if (cur_num == 0) { */
-/*                     error_handler("ERR DIVISION: DIVISION BY ZERO"); */
-/*                 /\* делимое больше делителя? *\/ */
-/*                 } else if (quotient >= cur_num) { */
-/*                     quotient = quotient / cur_num; */
-/*                     *result_val->uni_val.int_val = quotient; */
-/*                 }else { */
-/*                     error_handler */
-/*                         ("ERR DIVISION: THE SYSTEM DOESN'T SUPPORT FRACTIONAL NUMBERS"); */
-/*                 } */
-/*             } else { */
-/*                 error_handler("ERR DIVISION: ARG ISN'T A NUMBER"); */
-/*             } */
-/*         } */
-/*         va_end(ptr); */
-/*         return result_val; */
-/*     } */
-/* } */
 
 /* принимает функцию и список аргумнтов
 /* применяет функцию к каждому аргументу и возвращает список результатов */
@@ -622,8 +547,8 @@ val* division( val* args ) {
 val* map(val* (*op)(val*),  val* arg_list) {
     if ( ( atom_predicate( arg_list ) ) ||
         ( dotpair_predicate( arg_list ) ) ) {
-        error_handler( "ERR MAP: ARG ISN'T A PAIR");
-
+        /* error_handler( "ERR MAP: ARG ISN'T A PAIR"); */
+        return map_error;
     }else if (null_predicate(arg_list)) {
         nil_constructor();
 
@@ -658,10 +583,12 @@ val* assoc(val* key, val* args_list) {
                 assoc(key, cdr (args_list) );
             }
         } else {
-            error_handler("ERR ASSOC: ARGS_LIST SHOULD BE AN ASSOCIATION LIST");
+            /* error_handler("ERR ASSOC: ARGS_LIST SHOULD BE AN ASSOCIATION LIST"); */
+            return assoc_error;
         }
     } else {
-        error_handler("ERR ASSOC: ARGS_LIST SHOULD BE AN ASSOCIATION LIST");
+        /* error_handler("ERR ASSOC: ARGS_LIST SHOULD BE AN ASSOCIATION LIST"); */
+        return assoc_error;
     }
 }
 
@@ -689,30 +616,6 @@ val* make_list ( int n, ...) {
         return list;
     }
 }
-
-/* Аналогичный по работае make_list, но с использованием цикла */
-/* val* make_list ( int n, ...) { */
-/*     if ( n == 0 ) { */
-/*         nil_constructor(); */
-
-/*     }else { */
-/*         val* list = malloc(sizeof(val)); */
-/*         val* car; */
-/*         va_list ptr; */
-/*         va_start(ptr, n); */
-/*         car = va_arg(ptr, val*); */
-
-/*         list = cons(car, nil_constructor()); */
-/*         n--; */
-
-/*         for(int i = 0; i < n; i++) { */
-/*             car = va_arg(ptr, val*); */
-/*             val* car_cell = cons(car, nil_constructor()); */
-/*             list = append(list, car_cell); */
-/*         } */
-/*         return list; */
-/*     } */
-/* } */
 
 int false_predicate(val* cell) {
     if( TYPE_NIL == cell->type_num ) {
@@ -822,19 +725,7 @@ void wrap_brackets_if_not_atom_or_empty_cell (val* param) {
     if ( ( atom_predicate( param ) ) ||
          ( null_predicate( param ) ) ) {
         pprint( param );
-
-    /* }else if ( dotpair_predicate( param ) ) { */
-    /*     val* car_pnt = car( param ); */
-    /*     val* cdr_pnt = cdr( param ); */
-
-    /*     printf( "(" ); */
-    /*     pprint( car_pnt ); */
-    /*     printf(" . "); */
-    /*     pprint( cdr_pnt ); */
-    /*     printf( ")" ); */
-
     } else {
-        /* printf( "not atom\n" ); */
 
         printf("(");
         pprint( param );
@@ -891,11 +782,6 @@ void pprint(val* param) {
         } else if ( dotpair_predicate( param ) ) {
 
             /* это точечная пара (cdr = ATOM)  */
-            /* wrap_brackets_if_not_atom_or_empty_cell ( param ); */
-
-            /* printf("dotpair\n"); */
-            /* fflush(stdout); */
-            /* printf( "(" ); */
             if ( dotpair_predicate( car_pnt ) || pair_predicate( car_pnt ) ) {
                 wrap_brackets_if_not_atom_or_empty_cell( car_pnt );
                 printf(" ");
@@ -906,7 +792,6 @@ void pprint(val* param) {
             printf(" . ");
             pprint( cdr_pnt );
             }
-            /* printf( ")" ); */
 
         } else if ( pair_predicate( param ) ) {
             /* это список (cdr = CELL) */
@@ -920,9 +805,7 @@ void pprint(val* param) {
                 wrap_brackets_if_not_atom_or_empty_cell( car_pnt );
             }
             printf(" ");
-            /* fflush(stdout); */
             pprint( cdr_pnt );
-            /* wrap_brackets_if_not_atom_or_empty_cell( cdr_pnt ); */
 
         } else {
             printf( "\nERR: UNIMPLEMENTED CELL %d : %d", car_pnt->type_num,

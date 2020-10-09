@@ -36,4 +36,6 @@ val* frame_variables( val* frame );
 val* lookup_variable(val* var_name, val* env);
 
 val* extend_environment(val* vars, val* values, val* base_env );
+
+val* init_env_errors();
 #endif

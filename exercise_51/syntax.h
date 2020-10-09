@@ -11,4 +11,5 @@ val* copy_num_or_symbol_to_new_cell (val* elt);
 
 val* transform_list(val* list);
 
+val* init_syntax_errors();
 #endif

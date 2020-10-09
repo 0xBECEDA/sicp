@@ -43,6 +43,8 @@ typedef struct val {
 
 int max_symbol_name_length;
 
+val* init_primitives_errors();
+
 val* last_pair (val* cell);
 
 val* reverse(val* cell);
@@ -50,8 +52,6 @@ val* reverse(val* cell);
 void error_handler(char* str);
 
 val* int_val_constructor ( int* val );
-
-/* val* char_val_constructor ( char* val ); */
 
 val* symbol_val_constructor ( char* val );
 
