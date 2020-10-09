@@ -184,7 +184,12 @@ int length_rec (val* cell) {
 /* возвращает длину списка */
 int length (val* cell) {
     if ( pair_predicate( cell )) {
-        return length_rec( cell );
+        int result = length_rec( cell );
+        /* printf("length arg: "); */
+        /* ipprint( cell ); */
+        /* printf("\n"); */
+        /* printf("length result: %d\n", result); */
+        return result;
     }
     error_handler( "ERR LENGTH: ARG ISN'T A PAIR");
 }
@@ -1173,7 +1178,12 @@ void test_make_list() {
 /*     /\* printf("\n"); *\/ */
 /* } */
 
+void test_fn( val* list, val* value ) {
+    set_car(list, value);
+}
+
 void test_set_car_and_set_cdr () {
+
     int* ptr_a = malloc(sizeof(int));
     *ptr_a = 4;
     val* a_val = int_val_constructor( ptr_a );
@@ -1192,64 +1202,118 @@ void test_set_car_and_set_cdr () {
     *ptr_f = 6;
     val* f_val = int_val_constructor( ptr_f );
 
-
-    /* соберем вложенный список (4 ((4 5))) */
-    val* bazo = cons( a_val, cons (cons ( cons ( a_val,
-                                                 cons( c_val, d_val )),
-                                          d_val),
-                                   d_val));
-
-    /* теперь соберем список (4 b 5) */
-    val* foobar = cons( a_val, cons ( b_val, cons( c_val, d_val )));
-
-    /* соберем вложенный список (4 (4 5) 5) */
-    val* baz = cons( a_val, cons ( cons( a_val,
-                                         cons( c_val, d_val )),
-                                   cons( c_val, d_val )));
-    /* собираем список (6) */
-    val* bar = cons( f_val, nil_constructor());
-
-    /* (6 (4 5) 5)*/
-    set_car(baz, f_val);
-    ipprint( baz );
+    val* test = make_list( 3, a_val, b_val, c_val );
+    printf("test: ");
+    ipprint( test );
     printf("\n");
 
-    /* ((6) b 5) */
-    set_car(foobar, bar);
-    ipprint( foobar );
+    val* test2 = test;
+    printf("test2: ");
+    ipprint( test2 );
     printf("\n");
 
-    /* (4 6) */
-    set_cdr(bazo, bar);
-    ipprint( bazo );
+    val* test3 = make_list(3, test, a_val, b_val );
+    printf("test3: ");
+    ipprint( test3 );
     printf("\n");
 
-    /* восстанавливаем заничение - иначе получаются циклические списки*/
-    bazo = cons( a_val, cons (cons ( cons ( a_val,
-                                            cons( c_val, d_val )),
-                                     d_val),
-                              d_val));
-    set_cdr(bar, bazo);
-    ipprint( bar );
+    val* test4 = car( test3 );
+    test_fn( test4, f_val );
+    /* set_car( test4, f_val ); */
+
+    printf("test: ");
+    ipprint( test );
     printf("\n");
 
-    bazo = cons( a_val, cons (cons ( cons ( a_val,
-                                            cons( c_val, d_val )),
-                                     d_val),
-                              d_val));
-    set_car( bazo, b_val );
-    ipprint( bazo );
+    printf("test2: ");
+    ipprint( test2 );
     printf("\n");
 
-    set_car( bazo, c_val );
-    ipprint( bazo );
-    printf("\n");
-
-    set_car( bazo, nil_constructor() );
-    ipprint( bazo );
+    printf("test3: ");
+    ipprint( test3 );
     printf("\n");
 
 }
+
+
+
+/* void test_set_car_and_set_cdr () { */
+/*     int* ptr_a = malloc(sizeof(int)); */
+/*     *ptr_a = 4; */
+/*     val* a_val = int_val_constructor( ptr_a ); */
+
+/*     char* ptr_b = malloc(sizeof(char[1])); */
+/*     strncpy( ptr_b, "b", 1 ); */
+/*     val* b_val = symbol_val_constructor( ptr_b ); */
+
+/*     int* ptr_c = malloc(sizeof(int)); */
+/*     *ptr_c = 5; */
+/*     val* c_val = int_val_constructor( ptr_c ); */
+
+/*     val* d_val = nil_constructor(); */
+
+/*     int* ptr_f = malloc(sizeof(int)); */
+/*     *ptr_f = 6; */
+/*     val* f_val = int_val_constructor( ptr_f ); */
+
+
+/*     /\* соберем вложенный список (4 ((4 5))) *\/ */
+/*     val* bazo = cons( a_val, cons (cons ( cons ( a_val, */
+/*                                                  cons( c_val, d_val )), */
+/*                                           d_val), */
+/*                                    d_val)); */
+
+/*     /\* теперь соберем список (4 b 5) *\/ */
+/*     val* foobar = cons( a_val, cons ( b_val, cons( c_val, d_val ))); */
+
+/*     /\* соберем вложенный список (4 (4 5) 5) *\/ */
+/*     val* baz = cons( a_val, cons ( cons( a_val, */
+/*                                          cons( c_val, d_val )), */
+/*                                    cons( c_val, d_val ))); */
+/*     /\* собираем список (6) *\/ */
+/*     val* bar = cons( f_val, nil_constructor()); */
+
+/*     /\* (6 (4 5) 5)*\/ */
+/*     set_car(baz, f_val); */
+/*     ipprint( baz ); */
+/*     printf("\n"); */
+
+/*     /\* ((6) b 5) *\/ */
+/*     set_car(foobar, bar); */
+/*     ipprint( foobar ); */
+/*     printf("\n"); */
+
+/*     /\* (4 6) *\/ */
+/*     set_cdr(bazo, bar); */
+/*     ipprint( bazo ); */
+/*     printf("\n"); */
+
+/*     /\* восстанавливаем заничение - иначе получаются циклические списки*\/ */
+/*     bazo = cons( a_val, cons (cons ( cons ( a_val, */
+/*                                             cons( c_val, d_val )), */
+/*                                      d_val), */
+/*                               d_val)); */
+/*     set_cdr(bar, bazo); */
+/*     ipprint( bar ); */
+/*     printf("\n"); */
+
+/*     bazo = cons( a_val, cons (cons ( cons ( a_val, */
+/*                                             cons( c_val, d_val )), */
+/*                                      d_val), */
+/*                               d_val)); */
+/*     set_car( bazo, b_val ); */
+/*     ipprint( bazo ); */
+/*     printf("\n"); */
+
+/*     set_car( bazo, c_val ); */
+/*     ipprint( bazo ); */
+/*     printf("\n"); */
+
+/*     set_car( bazo, nil_constructor() ); */
+/*     ipprint( bazo ); */
+/*     printf("\n"); */
+
+/* } */
 
 void test_map() {
     int* ptr_a = malloc(sizeof(int));
@@ -1685,7 +1749,7 @@ void test_length() {
 /*     /\* test_reverse(); *\/ */
 /*     /\* test_set_car_and_set_cdr(); *\/ */
 /*     /\* test_make_list(); *\/ */
-/*     test_map(); */
+/*     /\* test_map(); *\/ */
 /*     /\* test_add_sub_mu_division(); *\/ */
 /*     /\* test_assoc(); *\/ */
 /*     /\* test_pair(); *\/ */
