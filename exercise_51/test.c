@@ -384,9 +384,6 @@ val* add ( val* args ) {
             *sum = the_sum;
             add_rec( cdr( args ) );
         } else {
-            /* char *string = malloc( sizeof( char[max_symbol_name_length] ) ); */
-            /* strncpy( string, "ADD ERROR: add gets only numbers", max_symbol_name_length ); */
-            /* return error_val_constructor( string ); */
             return add_error;
         }
     }
@@ -410,9 +407,6 @@ val* mul ( val* args ) {
             mul_rec( cdr( args ) );
 
         } else {
-            /* char *string = malloc( sizeof( char[max_symbol_name_length] ) ); */
-            /* strncpy( string, "MUL ERROR: mul gets only numbers", max_symbol_name_length ); */
-            /* return error_val_constructor( string ); */
             return mul_error;
         }
     }
@@ -433,9 +427,6 @@ val* sub_rec( val* args, int* diff ) {
             sub_rec( cdr( args ), diff );
 
         } else {
-            /* char *string = malloc( sizeof( char[max_symbol_name_length] ) ); */
-            /* strncpy( string, "SUB ERROR: sub gets only numbers", max_symbol_name_length ); */
-            /* return error_val_constructor( string ); */
             return sub_rec_error;
         }
     }
@@ -444,9 +435,6 @@ val* sub_rec( val* args, int* diff ) {
 val* sub( val* args ) {
     /* если аргументов нет, выдать ошибку */
     if ( null_predicate( args ) ) {
-        /* char *string = malloc( sizeof( char[max_symbol_name_length] ) ); */
-        /* strncpy( string, "SUB ERROR: sub needs at least 1 arg", max_symbol_name_length ); */
-        /* return error_val_constructor( string ); */
         return sub_error1;
     } else {
         int* diff = malloc(sizeof(int));
@@ -461,10 +449,6 @@ val* sub( val* args ) {
                 return int_val_constructor( diff );
 
             } else {
-                /* char *string = malloc( sizeof( char[max_symbol_name_length] ) ); */
-                /* strncpy( string, "SUB ERROR: sub gets only numbers", */
-                /*          max_symbol_name_length ); */
-                /* return error_val_constructor( string ); */
                 return sub_rec_error;
             }
         }
@@ -487,27 +471,18 @@ val* division_rec( val* args, int* quotient ) {
 
             if ( term == 0 ) {
                 string = malloc( sizeof( char[max_symbol_name_length] ) );
-                /* strncpy( string, "DIVISION ERROR: division by zero", */
-                /*          max_symbol_name_length ); */
-                /* return error_val_constructor( string ); */
                 return division_rec_error1;
+
             } else if ( term > the_quotient ){
                 string = malloc( sizeof( char[max_symbol_name_length] ) );
-                /* strncpy( string, */
-                /*          "DIVISION ERROR: division does't support fractional numbers", */
-                /*          max_symbol_name_length ); */
-                /* return error_val_constructor( string ); */
                 return division_rec_error2;
+
             } else {
                 the_quotient /= term;
                 *quotient = the_quotient;
                 division_rec( cdr( args ), quotient );
             }
         } else {
-            /* string = malloc( sizeof( char[max_symbol_name_length] ) ); */
-            /* strncpy( string, "DIVISION ERROR: division gets only numbers", */
-            /*          max_symbol_name_length ); */
-            /* return error_val_constructor( string ); */
             return division_error1;
         }
     }
@@ -518,9 +493,6 @@ val* division( val* args ) {
     /* если аргументов нет или аргумент 1, выдать ошибку */
     if ( null_predicate( args ) || (length( args ) == 1) ) {
         string = malloc( sizeof( char[max_symbol_name_length] ) );
-        /* strncpy( string, "DIVISION ERROR: division needs at least 2 args", */
-        /*          max_symbol_name_length ); */
-        /* return error_val_constructor( string ); */
         return division_error2;
     } else {
         int* quotient = malloc(sizeof(int));
@@ -531,10 +503,6 @@ val* division( val* args ) {
                 return division_rec( cdr( args ), quotient );
 
         } else {
-            /* string = malloc( sizeof( char[max_symbol_name_length] ) ); */
-            /* strncpy( string, "DIVISION ERROR: division gets only numbers", */
-            /*          max_symbol_name_length ); */
-            /* return error_val_constructor( string ); */
             return division_error1;
         }
     }
@@ -547,7 +515,6 @@ val* division( val* args ) {
 val* map(val* (*op)(val*),  val* arg_list) {
     if ( ( atom_predicate( arg_list ) ) ||
         ( dotpair_predicate( arg_list ) ) ) {
-        /* error_handler( "ERR MAP: ARG ISN'T A PAIR"); */
         return map_error;
     }else if (null_predicate(arg_list)) {
         nil_constructor();
@@ -583,11 +550,9 @@ val* assoc(val* key, val* args_list) {
                 assoc(key, cdr (args_list) );
             }
         } else {
-            /* error_handler("ERR ASSOC: ARGS_LIST SHOULD BE AN ASSOCIATION LIST"); */
             return assoc_error;
         }
     } else {
-        /* error_handler("ERR ASSOC: ARGS_LIST SHOULD BE AN ASSOCIATION LIST"); */
         return assoc_error;
     }
 }

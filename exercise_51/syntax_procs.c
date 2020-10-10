@@ -1,6 +1,23 @@
 #include "syntax.h"
 
 /* сборка gcc syntax_procs.c syntax.c test.c environment.c -o proga */
+val* else_branch_error1;
+val* else_branch_error2;
+
+val* init_syntax_procs_errors() {
+    char* string;
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "COND ERROR: cond needs else-branch",
+             max_symbol_name_length );
+    else_branch_error1 = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "COND ERROR: else-branch should be last in the expression",
+             max_symbol_name_length );
+    else_branch_error2 = error_val_constructor( string );
+
+}
+
 int var_predicate( val* exp ) {
     if ( symbol_predicate( exp ) ) {
         return 1;
@@ -172,6 +189,15 @@ val* make_if( val* predicate, val* consequent, val* alternative ) {
     strncpy( if_str, "if", max_symbol_name_length );
     val* if_val = symbol_val_constructor( if_str );
 
+    if (error_predicate( predicate ) ) {
+        return predicate;
+
+    } else if (error_predicate( consequent ) ) {
+        return consequent;
+
+    } else if (error_predicate( alternative ) ) {
+        return alternative;
+    }
     return make_list(4, if_val, predicate, consequent, alternative);
 }
 
@@ -270,7 +296,80 @@ val* trasform_seq_to_exp( val* seq ) {
     }
 }
 
-/*  (tagged-list? p ’procedure)) */
+int cond_predicate( val* exp ) {
+    char cond[100] = "cond";
+    if ( pair_predicate( exp ) ) {
+        if ( symbol_predicate( car( exp ) ) ) {
+
+            val* symbol = car( exp );
+
+            if(strcmp( cond, symbol->uni_val.char_val ) == 0 ) {
+                return 1;
+            } else{
+                return 0;
+            }
+        } else {
+            return 0;
+        }
+    }
+    return 0;
+}
+
+int cond_else_predicate( val* exp ) {
+    char else_str[100] = "else";
+    if ( pair_predicate( exp ) ) {
+        if ( symbol_predicate( car( exp ) ) ) {
+
+            val* symbol = car( exp );
+
+            if(strcmp( else_str, symbol->uni_val.char_val ) == 0 ) {
+                return 1;
+            } else{
+                return 0;
+            }
+        } else {
+            return 0;
+        }
+    }
+    return 0;
+}
+
+val* cond_clauses( val* exp ) {
+    return cdr( exp );
+}
+
+val* clause_predicate( val* clause ) {
+    return car( clause );
+}
+
+val* cond_actions( val* clause ) {
+    return cdr( clause );
+}
+
+val* expand_clauses( val* clauses ) {
+    if ( null_predicate( clauses ) ) {
+        return else_branch_error1;
+    }
+    val* first_clause = car( clauses );
+    val* rest_clauses = cdr( clauses );
+
+    if ( cond_else_predicate( first_clause ) ) {
+        if ( null_predicate( rest_clauses ) ) {
+            return trasform_seq_to_exp( cond_actions( first_clause ) );
+        } else {
+            printf("expand_clauses: ветка else не последняя \n");
+            return else_branch_error2;
+        }
+    } else {
+        return make_if( clause_predicate( first_clause ),
+                        trasform_seq_to_exp( cond_actions( first_clause ) ),
+                        expand_clauses( rest_clauses ) );
+    }
+}
+
+val* transform_cond_to_if( val* exp ) {
+    return expand_clauses( cond_clauses( exp ) );
+}
 
 val* make_procedure( val* params, val* body, val* env ) {
     char* procedure_str = (char*)malloc( sizeof( char[max_symbol_name_length] ) );

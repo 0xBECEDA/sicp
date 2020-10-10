@@ -11,6 +11,9 @@ val* transform_rec(val* param_list, int parenthesis_cnt, val* retval_list);
 
 val* quote_exp_fn (val* param_list);
 
+val* quote_syntax_error;
+val* syntax_error;
+
 /* типы возможных состояний */
 enum list_of_analyse_state_types {
     TYPE_UNDONE_EXP,
@@ -25,6 +28,17 @@ enum list_of_analyse_state_types {
 
 int brackets_cnt = 0;
 int double_quotes_cnt = 0;
+
+val* init_syntax_errors() {
+    char *string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "PARSE EXP ERROR: quote syntax error", max_symbol_name_length );
+    quote_syntax_error = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "PARSE EXP ERROR: too much closing parenthesises",
+             max_symbol_name_length );
+    syntax_error = error_val_constructor( string );
+}
 
 /* анализирует текущую строку ввода  */
 int analyse_cur_string( int state, char* string) {
@@ -746,8 +760,8 @@ val* find_quote_exp( val* param_list, val* retval_list, int parenthesis_cnt) {
 }
 
 val* quote_exp_fn (val* param_list) {
-    char *quote = malloc( sizeof( char[5] ) );
-    strncpy( quote, "quote", 5 );
+    char *quote = malloc( sizeof( char[100] ) );
+    strncpy( quote, "quote", 100 );
     val* quote_val = symbol_val_constructor( quote );
     val* quote_cell = cons(quote_val, nil_constructor());
     val* next_elt = car( param_list );
@@ -821,10 +835,7 @@ val* quote_exp_fn (val* param_list) {
             return cons( quote_exp, param_list );
 
         } else if ( next_elt_str[0] == ')' && next_elt_str[1] == 0 ) {
-
-            char *string = malloc( sizeof( char[100] ) );
-            strncpy( string, "quote: syntax error", 100 );
-            return error_val_constructor( string );
+           return quote_syntax_error;
 
         } else if ( next_elt_str[0] == 39 && next_elt_str[1] == 0 ) {
             quote_sub_list = quote_exp_fn( cdr( param_list ) );
@@ -912,9 +923,7 @@ val* transform_rec( val* param_list, int parenthesis_cnt, val* retval_list ) {
                 parenthesis_cnt--;
 
                 if ( parenthesis_cnt < 0 ) {
-                    char *string = malloc( sizeof( char[12] ) );
-                    strncpy( string, "syntax error", 12 );
-                    retval_list = error_val_constructor( string );
+                    retval_list = syntax_error;
                     return retval_list;
                 }
 

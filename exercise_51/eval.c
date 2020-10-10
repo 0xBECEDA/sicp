@@ -9,6 +9,7 @@ val* ttrue;
 val* ffalse;
 val* ok;
 
+val* too_much_args_error;
 val* car_args_error;
 val* cdr_args_error;
 val* cons_args_error;
@@ -38,6 +39,11 @@ val* eval_sequence( val* exps, val * env );
 
 val* init_eval_errors() {
     char * string;
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "COMPOUND PROCEDURE ERROR: too much args for procedure",
+             max_symbol_name_length );
+    too_much_args_error = error_val_constructor( string );
+
     string = malloc( sizeof( char[max_symbol_name_length] ) );
     strncpy( string, "CAR ERROR: car needs exactly 1 arg",
              max_symbol_name_length );
@@ -156,6 +162,8 @@ val* init_eval_errors() {
     strncpy( string, "ERR EVAL: Unknown type of exp",
              max_symbol_name_length );
     eval_error = error_val_constructor( string );
+
+
     return ok;
 }
 val* setup_env() {
@@ -281,6 +289,7 @@ int eq_names_predicate ( char* name1, char* name2 ) {
     /* printf("false\n"); */
     return 0;
 }
+
 
 val* apply_primitive_application( val* proc, val* args ) {
 
@@ -416,10 +425,6 @@ val* apply_primitive_application( val* proc, val* args ) {
             return int_val_constructor( result );
 
         } else {
-            /* printf("length false\n"); */
-            /* ipprint( length_args_error ); */
-            /* printf("\n"); */
-
             return length_args_error;
         }
 
@@ -458,11 +463,6 @@ val* apply_primitive_application( val* proc, val* args ) {
         }
 
     } else if ( eq_names_predicate( proc_name, "null_predicate" ) ) {
-        /* printf("null_predicate arg: "); */
-        /* ipprint( args ); */
-        /* printf("\n"); */
-        /* fflush(stdout); */
-
         if ( length ( args ) == 1 ) {
             *result = null_predicate( car( args ) );
             if ( *result == 1 ) {
@@ -588,9 +588,9 @@ val* error_in_args ( val* args ) {
 }
 
 val* apply( val* proc, val* args ) {
-    /* printf ("apply args: "); */
-    /* ipprint( args ); */
-    /* printf("\n"); */
+    printf ("apply args: ");
+    ipprint( args );
+    printf("\n");
 
     val* args_errors = error_in_args( args );
 
@@ -601,18 +601,23 @@ val* apply( val* proc, val* args ) {
         return apply_primitive_application( primitive_implementation( proc ), args );
 
     } else if ( compound_procedure_predicate( proc ) ) {
-        printf ("compound procedure args: ");
-        ipprint( args );
-        printf("\n");
+        if ( length (procedure_parameters( proc ) ) == length( args ) ) {
+            printf ("compound procedure args: ");
+            ipprint( args );
+            printf("\n");
 
-        printf ("compound procedure parameters: ");
-        ipprint( procedure_parameters( proc ) );
-        printf("\n");
+            printf ("compound procedure parameters: ");
+            ipprint( procedure_parameters( proc ) );
+            printf("\n");
 
-        val* new_env = extend_environment( procedure_parameters( proc ),
-                                           args, procedure_environment( proc ) );
-        return eval_sequence( procedure_body( proc ),
-                              new_env );
+            val* new_env = extend_environment( procedure_parameters( proc ),
+                                               args, procedure_environment( proc ) );
+            return eval_sequence( procedure_body( proc ),
+                                  new_env );
+        } else {
+            return too_much_args_error;
+        }
+
     } else {
         return apply_error;
     }
@@ -795,11 +800,20 @@ val* eval ( val* exp, val * env ) {
     } else if ( begin_predicate( exp ) ) {
         return eval_sequence( begin_actions( exp ), env );
 
+    } else if ( cond_predicate( exp ) ) {
+        val* ifs = transform_cond_to_if( exp );
+        /* printf("ifs\n"); */
+        /* ipprint(ifs); */
+        /* printf("\n"); */
+        if (error_predicate( ifs ) ) {
+            return ifs;
+        }
+        return eval( transform_cond_to_if( exp ), env );
+
     } else if ( application_predicate( exp ) ) {
         apply( eval( operator( exp ), env ), list_of_values( operands( exp), env) );
 
     } else {
-        /* printf("Unknown type of exp\n"); */
         return eval_error;
     }
 }

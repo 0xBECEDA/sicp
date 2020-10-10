@@ -77,6 +77,22 @@ val* make_begin( val* seq );
 
 val* trasform_seq_to_exp( val* seq );
 
+val* transform_cond_to_if( val* exp );
+
+int cond_predicate( val* exp );
+
+int cond_else_predicate( val* exp );
+
+val* cond_clauses( val* exp );
+
+val* clause_predicate( val* caluse );
+
+val* cond_actions( val* clause );
+
+val* expand_clauses( val* clauses );
+
+val* init_syntax_procs_errors();
+
 int application_predicate( val* exp );
 
 val* operator( val* exp );
