@@ -271,14 +271,14 @@ char** read_input(int max_input_size, int max_str_size) {
     int i = 0;
     int state = TYPE_ANALYSE_CUR_INPUT_STRING;
 
-    while( (fgets(string, max_str_size, stdin) != NULL) ||
+    while( ( fgets(string, max_str_size, stdin) != NULL ) ||
            ( i == max_input_size ) ) {
         array_strings[i] = string;
 
         brackets_cnt = 0;
         double_quotes_cnt = 0;
 
-        /* printf("новая строка\n"); */
+        /* printf("read_input: новая строка %s\n", string); */
         state = analyse_input( TYPE_ANALYSE_CUR_INPUT_STRING, array_strings );
 
         switch ( state ) {
@@ -297,6 +297,8 @@ char** read_input(int max_input_size, int max_str_size) {
             i++;
         }
     }
+    printf("ввод законечен\n");
+    fflush(stdout);
     return array_strings;
 }
 
@@ -976,6 +978,9 @@ val* transform_list( val* param_list ) {
          ( atom_predicate(car (param_list) ) ) ) {
         /* printf("одинарный списк\n"); */
         return car( param_list );
+
+    } else if (length( param_list ) == -1) {
+        return length_error;
 
     } else {
         val* list = transform_rec( param_list, 0, nil_constructor());

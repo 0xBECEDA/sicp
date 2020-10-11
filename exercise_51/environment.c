@@ -39,10 +39,6 @@ val* make_binding(val* var_name, val* var_value) {
     if ( symbol_predicate( var_name ) ) {
         return cons( var_name, var_value );
     }
-    /* char *string = malloc( sizeof( char[max_symbol_name_length] ) ); */
-    /* strncpy( string, "ERR MAKE_BINDING: var name isn't a symbol", */
-    /*          max_symbol_name_length ); */
-    /* return error_val_constructor( string ); */
     return make_bilding_error;
 }
 
@@ -86,15 +82,8 @@ val* frame_values( val* frame ) {
 
 val* extend_environment(val* vars, val* values, val* base_env ) {
     if ( ( length( vars ) ) == ( length( values ) ) ) {
-        /* printf("extend_environment: new_frame: "); */
-        /* ipprint( make_frame( vars, values ) ); */
-        /* printf("\n"); */
         return cons( make_frame( vars, values ), base_env );
     } else {
-        /* char *string = malloc( sizeof( char[max_symbol_name_length] ) ); */
-        /* strncpy( string, "extend_environment: every variable should have a value", */
-        /*          max_symbol_name_length ); */
-        /* return error_val_constructor( string ); */
         return extend_environment_error;
     }
 }
@@ -103,11 +92,6 @@ val* extend_environment(val* vars, val* values, val* base_env ) {
 val* lookup_value( val* frame, val* var_name ) {
     val* lookup_value_rec( val* vars, val* values ) {
         if ( null_predicate( vars ) ) {
-
-            /* char *string = malloc( sizeof( char[max_symbol_name_length] ) ); */
-            /* strncpy( string, "lookup_value: value doens't found in that frame", */
-            /*          max_symbol_name_length ); */
-            /* return error_val_constructor( string ); */
             return lookup_value_error;
         } else {
             val* key = car( vars );
@@ -162,12 +146,7 @@ val* lookup_variable(val* var_name, val* env) {
         /* ipprint( var_name ); */
         /* printf(" is NOT found \n "); */
 
-        /* char *string = malloc( sizeof( char[max_symbol_name_length] ) ); */
-        /* strncpy( string, "ERR LOOKUP_VARIABLE: unussigned variable", */
-        /*          max_symbol_name_length ); */
-        /* return error_val_constructor( string ); */
-
-        return lookup_variable_error;
+         return lookup_variable_error;
     } else {
         val* first = first_frame( env );
         val* value = lookup_value(first, var_name);

@@ -277,6 +277,77 @@ val* rest_exps( val* seq ) {
     return cdr( seq );
 }
 
+int and_predicate( val* exp ) {
+    char and[100] = "and";
+    if ( pair_predicate( exp ) ) {
+        if ( symbol_predicate( car( exp ) ) ) {
+
+            val* symbol = car( exp );
+
+            if(strcmp( and, symbol->uni_val.char_val ) == 0 ) {
+                return 1;
+            } else{
+                return 0;
+            }
+        } else {
+            return 0;
+        }
+    }
+    return 0;
+}
+
+val* and_clauses( val* exp ) {
+    return cdr( exp );
+}
+
+int or_predicate( val* exp ) {
+    char or[100] = "or";
+    if ( pair_predicate( exp ) ) {
+        if ( symbol_predicate( car( exp ) ) ) {
+
+            val* symbol = car( exp );
+
+            if(strcmp( or, symbol->uni_val.char_val ) == 0 ) {
+                return 1;
+            } else{
+                return 0;
+            }
+        } else {
+            return 0;
+        }
+    }
+    return 0;
+}
+
+val* or_clauses( val* exp ) {
+    return cdr( exp );
+}
+
+int not_predicate( val* exp ) {
+    char not[100] = "not";
+    if ( pair_predicate( exp ) ) {
+        if ( symbol_predicate( car( exp ) ) ) {
+
+            val* symbol = car( exp );
+
+            if(strcmp( not, symbol->uni_val.char_val ) == 0 ) {
+                return 1;
+            } else{
+                return 0;
+            }
+        } else {
+            return 0;
+        }
+    }
+    return 0;
+}
+
+
+val* not_clause( val* exp ) {
+    return cdr( exp );
+}
+
+
 val* make_begin( val* seq ) {
     char* begin_str = (char*)malloc( sizeof( char[max_symbol_name_length] ) );
     strncpy( begin_str, "begin", max_symbol_name_length );

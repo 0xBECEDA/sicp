@@ -43,6 +43,10 @@ typedef struct val {
 
 int max_symbol_name_length;
 
+val* length_error;
+val * bigger_predicate_error;
+val * smaller_predicate_error;
+
 val* init_primitives_errors();
 
 val* last_pair (val* cell);
@@ -102,6 +106,10 @@ val* assoc(val* key, val* args_list);
 val* make_list_rec (int n, va_list ptr);
 
 val* make_list ( int n, ...);
+
+int bigger_predicate(val* args);
+
+int smaller_predicate(val* args);
 
 int false_predicate(val* cell);
 

@@ -75,6 +75,7 @@ val* cdr_error;
 val* last_pair_error;
 val* append_error;
 val* reverse_rec_error;
+val* length_error;
 val* reverse_error;
 val* add_error;
 val* mul_error;
@@ -88,6 +89,8 @@ val* division_error2;
 val* map_error;
 val* assoc_error;
 val* ipprint_error;
+val* bigger_predicate_error;
+val* smaller_predicate_error;
 
 /* конструктор значения-ссылки на копию числа */
 val* int_val_constructor ( int* val ) {
@@ -164,6 +167,10 @@ val* init_primitives_errors () {
     reverse_error = error_val_constructor( string );
 
     string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "ERR LENGTH: arg ist't a pair", max_symbol_name_length );
+    length_error = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
     strncpy( string, "ADD ERROR: add gets only numbers", max_symbol_name_length );
     add_error = error_val_constructor( string );
 
@@ -206,6 +213,18 @@ val* init_primitives_errors () {
     strncpy( string, "ERR ASSOC: list of args should be an association list",
              max_symbol_name_length );
     assoc_error = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "ERR > : bigger_predicate needs only numbers",
+             max_symbol_name_length );
+
+    bigger_predicate_error = error_val_constructor( string );
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string, "ERR < : smaller_predicate needs only numbers",
+             max_symbol_name_length );
+
+    smaller_predicate_error = error_val_constructor( string );
 }
 
 /* конструктор списка */
@@ -269,13 +288,9 @@ int length_rec (val* cell) {
 int length (val* cell) {
     if ( pair_predicate( cell )) {
         int result = length_rec( cell );
-        /* printf("length arg: "); */
-        /* ipprint( cell ); */
-        /* printf("\n"); */
-        /* printf("length result: %d\n", result); */
         return result;
     }
-    error_handler( "ERR LENGTH: ARG ISN'T A PAIR");
+    return -1;
 }
 
 /* возвращает последнюю пару списка */
@@ -365,7 +380,95 @@ val* reverse(val* cell) {
         return reverse_rec( cell, nil_constructor() );
     }
     return reverse_error;
-    /* error_handler( "ERR REVERSE: ARG ISN'T A PAIR"); */
+}
+
+int smaller_predicate( val* args ) {
+    int result = 0;
+    int prev_number;
+    val* first_elt;
+
+    int smaller_predicate_rec( val* args ) {
+        if ( null_predicate( args ) ) {
+            return result;
+
+        } else {
+            first_elt = car( args );
+            if ( number_predicate( first_elt ) ) {
+                int cur_number = *first_elt->uni_val.int_val;
+                /* printf("smaller_predicate %d\n"); */
+                if ( prev_number < cur_number ) {
+                    result = 1;
+                    prev_number = cur_number;
+                    smaller_predicate_rec( cdr( args ) );
+
+                } else {
+                    result = 0;
+                    prev_number = cur_number;
+                    smaller_predicate_rec( cdr( args ) );
+                }
+            } else {
+                return -1;
+            }
+        }
+    }
+
+    if ( number_predicate( car( args ) ) ) {
+       first_elt = car( args );
+       prev_number = *first_elt->uni_val.int_val;
+       args = cdr(args);
+       result = 1;
+       return smaller_predicate_rec( args );
+    }
+
+    return -1;
+}
+
+int bigger_predicate( val* args ) {
+    int result = 0;
+    int prev_number;
+    val* first_elt;
+
+    int bigger_predicate_rec( val* args ) {
+        /* printf("bigger_predicate_rec\n"); */
+        if ( null_predicate( args ) ) {
+            /* printf("null_predicate\n"); */
+            fflush(stdout);
+            return result;
+
+        } else {
+            first_elt = car( args );
+            if ( number_predicate( first_elt ) ) {
+                int cur_number = *first_elt->uni_val.int_val;
+                /* printf("bigger_predicate prev_number %d cur_number %d \n", */
+                /*        prev_number, cur_number); */
+                /* fflush(stdout); */
+
+                if ( prev_number > cur_number ) {
+                    result = 1;
+                    prev_number = cur_number;
+                    bigger_predicate_rec( cdr( args ) );
+
+                } else {
+                    result = 0;
+                    prev_number = cur_number;
+                    bigger_predicate_rec( cdr( args ) );
+                }
+            } else {
+                return -1;
+            }
+        }
+    }
+
+    if ( number_predicate( car( args ) ) ) {
+        /* printf("здесь\n"); */
+        first_elt = car( args );
+        prev_number = *first_elt->uni_val.int_val;
+        args = cdr(args);
+        result = 1;
+        return bigger_predicate_rec( args );
+    }
+
+    return -1;
 }
 
 val* add ( val* args ) {
@@ -491,7 +594,7 @@ val* division_rec( val* args, int* quotient ) {
 val* division( val* args ) {
     char* string;
     /* если аргументов нет или аргумент 1, выдать ошибку */
-    if ( null_predicate( args ) || (length( args ) == 1) ) {
+    if ( null_predicate( args ) || ( length( args ) == 1 ) ) {
         string = malloc( sizeof( char[max_symbol_name_length] ) );
         return division_error2;
     } else {

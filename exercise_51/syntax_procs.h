@@ -73,6 +73,18 @@ val* first_operand( val* operands );
 
 val* rest_operands( val* operands );
 
+int and_predicate( val* exp );
+
+val* and_clauses( val* exp );
+
+int or_predicate( val* exp );
+
+val* or_clauses( val* exp );
+
+int not_predicate( val* exp );
+
+val* not_clause( val* exp );
+
 val* make_begin( val* seq );
 
 val* trasform_seq_to_exp( val* seq );
