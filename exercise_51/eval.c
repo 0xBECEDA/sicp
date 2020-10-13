@@ -8,6 +8,7 @@ val* global_environment;
 val* ttrue;
 val* ffalse;
 val* ok;
+val* stop;
 
 val* too_much_args_error;
 val* car_args_error;
@@ -38,6 +39,8 @@ val* eq_error;
 val* eval ( val* exp, val * env );
 
 val* eval_sequence( val* exps, val * env );
+
+int eq_names_predicate ( char* name1, char* name2 );
 
 val* init_eval_errors() {
     char * string;
@@ -186,6 +189,16 @@ val* setup_env() {
     return ok;
 }
 
+int quite_predicate( val* eval_result ) {
+    if ( symbol_predicate( eval_result ) ) {
+        if ( eq_names_predicate( eval_result->uni_val.char_val, "stop" ) ) {
+            return 1;
+        }
+        return 0;
+    }
+    return 0;
+}
+
 val* make_primitives_procedure_object ( char *proc_name ) {
     char* name = malloc(sizeof(char[100]));
     char* primitive_str = malloc(sizeof(char[100]));
@@ -210,7 +223,8 @@ val* make_primitives_procedure_name ( char *proc_name ) {
 }
 
 val* primitives_procedures_names() {
-    make_list( 29,
+    make_list( 30,
+               make_primitives_procedure_name ("quite"),
                make_primitives_procedure_name ("eq?"),
                make_primitives_procedure_name ("car"),
                make_primitives_procedure_name ("cdr"),
@@ -243,7 +257,8 @@ val* primitives_procedures_names() {
 }
 
 val* primitives_procedures_objects() {
-    make_list(29,
+    make_list(30,
+              make_primitives_procedure_object( "quite" ),
               make_primitives_procedure_object( "eq_names_predicate" ),
               make_primitives_procedure_object( "car" ),
               make_primitives_procedure_object( "cdr" ),
@@ -351,6 +366,9 @@ val* apply_primitive_application( val* proc, val* args) {
         } else {
             return eq_error;
         }
+
+    }else  if ( eq_names_predicate( proc_name, "quite" ) ) {
+        return stop;
 
     }else  if ( eq_names_predicate( proc_name, "car" ) ) {
         if ( length( args ) == 1 ) {
@@ -1025,32 +1043,37 @@ val* eval ( val* exp, val * env ) {
 }
 
 int eval_driver_loop( int max_input_size, int max_str_size ) {
-    while(1) {
 
-        printf("\n");
-        printf("Ввод: ");
-        printf("\n");
+    printf("\n");
+    printf("Ввод: ");
+    printf("\n");
+    printf("\n");
 
-        char** array = read_input( max_input_size, max_str_size );
+    char** array = read_input( max_input_size, max_str_size );
 
-        if ( array != NULL ) {
-            val*  list = parse_input( array, max_input_size, max_str_size);
-            list = transform_list( list );
+    if ( array != NULL ) {
+        val*  list = parse_input( array, max_input_size, max_str_size);
+        list = transform_list( list );
 
-            val* result = eval( list, global_environment );
+        val* result = eval( list, global_environment );
 
+        if ( quite_predicate( result ) ) {
+            printf("Выход:");
             printf("\n");
-            printf("Результат вычисления выражения: ");
-            printf("\n");
-
-            ipprint( result );
-            printf("\n");
-            printf("\n");
-
-            free(array);
-            free(list);
-
+            return 1;
         }
+
+        printf("Результат вычисления выражения: ");
+        printf("\n");
+
+        ipprint( result );
+        printf("\n");
+        printf("\n");
+
+        free(array);
+        free(list);
+        eval_driver_loop( max_input_size, max_str_size );
+
     }
 }
 
@@ -1084,6 +1107,13 @@ int main () {
              "ok",
              max_symbol_name_length );
     ok = symbol_val_constructor( string );
+
+
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string,
+             "stop",
+             max_symbol_name_length );
+    stop = symbol_val_constructor( string );
 
     primitives_objects = primitives_procedures_objects();
     primitives_names = primitives_procedures_names();

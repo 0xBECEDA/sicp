@@ -279,6 +279,8 @@ char** read_input(int max_input_size, int max_str_size) {
         double_quotes_cnt = 0;
 
         /* printf("read_input: новая строка %s\n", string); */
+        /* fflush(stdout); */
+
         state = analyse_input( TYPE_ANALYSE_CUR_INPUT_STRING, array_strings );
 
         switch ( state ) {
@@ -297,7 +299,8 @@ char** read_input(int max_input_size, int max_str_size) {
             i++;
         }
     }
-    printf("ввод законечен\n");
+    /* printf("i %d\n", i); */
+    printf("read_input: ввод закончен\n");
     fflush(stdout);
     return array_strings;
 }
@@ -661,6 +664,7 @@ val* parse_string(int state, char* string, char cur_symbol[], int* array_cnt) {
                 break;
 
             case'\n':
+                fflush(stdout);
                 if ( cur_symbol_cnt != 0 ) {
                     cur_str_list = add_token_to_list(cur_symbol, 0,
                                                      cur_symbol_max_size,
@@ -974,7 +978,10 @@ val* push (val* elt, val* list) {
 
 val* transform_list( val* param_list ) {
     /* return_flag = 0; */
-    if ( ( length( param_list ) == 1 ) &&
+    if ( null_predicate( param_list ) ) {
+        return param_list;
+
+    } else if ( ( length( param_list ) == 1 ) &&
          ( atom_predicate(car (param_list) ) ) ) {
         /* printf("одинарный списк\n"); */
         return car( param_list );
