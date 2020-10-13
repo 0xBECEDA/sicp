@@ -3,6 +3,9 @@ PROGA=proga
 PIPE=/tmp/testpipe
 
 DELAY=5
+
+make
+
 if test -x "$PROGA"; then
 
     if [[ ! -p "$PIPE" ]]; then
