@@ -290,7 +290,8 @@ char** read_input(int max_input_size, int max_str_size) {
             break;
 
         case TYPE_ERROR_EXP:
-            printf("ERROR: syntax error\n");
+            printf(" READ_INPUT ERROR: syntax error\n");
+            /* printf("строка %s\n", string); */
             return NULL;
 
         default:
@@ -299,9 +300,17 @@ char** read_input(int max_input_size, int max_str_size) {
             i++;
         }
     }
+    if ( i ==  0) {
+        /* printf(" read_input: пустой файл\n"); */
+        fflush(stdout);
+        free(string);
+        free( array_strings);
+        return read_input(max_input_size, max_str_size);
+    }
     /* printf("i %d\n", i); */
-    printf("read_input: ввод закончен\n");
-    fflush(stdout);
+    /* printf("read_input: ввод закончен\n"); */
+    /* fflush(stdout); */
+
     return array_strings;
 }
 

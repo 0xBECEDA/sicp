@@ -1055,6 +1055,11 @@ int eval_driver_loop( int max_input_size, int max_str_size ) {
         val*  list = parse_input( array, max_input_size, max_str_size);
         list = transform_list( list );
 
+        if ( null_predicate (list ) ) {
+
+            eval_driver_loop( max_input_size, max_str_size );
+
+        }
         val* result = eval( list, global_environment );
 
         if ( quite_predicate( result ) ) {
@@ -1078,6 +1083,41 @@ int eval_driver_loop( int max_input_size, int max_str_size ) {
 }
 
 
+int test_eval_driver_loop( int max_input_size, int max_str_size ) {
+
+
+    char** array = read_input( max_input_size, max_str_size );
+
+    if ( array != NULL ) {
+        val*  list = parse_input( array, max_input_size, max_str_size);
+        list = transform_list( list );
+
+        if ( null_predicate (list ) ) {
+
+            test_eval_driver_loop( max_input_size, max_str_size );
+
+        }
+        val* result = eval( list, global_environment );
+
+        if ( quite_predicate( result ) ) {
+            printf("Выход:");
+            printf("\n");
+            return 1;
+        }
+
+        ipprint( result );
+        printf("\n");
+        free(array);
+        free(list);
+
+        test_eval_driver_loop( max_input_size, max_str_size );
+
+    }
+
+    test_eval_driver_loop( max_input_size, max_str_size );
+
+}
+
 int init_all_errors() {
 
     init_primitives_errors();
@@ -1088,7 +1128,9 @@ int init_all_errors() {
     return 1;
 }
 
-int main () {
+void main ( int argc, char **argv ) {
+    /* printf("запуск интерпретатора %d\n", argc); */
+
     char *string;
     string = malloc( sizeof( char[max_symbol_name_length] ) );
     strncpy( string,
@@ -1120,7 +1162,10 @@ int main () {
     init_all_errors();
     setup_env();
 
+    if ( argc == 2 ) {
+        test_eval_driver_loop( 10000, 1000 );
+    }
+
     eval_driver_loop( 10000, 1000 );
-    return 1;
 
 }
