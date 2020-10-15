@@ -2,20 +2,130 @@
 (defparameter *output* "output.txt")
 
 
-;; загрузка арифметических выражений в входной файл
-(defun load-arithmetic-tests()
-  (with-open-file (input_stream *input* :direction :output
-                                :if-exists :supersede)
-    (format input_stream "(+ 1 2) ~%")
-    (format input_stream "(+ 1 (* 2 4))~%")
-    (format input_stream "(- 9 1)~%")
-    (format input_stream "(+ (* 2 4) (- 4 6))~%")
-    (format input_stream "(+ (* 2 3 5 6 4) (- 4 6 1))~%")
-    (format input_stream "(/ 2 0 )~%")
-    (format input_stream "(/ 2 'd )~%")
-    (format input_stream "(/ 2 4 )~%")
-    (format input_stream "(/ 6 4 )~%")
-    (format input_stream "(quite)~%")))
+(defun load_exps(input_stream exp-strings)
+    (if ( null exp-strings )
+        (format input_stream "(quite)~%")
+        (progn
+          (format input_stream "~A ~%" (car exp-strings))
+          (load_exps input_stream (cdr exp-strings)))))
+
+
+(defmacro exp-test(input output exp-string expected-result-string)
+  `(progn
+     (with-open-file (input_stream ,input :direction :output
+                                   :if-exists :supersede)
+       (format input_stream "~A ~%" ,exp-string)
+       (format input_stream "(quite)~%"))
+       (with-open-file (input_stream ,input :direction :input)
+         (with-open-file (output_stream ,output :direction :output
+                                        :if-exists :supersede)
+           (sb-ext:run-program "./proga" (list '()) :wait t :input input_stream
+                               :output output_stream)))
+       (with-open-file (output_stream ,output :direction :input)
+         (let ((output-line (read-line output_stream nil 'eof)))
+           (assert (string= output-line ,expected-result-string))))))
+
+;; (macroexpand-1 '(exp-test *input* *output* "(+ 1 2)" "3"))
+
+(defun add_test(input output)
+  (exp-test input output "3" "(+ 1 2)"))
+
+(defun add_test_without_args(input output)
+  (exp-test input output "(+)" "0"))
+
+(defun add_test_with_one_arg(input output)
+  (exp-test input output "(+ 10)" "10"))
+
+(defun multiple_add_test(input output)
+  (exp-test input output "(+ 1 2 3 4 5 6 7)" "28"))
+
+(defun multiple_add_test_with_quoted_exp(input output)
+  (exp-test input output "(+ 1 2 3 4 5 6 's 7)" "(ADD ERROR: add gets only numbers)"))
+
+(defun multiple_add_test_with_unusigned_var(input output)
+  (exp-test input output "(+ 1 2 3 4 5 6 s 7)"
+            "(ERR LOOKUP_VARIABLE: unussigned variable)"))
+
+(defun sub_test(input output)
+  (exp-test input output "(- 1 2)" "-1"))
+
+(defun multiple_sub_test(input output)
+  (exp-test input output "(- 10 6 2)" "2"))
+
+(defun sub_test_without_args(input output)
+  (exp-test input output "(-)" "(SUB ERROR: sub needs at least 1 arg)"))
+
+(defun sub_test_with_one_args(input output)
+  (exp-test input output "(- 3)" "-3"))
+
+(defun mul_test(input output)
+  (exp-test input output "(* 3 2)" "6"))
+
+(defun multiple_mul_test(input output)
+  (exp-test input output "(* 3 5 2)" "30"))
+
+(defun multiple_mul_test_with_quoted_exp(input output)
+  (exp-test input output "(* 3 5 's 2)" "(MUL ERROR: mul gets only numbers)"))
+
+(defun multiple_mul_test_with_list(input output)
+  (exp-test input output "(* 3 5 '(1 2 3) 2)" "(MUL ERROR: mul gets only numbers)"))
+
+(defun mul_test_without_args(input output)
+  (exp-test input output "(*)" "1"))
+
+(defun mul_test_with_one_arg(input output)
+  (exp-test input output "(* 8)" "8"))
+
+(defun division_test(input output)
+  (exp-test input output "(/ 3 2)" "1"))
+
+(defun multiple_division_test(input output)
+  (exp-test input output "(/ 8 2 2 1)" "2"))
+
+(defun division_test_by_zero(input output)
+  (exp-test input output "(/ 8 0)" "(DIVISION ERROR: division by zero)"))
+
+(defun division_test_without_args(input output)
+  (exp-test input output "(/)" "(DIVISION ERROR: division needs at least 2 args)"))
+
+(defun division_test_with_one_arg(input output)
+  (exp-test input output "(/ 1)" "(DIVISION ERROR: division needs at least 2 args)"))
+
+(defun multiple_operations_arithmetic_test(input output)
+  (exp-test input output "(+ (* 1 2 3) (/ 9 (- 12 9)))" "9"))
+
+(defun run-arithmetic-tests(input output)
+  (add_test input output)
+  (add_test_without_args input output)
+  (add_test_with_one_arg input output)
+  (multiple_add_test input output)
+  (multiple_add_test_with_quoted_exp input output)
+  (multiple_add_test_with_unusigned_var input output)
+  (sub_test input output)
+  (multiple_sub_test input output)
+  (sub_test_without_args input output)
+  (sub_test_with_one_args input output)
+  (mul_test input output)
+  (multiple_mul_test input output)
+  (multiple_mul_test_with_quoted_exp input output)
+  (multiple_mul_test_with_list input output)
+  (mul_test_without_args input output)
+  (mul_test_with_one_arg input output)
+  (division_test input output)
+  (multiple_division_test input output)
+  (division_test_by_zero input output)
+  (division_test_without_args input output)
+  (division_test_with_one_arg input output))
+
+;; (run-arithmetic-tests *input* *output*)
+
+(defun simple_definition_test(input output)
+  (exp-test input output "(define n 2)" "ok"))
+
+(defun simple_definition_test_with_evaluating_value(input output)
+  (exp-test input output "(define n '(+ 1 2 3))" "ok"))
+
+
 
 ;; загрузка выражений-определений в входной файл
 (defun load-definitions-tests()
@@ -241,3 +351,4 @@
 
 ;; запуск всех тестов
 (execute-all-tests)
+=

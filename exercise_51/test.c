@@ -548,7 +548,7 @@ val* sub( val* args ) {
             /* аргумент один */
             if ( number_predicate( cur_arg ) ) {
                 int term = *cur_arg->uni_val.int_val;
-                diff -= term;
+                *diff = *diff - term;
                 return int_val_constructor( diff );
 
             } else {
