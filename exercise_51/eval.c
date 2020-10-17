@@ -1100,13 +1100,12 @@ int test_eval_driver_loop( int max_input_size, int max_str_size ) {
         val* result = eval( list, global_environment );
 
         if ( quite_predicate( result ) ) {
-            printf("Выход:");
-            printf("\n");
             return 1;
         }
 
         ipprint( result );
         printf("\n");
+        fflush(stdout);
         free(array);
         free(list);
 
