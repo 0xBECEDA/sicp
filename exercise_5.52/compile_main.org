@@ -466,7 +466,10 @@
 - хешируем его, хэш = новое имя.
 - сохраняем где-то этот хеш (возможно, присоединяем к выражению)
 
-#+NAME: main
+Данный функционал пригодится для сишного представления лямбд и вызова
+прочих выражений, чтоб это не делать из мэйна.
+
+#+NAME: list_string
 #+BEGIN_SRC scheme :noweb yes
   ;; превращает выражение в список токенов, каждый из которых является строкой
   ;; (define (list->string-tokens lst)
@@ -622,4 +625,279 @@
       (if (= n 0)
           1
           (* n (factorial (= n 1))))))
+
+  (generate-name-string
+   '(1 2 2))
+
+  (generate-name-string
+   '(1 2 "2"))
  #+END_SRC
+
+Данный код будет генерировать код для служебных функций. Таких
+функций нет в изначальном коде, но они будут компилироваться, чтоб не
+пришлось все выражения компилировать в мэйн.
+
+Служебная функция вызывается без аргументов.
+#+NAME: service_procedure
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-service-fn name body)
+    (let ((code-into-braces (compile-braces fn-calls)))
+      (append (list '*val 'name)
+              (compile-parenthesis())
+              code-into-braces)))
+#+END_SRC
+
+
+#+NAME: syntax_procs
+#+BEGIN_SRC scheme :noweb yes
+  (define (variable? exp) (symbol? exp))
+
+  (define (quoted? exp)
+    (tagged-list? exp 'quote))
+
+  (define (text-of-quotation exp) (cadr exp))
+
+  (define (tagged-list? exp tag)
+    (if (pair? exp)
+        (eq? (car exp) tag)
+        false))
+
+  (define (assignment? exp)
+    (tagged-list? exp 'set!))
+
+  (define (assignment-variable exp) (cadr exp))
+
+  (define (assignment-value exp) (caddr exp))
+
+  (define (definition? exp)
+    (tagged-list? exp 'define))
+
+  (define (definition-variable exp)
+    (if (symbol? (cadr exp))
+        (cadr exp)
+        (caadr exp)))
+
+  (define (definition-value exp)
+    (if (symbol? (cadr exp))
+        (caddr exp)
+        (make-lambda (cdadr exp)
+                     (cddr exp))))
+
+  (define (lambda? exp) (tagged-list? exp 'lambda))
+
+  (define (lambda-parameters exp) (cadr exp))
+
+  (define (lambda-body exp) (cddr exp))
+
+  (define (make-lambda parameters body)
+    (cons 'lambda (cons parameters body)))
+
+  (define (if? exp) (tagged-list? exp 'if))
+
+  (define (if-predicate exp) (cadr exp))
+
+  (define (if-consequent exp) (caddr exp))
+
+  (define (if-alternative exp)
+    (if (not (null? (cdddr exp)))
+        (cadddr exp)
+        'false))
+
+  (define (make-if predicate consequent alternative)
+    (list 'if predicate consequent alternative))
+
+  (define (begin? exp) (tagged-list? exp 'begin))
+
+  (define (begin-actions exp) (cdr exp))
+
+  (define (last-exp? seq) (null? (cdr seq)))
+
+  (define (first-exp seq) (car seq))
+
+  (define (rest-exps seq) (cdr seq))
+
+  (define (sequence->exp seq)
+    (cond ((null? seq) seq)
+          ((last-exp? seq) (first-exp seq))
+          (else (make-begin seq))))
+
+  (define (make-begin seq) (cons 'begin seq))
+
+  (define (application? exp) (pair? exp))
+
+  (define (operator exp) (car exp))
+
+  (define (operands exp) (cdr exp))
+
+  (define (no-operands? ops) (null? ops))
+
+  (define (first-operand ops) (car ops))
+
+  (define (rest-operands ops) (cdr ops))
+#+END_SRC
+
+~Построение окружений~
+
+Они нужны только для того, чтоб компилятор мог отслеживать, в каком месте
+появляется переменная и определена ли она была вообще. Получается, что
+данные "окружения" будут состоять только из имен переменных без их
+значений, поскольку на этапе компиляции значения не играют никакой роли.
+Максимум можно указывать какого именно типа переменная - функция, число и
+т.д., поскольку мы компилим код для си. Но это необязательно.
+
+Окружения будут иметь списковую структуру как в сикпе, только если в
+сикпе кадр состояит из двух списков, где первый список - это имена
+переменных, а второй - это их значения, то мои псевдоокружения будут
+состоять из кадров, которые будут содержать только имена переменных. Чем
+ближе кадр к концу списка кадров, тем ближе он к глобальной области видимости.
+
+То есть в окружении ((d f g h) (n test-fn factorial) (primitives-proc-names))
+последий кадр является глобальным окружением.
+При запуске компилятора будет устанавливаться начальное окружение,
+состоящего только из кадра с примитивами.
+
+При компиляции функции окружение будет расширяться кадром, который будет
+наследовать все переменные глобального окружения + формальные параметры
+функции, а затем будет дополняться новыми переменными, если в этом
+возникнет необходимость. По завершению компиляции этот кадр будет
+удаляться, поскольку никакие другие процедуры кроме текущей не должны
+иметь доступ к переменным, объявленным внутри этой функции.
+
+Связываем имена лисповых примитивов и сишных, чтоб знать, какие именно
+имена компилировать, если использованы данные примитивы, поскольку имена
+сишных примитивов и примитивов схемы не всегда совпадают из-за
+синтаксических правил си банального неудобства.
+
+#+NAME: primitives
+#+BEGIN_SRC scheme :noweb yes
+  (define (primitive-proc-bindings)
+    (list (list 'car 'car)
+          (list 'cdr 'cdr)
+          (list 'cons 'cons)
+          (list 'list 'make-list)
+          (list  '+ 'add)
+          (list  '- 'sub)
+          (list  '* 'mul)
+          (list  '/ 'division)
+          (list  '= 'equal_numbers_predicate)
+          (list  '> 'bigger_predicate)
+          (list  '< 'smaller_predicate)
+          (list  'reverse 'reverse)
+          (list  'append 'append)
+          (list  'assoc 'assoc)
+          (list  'length 'length)
+          (list  'last-pair 'last_pair)
+          (list  'true? 'true_predicate)
+          (list  'false? 'false_predicate)
+          (list  'null? 'null_predicate)
+          (list  'pair? 'pair_predicate)
+          (list  'symbol? 'symbol_predicate)
+          (list  'atom? 'atom_predicate)
+          (list  'string? 'string_predicate)
+          (list  'dotpair? 'dotpair_predicate)))
+
+  (define (primitive-procedure-objects)
+    (map (lambda (proc) (list 'primitive (cadr proc)))
+         primitive-procedures))
+#+END_SRC
+
+Конструируем аналоги сикповых процедур для окружений, только с тем
+расчетом, что у нас кадр состоит только из имен переменных.
+#+NAME: environment
+#+BEGIN_SRC scheme :noweb yes
+
+  (define (enclosing-environment env) (cdr env))
+
+  (define (first-frame env) (car env))
+
+  (define the-empty-environment '())
+
+  (define (add-binding-to-frame! var frame)
+    (let* ((first-elt (car frame))
+           (rest (cdr frame)))
+      (set-car! frame var)
+      (set-cdr! frame (list first-elt))
+      (let ((last-elt (last-pair frame)))
+        (set-cdr! last-elt rest)
+        frame)))
+
+  (define (extend-environment vars base-env)
+    (cons vars base-env))
+
+  (define (lookup-variable var env)
+    (define (env-loop env)
+      (define (scan vars)
+        (cond ((null? vars)
+               (env-loop (enclosing-environment env)))
+              ((and (pair? var) (pair? (car vars)))
+               (if (eq? (car var) (caar vars))
+                   (car vars)
+                   (scan (cdr vars))))
+              ((and (not (pair? var)) (pair? (car vars)))
+               (if (eq? var (caar vars))
+                   (car vars)
+                   (scan (cdr vars))))
+              ((eq? var (car vars)) 'ok)
+              (else (scan (cdr vars)))))
+      (if (eq? env the-empty-environment)
+          (error "Compile: Несвязанная переменная" var)
+          (let ((frame (first-frame env)))
+            (scan frame))))
+    (env-loop env))
+
+  (define (define-variable! var env)
+    (let ((frame (first-frame env)))
+      (define (scan vars vals)
+        (cond ((null? vars)
+               (add-binding-to-frame! var frame))
+              ((and (pair? var) (pair? (car vars)))
+               (if (eq? (car var) (caar vars))
+                   (car vars)
+                   (scan (cdr vars))))
+              ((and (atom? var) (pair? (car vars)))
+               (if (eq? var (caar vars))
+                   (car vars)
+                   (scan (cdr vars))))
+              ((eq? var (car vars)) 'ok)
+              (else (scan (cdr vars)))))
+      (scan frame)))
+
+  (define (delete-frame env)
+    (set! env (cdr env)))
+
+  (define (setup-environment)
+    (let ((initial-env
+           (extend-environment (primitive-proc-bindings)
+                               the-empty-environment)))
+      initial-env))
+
+  ;; тесты
+
+  (define test-env (setup-environment))
+
+  (set! test-env (extend-environment '( f s n l) test-env))
+
+  (add-binding-to-frame! 'd (first-frame test-env))
+
+  (add-binding-to-frame! '(test_fn compound) (first-frame test-env))
+
+  (lookup-variable '(test_fn compound) test-env)
+
+  (lookup-variable 's test-env)
+
+  (lookup-variable '(s n) test-env)
+
+  (lookup-variable '(car car) test-env)
+
+#+END_SRC
+
+
+#+NAME: code
+#+BEGIN_SRC forth :tangle code.scheme  :noweb tangle :exports code :padline no :comments none
+  <<main>>
+  <<list_string>>
+  <<service_procedure>>
+  <<syntax_procs>>
+  <<primitives>>
+  <<environment>>
+#+END_SRC
