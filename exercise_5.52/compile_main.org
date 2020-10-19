@@ -365,7 +365,7 @@
 Но начнем с простого - напишем фукцию, которая скомпилирует сишный main.
 
 #+NAME: main
-#+BEGIN_SRC scheme
+#+BEGIN_SRC scheme :noweb yes
   ;; преставление { и } в компилируемом коде
   ;; (define OPENING_BRACE 'OPENING_BRACE)
   ;; (define CLOSING_BRACE 'CLOSING_BRACE)
@@ -459,3 +459,167 @@
   исходном коде нет, но они будут вызываться из main, и в них будет
   исполняться введенный код
 - создать парсер, который будет переводить полученный список в строку
+
+Генерация новых имен:
+- получаем выражение
+- переводим его в строку
+- хешируем его, хэш = новое имя.
+- сохраняем где-то этот хеш (возможно, присоединяем к выражению)
+
+#+NAME: main
+#+BEGIN_SRC scheme :noweb yes
+  ;; превращает выражение в список токенов, каждый из которых является строкой
+  ;; (define (list->string-tokens lst)
+  ;;   (define (rec-list->tokens lst retval)
+  ;;     ;; (display "lst")
+  ;;     ;; (display lst)
+  ;;     ;; (newline)
+  ;;     ;; (display "retval")
+  ;;     ;; (display retval)
+  ;;     ;; (newline)
+  ;;     (if (null? lst)
+  ;;         (append retval (list ")"))
+  ;;         (if (pair? (car lst))
+  ;;             (begin
+  ;;               ;; (newline)
+  ;;               ;; (display "car pair")
+  ;;               ;; (newline)
+  ;;               (let (( result (append (rec-list->tokens (car lst) (list "("))
+  ;;                                      (rec-list->tokens (cdr lst) '()))))
+  ;;                 ;; (newline)
+  ;;                 ;; (display "result")
+  ;;                 ;; (display result)
+  ;;                 ;; (newline)
+  ;;                 (append retval result)))
+  ;;               (cond ((symbol? (car lst)) (rec-list->tokens (cdr lst)
+  ;;                                                            (append retval
+  ;;                                                                    (list
+  ;;                                                                     (symbol->string
+  ;;                                                                      (car lst))))))
+  ;;                     ((number? (car lst)) (rec-list->tokens (cdr lst)
+  ;;                                                            (append retval
+  ;;                                                                    (list
+  ;;                                                                     (number->string
+  ;;                                                                      (car lst))))))
+  ;;                     (else (rec-list->tokens (cdr lst)
+  ;;                                             (append retval
+  ;;                                                      (list "string" (car lst)))))))))
+
+  ;;     (rec-list->tokens lst '("(")))
+
+
+  ;; (list->string-tokens '(1 2 3))
+
+  ;; (list->string-tokens '(lambda (x) (+ x 1)))
+
+  ;; (list->string-tokens '(define (factorial n)
+  ;;                         (if (= n 0)
+  ;;                             1
+  ;;                             (* n (factorial (= n 1))))))
+
+  ;; (list->string-tokens '(let ((a 3)
+  ;;                             (b 4))
+  ;;                         (+ 1 a b)))
+
+  ;; (list->string-tokens '(1 2 "2"))
+
+  ;; (list->string-tokens '(1 2 "(+ 1 2 )"))
+
+
+  ;; превращает выражение в строку
+  (define (list->string lst)
+    (define (rec-list->string lst retval-string)
+      ;; (display "lst")
+      ;; (display lst)
+      ;; (newline)
+      ;; (display "retval-string")
+      ;; (display retval-string)
+      ;; (newline)
+      (if (null? lst)
+          (string-append retval-string ")")
+          (if (pair? (car lst))
+              (begin
+                ;; (newline)
+                ;; (display "car pair")
+                ;; (newline)
+                (let (( result (string-append (rec-list->string (car lst) "(")
+                                              (rec-list->string (cdr lst) ""))))
+                  ;; (newline)
+                  ;; (display "result")
+                  ;; (display result)
+                  ;; (newline)
+                  (string-append retval-string result)))
+              (cond ((symbol? (car lst)) (rec-list->string (cdr lst)
+                                                           (string-append retval-string
+                                                                          (symbol->string
+                                                                           (car lst)))))
+                    ((number? (car lst)) (rec-list->string (cdr lst)
+                                                           (string-append retval-string
+                                                                          (number->string
+                                                                           (car lst)))))
+                    (else (rec-list->string (cdr lst)
+                                            (string-append retval-string
+                                                           "string" (car lst))))))))
+
+    (rec-list->string lst "("))
+
+
+  ;; тесты
+  ;; (list->string '(1 2 3))
+
+  ;; (list->string '(lambda (x) (+ x 1)))
+
+  ;; (list->string '(define (factorial n)
+  ;;                  (if (= n 0)
+  ;;                      1
+  ;;                      (* n (factorial (= n 1))))))
+
+  ;; (list->string '(let ((a 3)
+  ;;                      (b 4))
+  ;;                  (+ 1 a b)))
+
+  ;; (list->string '(1 2 "2"))
+
+  ;; (list->string '(1 2 "(+ 1 2 )"))
+
+  (define (exp->string exp)
+    (list->string exp))
+
+  ;; хэширует строку
+  (define (hash-exp exp)
+    (let ((string (exp->string exp)))
+      (display "hash-exp: string ")
+      (display string)
+      (newline)
+      (string-hash string)))
+
+  ;; тесты
+  ;; (hash-exp '(1 2 "(+ 1 2 )"))
+
+  ;; (hash-exp '(let ((a 3)
+  ;;                  (b 4))
+  ;;              (+ 1 a b)))
+
+  ;; (hash-exp '(let ((a 3)
+  ;;                  (b 4))
+  ;;              (+ 1 a b)))
+
+  ;; (hash-exp '(define (factorial n)
+  ;;              (if (= n 0)
+  ;;                  1
+  ;;                  (* n (factorial (= n 1))))))
+
+  ;; создает "имя" для выражения
+  (define (generate-name-string exp)
+    (let* ((hash (hash-exp exp))
+           (hash-string (number->string hash)))
+      ;; добавляем букву, чтоб си в будущем счел хэш именем, а не числом
+      (string-append "a" hash-string)))
+
+
+  (generate-name-string
+   '(define (factorial n)
+      (if (= n 0)
+          1
+          (* n (factorial (= n 1))))))
+ #+END_SRC
