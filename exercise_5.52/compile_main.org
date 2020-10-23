@@ -1103,10 +1103,8 @@
 К тому же, нам нужно сгенерировать имя для переменной, потому что иначе
 мы не сможем использовать это число.
 
-#+NAME: compile-numbers
+#+NAME: compile_int_constructors
 #+BEGIN_SRC scheme :noweb yes
-  ;; (generate-name-string exp)
-
   (define (compile-malloc-int var-name)
     (let* ((malloc-int (append '(malloc)
                                (compile-parenthesis (append '(sizeof)
@@ -1117,20 +1115,6 @@
 
   ;; (compile-malloc-int "dzen")
   ;; (print-code (transform-exp (compile-malloc-int "dzen")))
-
-  (define (compile-malloc-char var-name)
-    (let* ((malloc-char (append '(malloc)
-                               (compile-parenthesis (append '(sizeof)
-                                                            (compile-parenthesis
-                                                             (append '(char)
-                                                                     (compile-brackets
-                                                                      100)))))))
-           (char-pointer (append '(char) (list ASTERISK)
-                                (list var-name '=))))
-      (append char-pointer malloc-char (list SEMICOLON))))
-
-  ;; (compile-malloc-char "dzen")
-  ;; (print-code (transform-exp (compile-malloc-char "dzen")))
 
   (define (compile-set-value-to-pointer p-name value)
     (append (list ASTERISK) (list (string-append "ptr_"  p-name) '= value)
@@ -1150,6 +1134,51 @@
 
   ;; (compile-int-val-constructor "some_name" 2)
   ;; (print-code (transform-exp (compile-int-val-constructor "some_name" 2)))
+#+END_SRC
+
+#+NAME: compile_symbol_constructors
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-malloc-char var-name)
+    (let* ((malloc-char (append '(malloc)
+                                (compile-parenthesis (append '(sizeof)
+                                                             (compile-parenthesis
+                                                              (append '(char)
+                                                                      (compile-brackets
+                                                                       100)))))))
+           (char-pointer (append '(char) (list ASTERISK)
+                                 (list var-name '=))))
+      (append char-pointer malloc-char (list SEMICOLON))))
+
+  ;; (compile-malloc-char "dzen")
+  ;; (print-code (transform-exp (compile-malloc-char "dzen")))
+
+  (define (compile-strcpy var-name string)
+    (append
+     '(strncpy) (compile-parenthesis
+                 (append (list (string-append "ptr_" var-name))
+                         (list СOMMA)
+                         (list string)
+                         (list СOMMA)
+                         (list 100)))
+     (list SEMICOLON)))
+
+  (define (compile-symbol var-name string)
+    (let ((allocated-memory (compile-malloc-char var-name))
+          (new-var-name (string-append "val_" var-name))
+          (strcpy (compile-strcpy var-name string)))
+      (append
+       allocated-memory strcpy
+       (append
+        '(val) (list ASTERISK) (list new-var-name '= 'symbol_val_constructor)
+        (compile-parenthesis (string-append "ptr_" var-name))
+        (list SEMICOLON)))))
+
+  (compile-symbol "some_name" "some string")
+  (print-code (transform-exp (compile-symbol "some-name" "some string")))
+#+END_SRC
+
+#+NAME: compile_numbers
+#+BEGIN_SRC scheme :noweb yes
 
   (define (compile-numbers numbers-list)
     (define (rec-compile-numbers numbers-list compiled-code)
@@ -1167,6 +1196,11 @@
   ;; (print-code (transform-exp (compile-numbers '(1 2 3 4 5))))
 #+END_SRC
 
+#+NAME: compile_chars
+#+BEGIN_SRC scheme :noweb yes
+
+#+END_SRC
+
 #+NAME: code
 #+BEGIN_SRC forth :tangle code.scheme  :noweb tangle :exports code :padline no :comments none
   <<main>>
@@ -1177,4 +1211,6 @@
   <<environment>>
   <<trasform_code>>
   <<print_code>>
+  <<compile_int_and_char_constructors>>
+  <<compile_numbers>>
 #+END_SRC
