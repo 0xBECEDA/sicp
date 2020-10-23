@@ -412,16 +412,23 @@
                 (list code)
                 (list CLOSING_BRACE))))
 
-
   (define(compile-parenthesis code)
-    (append (list OPENING_PARENTHESIS)
-            code
-            (list CLOSING_PARENTHESIS)))
+    (if (pair? code)
+        (append (list OPENING_PARENTHESIS)
+                code
+                (list CLOSING_PARENTHESIS))
+        (append (list OPENING_PARENTHESIS)
+                (list code)
+                (list CLOSING_PARENTHESIS))))
 
   (define(compile-brackets code)
-    (append (list OPENING_BRACKET)
-            code
-            (list CLOSING_BRACKET)))
+    (if (pair? code)
+        (append (list OPENING_BRACKET)
+                code
+                (list CLOSING_BRACKET))
+        (append (list OPENING_BRACKET)
+                (list code)
+                (list CLOSING_BRACKET))))
 
   (define(compile-colon code)
     (append code
@@ -466,64 +473,6 @@
 
 #+NAME: list_string
 #+BEGIN_SRC scheme :noweb yes
-  ;; превращает выражение в список токенов, каждый из которых является строкой
-  ;; (define (list->string-tokens lst)
-  ;;   (define (rec-list->tokens lst retval)
-  ;;     ;; (display "lst")
-  ;;     ;; (display lst)
-  ;;     ;; (newline)
-  ;;     ;; (display "retval")
-  ;;     ;; (display retval)
-  ;;     ;; (newline)
-  ;;     (if (null? lst)
-  ;;         (append retval (list ")"))
-  ;;         (if (pair? (car lst))
-  ;;             (begin
-  ;;               ;; (newline)
-  ;;               ;; (display "car pair")
-  ;;               ;; (newline)
-  ;;               (let (( result (append (rec-list->tokens (car lst) (list "("))
-  ;;                                      (rec-list->tokens (cdr lst) '()))))
-  ;;                 ;; (newline)
-  ;;                 ;; (display "result")
-  ;;                 ;; (display result)
-  ;;                 ;; (newline)
-  ;;                 (append retval result)))
-  ;;               (cond ((symbol? (car lst)) (rec-list->tokens (cdr lst)
-  ;;                                                            (append retval
-  ;;                                                                    (list
-  ;;                                                                     (symbol->string
-  ;;                                                                      (car lst))))))
-  ;;                     ((number? (car lst)) (rec-list->tokens (cdr lst)
-  ;;                                                            (append retval
-  ;;                                                                    (list
-  ;;                                                                     (number->string
-  ;;                                                                      (car lst))))))
-  ;;                     (else (rec-list->tokens (cdr lst)
-  ;;                                             (append retval
-  ;;                                                      (list "string" (car lst)))))))))
-
-  ;;     (rec-list->tokens lst '("(")))
-
-
-  ;; (list->string-tokens '(1 2 3))
-
-  ;; (list->string-tokens '(lambda (x) (+ x 1)))
-
-  ;; (list->string-tokens '(define (factorial n)
-  ;;                         (if (= n 0)
-  ;;                             1
-  ;;                             (* n (factorial (= n 1))))))
-
-  ;; (list->string-tokens '(let ((a 3)
-  ;;                             (b 4))
-  ;;                         (+ 1 a b)))
-
-  ;; (list->string-tokens '(1 2 "2"))
-
-  ;; (list->string-tokens '(1 2 "(+ 1 2 )"))
-
-
   ;; превращает выражение в строку
   (define (list->string lst)
     (define (rec-list->string lst retval-string)
@@ -910,74 +859,6 @@
 Данная часть трасформирует скомпилированный код в строки
 #+NAME: trasform_code
 #+BEGIN_SRC scheme :noweb yes
-  ;; (define (transform-exp exp)
-  ;;   (define (transform-exp-rec exp string)
-  ;;     (if (null? exp)
-  ;;         string
-  ;;         (let ((first-elt (car exp )))
-  ;;           (cond ((number? first-elt) (transform-exp-rec (cdr exp)
-  ;;                                                         (string-append string " "
-  ;;                                                                        (number->string
-  ;;                                                                         first-elt))))
-  ;;                 ((string? first-elt) (transform-exp-rec (cdr exp)
-  ;;                                                         (string-append string " "
-  ;;                                                                        first-elt)))
-  ;;                 (else
-  ;;                  (cond ((eq? OPENING_BRACE first-elt)
-  ;;                         (transform-exp-rec (cdr exp)
-  ;;                                            (string-append string "{ ")))
-  ;;                        ((eq? CLOSING_BRACE first-elt)
-  ;;                         (transform-exp-rec (cdr exp)
-  ;;                                            (string-append string "} ")))
-  ;;                        ((eq? OPENING_PARENTHESIS first-elt)
-  ;;                         (if (eq? (cadr exp) CLOSING_PARENTHESIS)
-  ;;                             (transform-exp-rec (cdr exp)
-  ;;                                                (string-append string "("))
-  ;;                             (transform-exp-rec (cdr exp)
-  ;;                                                (string-append string "( "))))
-  ;;                        ((eq? CLOSING_PARENTHESIS first-elt)
-  ;;                         (if (eq? (cadr exp) SEMICOLON)
-  ;;                             (transform-exp-rec (cdr exp)
-  ;;                                                (string-append string ")"))
-  ;;                             (transform-exp-rec (cdr exp)
-  ;;                                                (string-append string ") "))))
-  ;;                        ((eq? OPENING_BRACKET first-elt)
-  ;;                         (transform-exp-rec (cdr exp)
-  ;;                                            (string-append string "[ ")))
-  ;;                        ((eq? CLOSING_BRACKET first-elt)
-  ;;                         (transform-exp-rec (cdr exp)
-  ;;                                            (string-append string "] ")))
-  ;;                        ((eq? СOLON first-elt)
-  ;;                         (transform-exp-rec (cdr exp)
-  ;;                                            (string-append string ": ")))
-  ;;                        ((eq? SEMICOLON first-elt)
-  ;;                         (transform-exp-rec (cdr exp)
-  ;;                                            (string-append string "; ")))
-  ;;                        ((eq? СOMMA first-elt)
-  ;;                         (transform-exp-rec (cdr exp)
-  ;;                                            (string-append string ", ")))
-  ;;                        ((eq? ASTERISK first-elt)
-  ;;                         (transform-exp-rec (cdr exp)
-  ;;                                            (string-append string "*")))
-  ;;                        ((eq? ELLIPSIS first-elt)
-  ;;                         (transform-exp-rec (cdr exp)
-  ;;                                            (string-append string "...")))
-  ;;                        (else
-  ;;                         (transform-exp-rec (cdr exp)
-  ;;                                            (string-append string " "
-  ;;                                                           (symbol->string
-  ;;                                                            first-elt))))))))))
-  ;;   (transform-exp-rec exp ""))
-
-  ;; (define (compiled-code->string code)
-  ;;   (define (rec-compiled-code->string code string)
-  ;;     (if ( null? code )
-  ;;         string
-  ;;         (begin
-  ;;           (string-append string (transform-exp (car code))
-  ;;                          (compiled-code->string (cdr code))))))
-  ;;   (rec-compiled-code->string code ""))
-
   (define (transform-exp exp)
     (define (transform-exp-rec exp list-of-strings)
       (if (null? exp)
@@ -987,14 +868,14 @@
                                                           (append list-of-strings
                                                                   (list
                                                                    (string-append
+                                                                    " "
                                                                     (number->string
-                                                                     " "
                                                                      first-elt))))))
                   ((string? first-elt) (transform-exp-rec (cdr exp)
                                                           (append list-of-strings
                                                                   (list
+                                                                   " "
                                                                    (string-append
-                                                                    " "
                                                                     first-elt)))))
                   (else
                    (cond ((eq? OPENING_BRACE first-elt)
@@ -1004,17 +885,18 @@
                           (transform-exp-rec (cdr exp)
                                              (append list-of-strings (list " }"))))
                          ((eq? OPENING_PARENTHESIS first-elt)
-                          (if (eq? (cadr exp) CLOSING_PARENTHESIS)
+                          ;; (if (eq? (cadr exp) CLOSING_PARENTHESIS)
                               (transform-exp-rec (cdr exp)
                                                  (append list-of-strings (list "(")))
-                              (transform-exp-rec (cdr exp)
-                                                 (append list-of-strings (list "( ")))))
+                              )
+                              ;; (transform-exp-rec (cdr exp)
+                              ;;                    (append list-of-strings (list "( ")))))
                          ((eq? CLOSING_PARENTHESIS first-elt)
                           ;; (if (eq? (cadr exp) SEMICOLON)
                           ;;     (transform-exp-rec (cdr exp)
                           ;;                        (append list-of-strings (list ")")))
                           (transform-exp-rec (cdr exp)
-                                             (append list-of-strings (list ")"))))
+                                             (append list-of-strings (list " )"))))
                          ;; )
                          ((eq? OPENING_BRACKET first-elt)
                           (transform-exp-rec (cdr exp)
@@ -1033,7 +915,7 @@
                                              (append list-of-strings (list ", "))))
                          ((eq? ASTERISK first-elt)
                           (transform-exp-rec (cdr exp)
-                                             (append list-of-strings (list " *"))))
+                                             (append list-of-strings (list "*"))))
                          ((eq? ELLIPSIS first-elt)
                           (transform-exp-rec (cdr exp)
                                              (append list-of-strings (list " ..."))))
@@ -1049,11 +931,14 @@
 
   (define (compiled-code->string code)
     (define (rec-compiled-code->string code list-of-strings)
+      ;; (format #t "code ~A ~%" code)
       (if ( null? code )
-          list-of-strings
+          (begin
+            ;; (format #t "null~%")
+            list-of-strings)
           (begin
             (append list-of-strings (transform-exp (car code))
-                    (compiled-code->string (cdr code))))))
+                    (rec-compiled-code->string (cdr code) list-of-strings)))))
     (rec-compiled-code->string code '()))
 
   (define test-exp
@@ -1152,6 +1037,136 @@
   (print-code tokens)
 #+END_SRC
 
+~Компиляция примитивов~
+
+Предположим, компилятору на вход поступило выражение:
+#+NAME: compile_primitives
+#+BEGIN_SRC scheme :noweb yes
+  (list 1 2 3 4 5)
+#+END_SRC
+
+Оно должно превратиться в это:
+#+NAME: compile_primitives
+#+BEGIN_SRC c :noweb yes
+  val* some_fn() {
+      int* ptr_a = malloc(sizeof(int));
+      ,*ptr_a = 1;
+      val* a_val = int_val_constructor( ptr_a );
+
+
+      int* ptr_b = malloc(sizeof(int));
+      ,*ptr_b = 2;
+      val* b_val = int_val_constructor( ptr_b );
+
+
+      int* ptr_c = malloc(sizeof(int));
+      ,*ptr_c = 3;
+      val* c_val = int_val_constructor( ptr_c );
+
+
+      int* ptr_d = malloc(sizeof(int));
+      ,*ptr_d = 4;
+      val* d_val = int_val_constructor( ptr_d );
+
+
+      int* ptr_f = malloc(sizeof(int));
+      ,*ptr_f = 5;
+      val* f_val = int_val_constructor( ptr_f );
+
+      return make_list(a, b, c, d, f);
+  }
+#+END_SRC
+
+Для нужно:
+
+- получить оператор выражения
+- определяем, что это примитив
+- вызываем ~compile-primitive~.
+
+~compile-primitive~
+Для компиляции примитивов нам необходимо следующее:
+- обязательно подключить заголовочный файл primitives.h - он подключит
+  написанные на си примитивы, которые мы создали для интерпретатора
+- для каждого вызыова примитива будет сгенерирована служебная функция,
+  внутри которой он будет исполняться
+
+~compile-numbers~
+Самое простое - это скомпилировать код для представления чисел.
+Получив на вход число 3, к примеру, компилятор должен вернуть следующее:
+#+NAME: compile-numbers-example
+#+BEGIN_SRC c :noweb yes
+  int* ptr_a = malloc(sizeof(int));
+  ,*ptr_a = 3;
+  val* a_val = int_val_constructor( ptr_a );
+#+END_SRC
+
+К тому же, нам нужно сгенерировать имя для переменной, потому что иначе
+мы не сможем использовать это число.
+
+#+NAME: compile-numbers
+#+BEGIN_SRC scheme :noweb yes
+  ;; (generate-name-string exp)
+
+  (define (compile-malloc-int var-name)
+    (let* ((malloc-int (append '(malloc)
+                               (compile-parenthesis (append '(sizeof)
+                                                            (compile-parenthesis 'int)))))
+           (int-pointer (append '(int) (list ASTERISK)
+                                (list (string-append "ptr_" var-name) '=))))
+      (append int-pointer malloc-int (list SEMICOLON))))
+
+  ;; (compile-malloc-int "dzen")
+  ;; (print-code (transform-exp (compile-malloc-int "dzen")))
+
+  (define (compile-malloc-char var-name)
+    (let* ((malloc-char (append '(malloc)
+                               (compile-parenthesis (append '(sizeof)
+                                                            (compile-parenthesis
+                                                             (append '(char)
+                                                                     (compile-brackets
+                                                                      100)))))))
+           (char-pointer (append '(char) (list ASTERISK)
+                                (list var-name '=))))
+      (append char-pointer malloc-char (list SEMICOLON))))
+
+  ;; (compile-malloc-char "dzen")
+  ;; (print-code (transform-exp (compile-malloc-char "dzen")))
+
+  (define (compile-set-value-to-pointer p-name value)
+    (append (list ASTERISK) (list (string-append "ptr_"  p-name) '= value)
+            (list SEMICOLON)))
+
+  (define (compile-int-val-constructor var-name var-value)
+    ;; (display "compile-int-val-constructor")
+    ;; (newline)
+    (let ((allocated-memory (compile-malloc-int var-name))
+          (new-var-name (string-append "val_" var-name))
+          (set-value-to-pointer (compile-set-value-to-pointer var-name var-value)))
+      (append allocated-memory
+              set-value-to-pointer
+              '(val) (list ASTERISK) (list new-var-name '= 'int_val_constructor)
+              (compile-parenthesis (string-append "ptr_" var-name))
+              (list SEMICOLON))))
+
+  ;; (compile-int-val-constructor "some_name" 2)
+  ;; (print-code (transform-exp (compile-int-val-constructor "some_name" 2)))
+
+  (define (compile-numbers numbers-list)
+    (define (rec-compile-numbers numbers-list compiled-code)
+      (if (null? numbers-list)
+          compiled-code
+          (let* ((var-name (generate-name-string numbers-list))
+                 (cur-number (car numbers-list)))
+            (rec-compile-numbers (cdr numbers-list)
+                                 (append
+                                  compiled-code
+                                  (compile-int-val-constructor var-name cur-number))))))
+
+    (rec-compile-numbers numbers-list '()))
+
+  ;; (print-code (transform-exp (compile-numbers '(1 2 3 4 5))))
+#+END_SRC
+
 #+NAME: code
 #+BEGIN_SRC forth :tangle code.scheme  :noweb tangle :exports code :padline no :comments none
   <<main>>
@@ -1161,4 +1176,5 @@
   <<primitives>>
   <<environment>>
   <<trasform_code>>
+  <<print_code>>
 #+END_SRC
