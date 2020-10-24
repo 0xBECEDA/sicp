@@ -389,7 +389,7 @@
 
   ;; преставление : и , в компилируемом коде
   (define СOLON #\:)
-  (define СOMMA #\,)
+  (define COMMA #\,)
 
   ;; преставление * в компилируемом коде
   (define ASTERISK #\*)
@@ -404,7 +404,7 @@
 
   ;; констуркторы, присоединяющие символы, эмулирующие синтакис, к скомпилированному коду
   (define(compile-braces code)
-    (if (pair? code)
+    (if (or (pair? code) (null? code))
         (append (list OPENING_BRACE)
                 code
                 (list CLOSING_BRACE))
@@ -413,7 +413,7 @@
                 (list CLOSING_BRACE))))
 
   (define(compile-parenthesis code)
-    (if (pair? code)
+    (if (or (pair? code) (null? code))
         (append (list OPENING_PARENTHESIS)
                 code
                 (list CLOSING_PARENTHESIS))
@@ -422,7 +422,7 @@
                 (list CLOSING_PARENTHESIS))))
 
   (define(compile-brackets code)
-    (if (pair? code)
+    (if (or (pair? code) (null? code))
         (append (list OPENING_BRACKET)
                 code
                 (list CLOSING_BRACKET))
@@ -873,10 +873,8 @@
                                                                      first-elt))))))
                   ((string? first-elt) (transform-exp-rec (cdr exp)
                                                           (append list-of-strings
-                                                                  (list
-                                                                   " "
-                                                                   (string-append
-                                                                    first-elt)))))
+                                                                  '( " ")
+                                                                  (list first-elt))))
                   (else
                    (cond ((eq? OPENING_BRACE first-elt)
                           (transform-exp-rec (cdr exp)
@@ -885,19 +883,12 @@
                           (transform-exp-rec (cdr exp)
                                              (append list-of-strings (list " }"))))
                          ((eq? OPENING_PARENTHESIS first-elt)
-                          ;; (if (eq? (cadr exp) CLOSING_PARENTHESIS)
                               (transform-exp-rec (cdr exp)
                                                  (append list-of-strings (list "(")))
                               )
-                              ;; (transform-exp-rec (cdr exp)
-                              ;;                    (append list-of-strings (list "( ")))))
                          ((eq? CLOSING_PARENTHESIS first-elt)
-                          ;; (if (eq? (cadr exp) SEMICOLON)
-                          ;;     (transform-exp-rec (cdr exp)
-                          ;;                        (append list-of-strings (list ")")))
                           (transform-exp-rec (cdr exp)
                                              (append list-of-strings (list " )"))))
-                         ;; )
                          ((eq? OPENING_BRACKET first-elt)
                           (transform-exp-rec (cdr exp)
                                              (append list-of-strings (list "[ "))))
@@ -966,7 +957,7 @@
   ;; (transform-exp test-exp2)
 
   ;; (compiled-code->string (list test-exp
-                               ;; test-exp2))
+  ;;                              test-exp2))
 #+END_SRC
 
 Данный алгоритм впечатывает преобразованный в строку код в файл, попутно
@@ -1001,6 +992,7 @@
                   (rec-print-code (cdr code-string) output-port))
                 (begin
                   ;; (format #t "string ~A ~%" first-string)
+                  ;; (if (equal? first-string " \"" )
                   (format output-port "~A" first-string)
                   (rec-print-code (cdr code-string) output-port))))))
     (let ((output-port (open-output-file  *c-file*)))
@@ -1008,6 +1000,7 @@
       (close-output-port output-port)
       'ok))
 
+    ;; (format #t "\"~A\" ~%" 'a)
 
   (define test-exp
     (compile-main
@@ -1146,7 +1139,7 @@
                                                                       (compile-brackets
                                                                        100)))))))
            (char-pointer (append '(char) (list ASTERISK)
-                                 (list var-name '=))))
+                                 (list (string-append "ptr_" var-name) '=))))
       (append char-pointer malloc-char (list SEMICOLON))))
 
   ;; (compile-malloc-char "dzen")
@@ -1162,7 +1155,7 @@
                          (list 100)))
      (list SEMICOLON)))
 
-  (define (compile-symbol var-name string)
+  (define (compile-symbol-val-constructor var-name string)
     (let ((allocated-memory (compile-malloc-char var-name))
           (new-var-name (string-append "val_" var-name))
           (strcpy (compile-strcpy var-name string)))
@@ -1173,8 +1166,8 @@
         (compile-parenthesis (string-append "ptr_" var-name))
         (list SEMICOLON)))))
 
-  (compile-symbol "some_name" "some string")
-  (print-code (transform-exp (compile-symbol "some-name" "some string")))
+  ;; (compile-symbol-val-constructor "some_name" "some string")
+  ;; (print-code (transform-exp (compile-symbol-val-constructor "some-name" "some string")))
 #+END_SRC
 
 #+NAME: compile_numbers
@@ -1196,8 +1189,249 @@
   ;; (print-code (transform-exp (compile-numbers '(1 2 3 4 5))))
 #+END_SRC
 
-#+NAME: compile_chars
+Компилирование символов и строк.
+Разница между ними небольшая: просто для символов имена уже известны, а
+для строк имен нет, поэтому их приходится генерировать.
+
+#+NAME: compile_symbols
 #+BEGIN_SRC scheme :noweb yes
+  (define (compile-strings strings-list)
+    (define (rec-compile-string strings-list compiled-code)
+      (if (null? strings-list)
+          compiled-code
+          (let* ((var-name (generate-name-string strings-list))
+                 (cur-string (car strings-list)))
+            (rec-compile-string (cdr strings-list)
+                                (append
+                                 compiled-code
+                                 (compile-symbol-val-constructor var-name cur-string))))))
+    (rec-compile-string strings-list '()))
+
+
+
+  (define (compile-symbols symbols-list strings)
+    (define (rec-compile-symbols symbols-list strings compiled-code)
+      (if (null? symbols-list)
+          compiled-code
+          (let* ((var-name (car symbols-list))
+                 (cur-msg (car strings)))
+            (rec-compile-symbols (cdr symbols-list)
+                                 (cdr strings)
+                                 (append
+                                  compiled-code
+                                  (compile-symbol-val-constructor var-name cur-msg))))))
+
+    (rec-compile-symbols symbols-list strings '()))
+
+  ;; (print-code (transform-exp
+  ;;              (compile-symbols '("a" "b" "c") '("\"a-string\""
+  ;;                                                "\"b-string\""
+  ;;                                                "\"c-string\""))))
+
+  ;; (print-code (transform-exp
+  ;;              (compile-strings  '("\"a-string\""
+  ;;                                  "\"b-string\""
+  ;;                                  "\"c-string\""))))
+#+END_SRC
+
+Теперь можно попробовать скомпилировать примитивы.
+
+#+NAME: compile_primitives_constructors
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-list args)
+    (define (compile-list-rec args compiled-code)
+      (if (null? args)
+          compiled-code
+          (if (null? (cdr args))
+              (compile-list-rec (cdr args) (append compiled-code (list (car args))))
+              (compile-list-rec (cdr args) (append compiled-code (list (car args))
+                                                   (list COMMA))))))
+    (append '(make_list)
+            (compile-parenthesis
+             (append (compile-list-rec args '())))
+            (list SEMICOLON)
+            ))
+
+
+
+  ;; (print-code( transform-exp (compile-list '("\" 3 \"" 1 2 d))))
+
+  (define (compile-cons args)
+    (let ((first-arg (car args))
+          (second-arg (cadr args)))
+      (append '(cons)
+              (compile-parenthesis
+               (append (list first-arg)
+                       (list COMMA)
+                       (list second-arg)))
+              (list SEMICOLON)
+              )))
+
+  ;; (print-code( transform-exp (compile-cons '(1 2))))
+
+
+  (define (compile-car args)
+    (append '(car)
+            (compile-parenthesis args)
+            (list SEMICOLON)
+            ))
+
+  ;; (print-code( transform-exp (compile-car '(some-list))))
+
+  (define (compile-cdr args)
+    (append '(cdr)
+            (compile-parenthesis args)
+            (list SEMICOLON)
+            ))
+
+  ;; (print-code( transform-exp (compile-cdr '(some-list))))
+
+  (define (compile-set-car args)
+    (append '(set_car)
+            (compile-parenthesis args)
+            (list SEMICOLON)
+            ))
+
+  ;; (print-code( transform-exp (compile-set-car '(some-list))))
+
+  (define (compile-set-cdr args)
+    (append '(set_cdr)
+            (compile-parenthesis args)
+            (list SEMICOLON)
+            ))
+
+  ;; (print-code( transform-exp (compile-set-cdr '(some-list))))
+
+  (define (compile-append args)
+    (let ((first-arg (car args))
+          (second-arg (cadr args)))
+      (append '(append)
+              (compile-parenthesis
+               (append (list first-arg)
+                       (list COMMA)
+                       (list second-arg)))
+              (list SEMICOLON)
+              )))
+
+  ;; (print-code( transform-exp (compile-append '(some-list1 some-list2))))
+
+
+  (define (compile-assoc args)
+    (let ((first-arg (car args))
+          (second-arg (cadr args)))
+      (append '(assoc)
+              (compile-parenthesis
+               (append (list first-arg)
+                       (list COMMA)
+                       (list second-arg)))
+              (list SEMICOLON)
+              )))
+
+  ;; (print-code( transform-exp (compile-assoc '( some-key some-list))))
+
+  (define (compile-length args)
+    (append '(length)
+            (compile-parenthesis args)
+            (list SEMICOLON)
+            ))
+
+  ;; (print-code( transform-exp (compile-length '(some-list))))
+
+  (define (compile-last-pair args)
+    (append '(last-pair)
+            (compile-parenthesis args)
+            (list SEMICOLON)
+            ))
+
+  (define (compile-last-pair args)
+    (append '(last-pair)
+            (compile-parenthesis args)
+            (list SEMICOLON)
+            ))
+
+  (define (compile-add args)
+    (append '(add)
+            (compile-parenthesis args)
+            (list SEMICOLON)
+            ))
+
+  (define (compile-sub args)
+    (append '(sub)
+            (compile-parenthesis args)
+            (list SEMICOLON)
+            ))
+
+  (define (compile-mul args)
+    (append '(mul)
+            (compile-parenthesis args)
+            (list SEMICOLON)
+            ))
+
+  (define (compile-division args)
+    (append '(division)
+            (compile-parenthesis args)
+            (list SEMICOLON)
+            ))
+
+  (define (compile-reverse args)
+    (append '(reverse)
+            (compile-parenthesis args)
+            (list SEMICOLON)
+            ))
+
+  (define (compile-true? args)
+    (append '(true_predicate)
+            (compile-parenthesis args)
+            (list SEMICOLON)
+            ))
+
+  (define (compile-false? args)
+    (append '(false_predicate)
+            (compile-parenthesis args)
+            (list SEMICOLON)
+            ))
+
+  (define (compile-null? args)
+    (append '(null_predicate)
+            (compile-parenthesis args)
+            (list SEMICOLON)
+            ))
+
+  (define (compile-pair? args)
+    (append '(pair_predicate)
+            (compile-parenthesis args)
+            (list SEMICOLON)
+            ))
+
+  (define (compile-atom? args)
+    (append '(atom_predicate)
+            (compile-parenthesis args)
+            (list SEMICOLON)
+            ))
+
+
+  (print-code (compiled-code->string
+               (list (compile-list '("\" 3 \"" 1 2 d))
+                     (compile-cons '(1 2))
+                     (compile-car '(some-list))
+                     (compile-cdr '(some-list))
+                     (compile-set-car '(some-list))
+                     (compile-set-cdr '(some-list))
+                     (compile-append '(some-list1 some-list2))
+                     (compile-assoc '( some-key some-list))
+                     (compile-length '(some-list))
+                     (compile-last-pair '(some-list))
+                     (compile-add '(some-args-list))
+                     (compile-sub '(some-args-list))
+                     (compile-mul '(some-args-list))
+                     (compile-division '(some-args-list))
+                     (compile-reverse '(some-list))
+                     (compile-reverse '(some-list))
+                     (compile-true? 'some-arg)
+                     (compile-false? 'some-arg)
+                     (compile-pair? 'some-arg)
+                     (compile-null? 'some-arg)
+                     (compile-atom? 'some-arg))))
 
 #+END_SRC
 
@@ -1212,5 +1446,8 @@
   <<trasform_code>>
   <<print_code>>
   <<compile_int_and_char_constructors>>
+  <<compile_symbol_constructors>>
   <<compile_numbers>>
+  <<compile_symbols>>
+  <<compile_primitives_constructors>>
 #+END_SRC
