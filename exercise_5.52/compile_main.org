@@ -585,9 +585,9 @@
 #+NAME: service_procedure
 #+BEGIN_SRC scheme :noweb yes
   (define (compile-service-fn name body)
-    (let ((code-into-braces (compile-braces fn-calls)))
-      (append (list '*val 'name)
-              (compile-parenthesis())
+    (let ((code-into-braces (compile-braces body)))
+      (append (list 'val ASTERISK name)
+              (compile-parenthesis '())
               code-into-braces)))
 #+END_SRC
 
@@ -1122,8 +1122,8 @@
       (append allocated-memory
               set-value-to-pointer
               '(val) (list ASTERISK) (list new-var-name '= 'int_val_constructor)
-              (compile-parenthesis (string-append "ptr_" var-name))
-              (list SEMICOLON))))
+                    (compile-parenthesis (string-append "ptr_" var-name))
+                    (list SEMICOLON))))
 
   ;; (compile-int-val-constructor "some_name" 2)
   ;; (print-code (transform-exp (compile-int-val-constructor "some_name" 2)))
@@ -1159,12 +1159,12 @@
     (let ((allocated-memory (compile-malloc-char var-name))
           (new-var-name (string-append "val_" var-name))
           (strcpy (compile-strcpy var-name string)))
-      (append
-       allocated-memory strcpy
        (append
-        '(val) (list ASTERISK) (list new-var-name '= 'symbol_val_constructor)
-        (compile-parenthesis (string-append "ptr_" var-name))
-        (list SEMICOLON)))))
+        allocated-memory strcpy
+        (append
+         '(val) (list ASTERISK) (list new-var-name '= 'symbol_val_constructor)
+         (compile-parenthesis (string-append "ptr_" var-name))
+         (list SEMICOLON)))))
 
   ;; (compile-symbol-val-constructor "some_name" "some string")
   ;; (print-code (transform-exp (compile-symbol-val-constructor "some-name" "some string")))
@@ -1172,21 +1172,32 @@
 
 #+NAME: compile_numbers
 #+BEGIN_SRC scheme :noweb yes
-
   (define (compile-numbers numbers-list)
-    (define (rec-compile-numbers numbers-list compiled-code)
+    (define (rec-compile-numbers numbers-list compiled-code nums-names)
       (if (null? numbers-list)
-          compiled-code
+          (list compiled-code nums-names)
           (let* ((var-name (generate-name-string numbers-list))
                  (cur-number (car numbers-list)))
             (rec-compile-numbers (cdr numbers-list)
                                  (append
                                   compiled-code
-                                  (compile-int-val-constructor var-name cur-number))))))
+                                  (compile-int-val-constructor var-name cur-number))
+                                 (append
+                                  nums-names
+                                  (list (string-append "val_" var-name)))))))
+    (if (pair? numbers-list)
+        (rec-compile-numbers numbers-list '() '())
+        (rec-compile-numbers (list numbers-list) '() '())))
 
-    (rec-compile-numbers numbers-list '()))
+  (define test (compile-numbers '(1 2 3 4 5)))
+  (print-code (transform-exp (car test)))
 
-  ;; (print-code (transform-exp (compile-numbers '(1 2 3 4 5))))
+  (cadr test)
+
+  (define test (compile-numbers 1))
+  (print-code (transform-exp (car test)))
+
+  (cadr test)
 #+END_SRC
 
 Компилирование символов и строк.
@@ -1196,17 +1207,21 @@
 #+NAME: compile_symbols
 #+BEGIN_SRC scheme :noweb yes
   (define (compile-strings strings-list)
-    (define (rec-compile-string strings-list compiled-code)
+    (define (rec-compile-string strings-list compiled-code string-names)
       (if (null? strings-list)
-          compiled-code
+          (list compiled-code string-names)
           (let* ((var-name (generate-name-string strings-list))
                  (cur-string (car strings-list)))
             (rec-compile-string (cdr strings-list)
                                 (append
                                  compiled-code
-                                 (compile-symbol-val-constructor var-name cur-string))))))
-    (rec-compile-string strings-list '()))
-
+                                 (compile-symbol-val-constructor var-name cur-string))
+                                (append
+                                 string-names
+                                 (list (string-append "val_" var-name)))))))
+    (if (pair? strings-list)
+        (rec-compile-string strings-list '() '())
+        (rec-compile-string (list strings-list) '() '())))
 
 
   (define (compile-symbols symbols-list strings)
@@ -1220,18 +1235,24 @@
                                  (append
                                   compiled-code
                                   (compile-symbol-val-constructor var-name cur-msg))))))
+    (if (pair? symbols-list)
+        (list (rec-compile-symbols symbols-list strings '())
+              symbols-list)
+        (list (rec-compile-symbols symbols-list strings '())
+              (list symbols-list))))
 
-    (rec-compile-symbols symbols-list strings '()))
-
-  ;; (print-code (transform-exp
-  ;;              (compile-symbols '("a" "b" "c") '("\"a-string\""
+  ;; (define test (compile-symbols '("a" "b" "c") '("\"a-string\""
   ;;                                                "\"b-string\""
-  ;;                                                "\"c-string\""))))
+  ;;                                                "\"c-string\"")))
+  ;; (print-code (transform-exp (car test)))
+  ;; (cadr test)
 
-  ;; (print-code (transform-exp
-  ;;              (compile-strings  '("\"a-string\""
-  ;;                                  "\"b-string\""
-  ;;                                  "\"c-string\""))))
+  ;; (define test2 (compile-strings  '("\"a-string\""
+  ;;                                   "\"b-string\""
+  ;;                                   "\"c-string\"")))
+
+  ;; (print-code (transform-exp (car test2)))
+  ;; (cadr test2)
 #+END_SRC
 
 Теперь можно попробовать скомпилировать примитивы.
@@ -1246,12 +1267,11 @@
               (compile-list-rec (cdr args) (append compiled-code (list (car args))))
               (compile-list-rec (cdr args) (append compiled-code (list (car args))
                                                    (list COMMA))))))
-    (append '(make_list)
-            (compile-parenthesis
-             (append (compile-list-rec args '())))
-            (list SEMICOLON)
-            ))
-
+    (let ((amount-of-args (length args)))
+      (append '(make_list)
+              (compile-parenthesis
+               (append (compile-list-rec args (list amount-of-args COMMA))))
+              (list SEMICOLON))))
 
 
   ;; (print-code( transform-exp (compile-list '("\" 3 \"" 1 2 d))))
@@ -1343,12 +1363,6 @@
             (list SEMICOLON)
             ))
 
-  (define (compile-last-pair args)
-    (append '(last-pair)
-            (compile-parenthesis args)
-            (list SEMICOLON)
-            ))
-
   (define (compile-add args)
     (append '(add)
             (compile-parenthesis args)
@@ -1433,6 +1447,121 @@
                      (compile-null? 'some-arg)
                      (compile-atom? 'some-arg))))
 
+#+END_SRC
+
+Итак, прежде чем вызывать компиляцию примитивов, надо сначала вызвать
+компиляцию аргументов.
+Аргументы могут быть:
+- вызвами процедур
+- переменными
+- строками
+- числами
+#+NAME: compile_args
+#+BEGIN_SRC scheme :noweb yes
+  (define (self-evaluating? exp)
+    (cond ((number? exp) true)
+          ((string? exp) true)
+          (else false)))
+
+  (define (compile-self-evaluating exp)
+    (if (number? exp)
+        (compile-numbers exp)
+        (compile-strings exp)))
+
+  (define (compile exp env)
+    ;; (format #t "compile: exp ~A ~%" exp)
+    (cond ((self-evaluating? exp)
+           (compile-self-evaluating exp))
+          (else true)))
+
+  ;; (compile 1 '())
+
+  (define (compile-args args env)
+    (define (compile-args-rec args compiled-code)
+      (if (null? args)
+          (begin
+          ;; (format #t "compile-args-rec: compiled-code ~A ~%" compiled-code)
+          compiled-code)
+          (let* ((compiled-arg-code (compile (car args) env)))
+            ;; (format #t "compile-args-rec: compiled-arg-code ~A ~%" compiled-arg-code)
+            (compile-args-rec (cdr args) (append compiled-code (list
+                                                                compiled-arg-code))))))
+
+    ;; (format #t "compile-args: args ~A ~%" args)
+    (compile-args-rec (cdr args) (list (compile (car args) env))))
+
+  (define (connect-all-exps lst)
+    (define (connect-all-exps-rec lst new-lst)
+      (if (null? lst)
+          new-lst
+          (connect-all-exps-rec (cdr lst) (append new-lst (car lst)))))
+    (connect-all-exps-rec lst '()))
+
+  (define (compile-primitive exp env)
+    (define (compile-cur-primitive compiled-args-names)
+      (format #t "compile-cur-primitive: compiled-args-names ~A ~%"
+              compiled-args-names)
+      (cond ((eq? (operator exp) 'list)
+             (compile-list compiled-args-names))
+            ((eq? (operator exp) 'cons)
+             (compile-cons compiled-args-names))
+            ((eq? (operator exp) 'car)
+             (compile-car compiled-args-names))
+            ((eq? (operator exp) 'cdr)
+             (compile-cdr compiled-args-names))
+            ((eq? (operator exp) 'set-car!)
+             (compile-set-car compiled-args-names))
+            ((eq? (operator exp) 'set-cdr!)
+             (compile-set-cdr compiled-args-names))
+            ((eq? (operator exp) 'append)
+             (compile-append compiled-args-names))
+            ((eq? (operator exp) 'assoc)
+             (compile-assoc compiled-args-names))
+            ((eq? (operator exp) 'length)
+             (compile-length compiled-args-names))
+            ((eq? (operator exp) 'last-pair)
+             (compile-last-pair compiled-args-names))
+            ((eq? (operator exp) 'add)
+             (compile-add compiled-args-names))
+            ((eq? (operator exp) 'sub)
+             (compile-sub compiled-args-names))
+            ((eq? (operator exp) 'mul)
+             (compile-mul compiled-args-names))
+            ((eq? (operator exp) 'division)
+             (compile-division compiled-args-names))
+            ((eq? (operator exp) 'reverse)
+             (compile-reverse compiled-args-names))
+            ((eq? (operator exp) 'true?)
+             (compile-true? compiled-args-names))
+            ((eq? (operator exp) 'false?)
+             (compile-false? compiled-args-names))
+            ((eq? (operator exp) 'null?)
+             (compile-null? compiled-args-names))
+            ((eq? (operator exp) 'pair?)
+             (compile-pair? compiled-args-names))
+            ((eq? (operator exp) 'atom?)
+             (atom? compiled-args-names))
+            (else (error "Неизвестный примитив -- compile-primitive"))))
+    (let* ((compiled-args
+            (compile-args (operands exp) env))
+           (compiled-args-names (map (lambda (code)
+                                       ;; (format #t "code ~A ~%" code)
+                                       (caadr code))
+                                     compiled-args))
+           (pre-result  (append
+                         (connect-all-exps (map (lambda (code)
+                                (format #t "code ~A ~%" code)
+                                (car code))
+                              compiled-args))
+                        '(return)
+                        (compile-cur-primitive compiled-args-names)))
+           (service-fn-name (generate-name-string exp))
+           (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+      (list (compile-service-fn service-fn-name pre-result)
+            call-service-fn)))
+
+
+  (print-code (compiled-code->string (compile-primitive '(list 1 2 3 4) '())))
 #+END_SRC
 
 #+NAME: code
