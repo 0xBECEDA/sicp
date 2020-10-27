@@ -793,9 +793,11 @@
 
   (define (define-variable! var env)
     (let ((frame (first-frame env)))
-      (define (scan vars vals)
+      (define (scan vars)
         (cond ((null? vars)
-               (add-binding-to-frame! var frame))
+               (begin
+                 (add-binding-to-frame! var frame)
+                 'ok))
               ((and (pair? var) (pair? (car vars)))
                (if (eq? (car var) (caar vars))
                    (car vars)
@@ -1631,8 +1633,224 @@
   (print-code (compiled-code->string (compile '(true? 2) global-environment)))
 #+END_SRC
 
+~Компиляция определений~
+
+Итак, мы считаем, что у нас определения могут быть только с помощью
+define, так для начала проще реализовывать. К тому же, let - это
+синтаксический сахар для лямбды, так что если писать поддержку let, то
+нужно сначала добавить компиляцию лямбд.
+
+Определения могут быть глобальными или локальными.
+Так же определения могут определять переменные или функции. В этом случае
+компиляция должна быть разной.
+
+Начнем с компиляции глобальный и локальных переменных. Локальные
+переменные компилировать проще - мы просто возвращаем скомпилированный
+код в то место, откуда была вызвана компиляция определения. Глобальное
+определение сложнее - мы должны глобально определить некую переменную, а
+затем присвоить ей значение.
+
+В си это различие будет выглядеть следующим образом:
+Компиляция определения глобальной переменной.
+На вход получено выражение ~(define n 10)~
+На выходе полчаем:
+#+NAME: definition_example
+#+BEGIN_SRC c :noweb yes
+  val* n;
+
+  val* some_servise_fn_name() {
+      int* some_ptr_name = malloc(sizeof(int));
+      ,*some_ptr_name = 10;
+      n = int_val_constructor(some_ptr_name);
+  }
+
+  int main () {
+
+      some_servise_fn_name();
+  }
+#+END_SRC
+
+Теперь компилируем то же выражение локально, к примеру, оно определено
+внутри функции ~fn1~:
+
+#+NAME: definition_example
+#+BEGIN_SRC c :noweb yes
+  val* fn1() {
+      /* some code before definition*/
+
+      int* some_ptr_name = malloc(sizeof(int));
+      ,*some_ptr_name = 10;
+      val* n = int_val_constructor(some_ptr_name);
+
+      /* some code after definition*/
+
+  }
+
+  int main () {
+
+      fn1();
+  }
+#+END_SRC
+
+Итак, снаала нужно понять, поступило нам на вход определение функции
+или определение переменной.
+
+#+NAME: define_definition
+#+BEGIN_SRC scheme :noweb yes
+  (define (tagged-list? exp tag)
+    (if (pair? exp)
+        (eq? (car exp) tag)
+        false))
+
+  (define (definition? exp)
+    (tagged-list? exp 'define))
+
+
+  (define (definition-fn? exp)
+    (pair? (cadr exp)))
+
+  (define (compile-definition exp env)
+    (if (definition-fn? exp)
+        (compile-definition-fn exp env)
+        (compile-definition-var exp env)))
+#+END_SRC
+
+Итак, мы определили, что определение переменной.
+Теперь нужо понять, глобальная она или локальная. Сделать это довольно
+легко: если мы не находимся внутри какой-то функции, то у нас в окружении
+будет всего один кадр - т.е. то самое глобальное окружение. Если же мы
+вызываем определение, находясь внутри какой-либо функции, то у нас
+добавится дополнительый кадр с ее формальными параметрами, который
+исчезнет после того, как компиляция фнукции будет закончена.
+
+#+NAME: compile_definition_var
+#+BEGIN_SRC scheme :noweb yes
+  (define (global-env? env)
+    ( = ( length env) 1))
+
+  ;; (global-env? global-environment)
+
+  ;; (global-env? (cons '(some var names) global-environment))
+
+  (define (compile-definition-var exp env)
+    (if (global-env? env)
+        (compile-definition-var-global exp env)
+        (compile-definition-var-loсal exp env)))
+
+  (define (compile-create-variable-with-num-value var-name value)
+    (let ((name-string (symbol->string var-name))
+          (allocated-memory (compile-malloc-int name-string))
+          (set-value-to-pointer (compile-set-value-to-pointer name-string var-value)))
+      (append allocated-memory
+              set-value-to-pointer
+              '(val) (list ASTERISK) (list name-string '= 'int_val_constructor)
+              (compile-parenthesis (string-append "ptr_" name-string))
+              (list SEMICOLON))))
+
+  (define (compile-create-variable-with-string-value var-name string)
+    (let ((name-string (symbol->string var-name))
+          (allocated-memory (compile-malloc-char name-string))
+          (strcpy (compile-strcpy name-string string)))
+      (append allocated-memory
+              strcpy
+              '(val) (list ASTERISK) (list name-string '= 'symbol_val_constructor)
+              (compile-parenthesis (string-append "ptr_" name-string))
+              (list SEMICOLON))))
+
+  (define (compile-unassigned-variable var-name)
+    (list 'val ASTERISK (symbol->string var-name) SEMICOLON))
+
+  (define (make-int-assignment var value)
+    (let ((int-val-pointer (string-append(symbol->string var) "->uni_val.int_val"))
+          (type-num-pointer (string-append(symbol->string var) "->type_num")))
+      (append
+       (list ASTERISK int-val-pointer '= value SEMICOLON)
+       (list ASTERISK type-num-pointer '= 'TYPE_INT SEMICOLON))))
+
+  (define (make-char-assignment var string)
+    (let ((char-val-pointer (string-append(symbol->string var) "->uni_val.char_val"))
+          (type-num-pointer (string-append(symbol->string var) "->type_num")))
+      (append
+       (compile-malloc-char (symbol->string var))
+       (compile-strcpy (symbol->string var) string)
+       (list ASTERISK char-val-pointer '= ASTERISK (string-append
+                                                    "ptr_" (symbol->string var)))
+       (list ASTERISK type-num-pointer '= 'TYPE_STRING SEMICOLON))))
+
+  (define (make-global-created-var-int-assignment var-name value)
+    (let ((name-string (symbol->string var-name))
+          (allocated-memory (compile-malloc-int name-string))
+          (set-value-to-pointer (compile-set-value-to-pointer name-string var-value)))
+      (append allocated-memory
+              set-value-to-pointer
+              (list name-string '= 'int_val_constructor)
+              (compile-parenthesis (string-append "ptr_" name-string))
+              (list SEMICOLON))))
+
+  (define (make-global-created-var-string-assignment var-name value)
+    (let ((name-string (symbol->string var-name))
+          (allocated-memory (compile-malloc-char name-string))
+          (strcpy (compile-strcpy name-string string)))
+      (append allocated-memory
+              strcpy
+              (list name-string '= 'symbol_val_constructor)
+              (compile-parenthesis (string-append "ptr_" name-string))
+              (list SEMICOLON))))
+
+  ;; (compile-unassigned-variable 'try)
+
+  (define (compile-definition-var-global exp env)
+    (let ((return-value (define-variable! (definition-variable exp) env)))
+      (if (eq? return-value 'ok)
+          ;; переменная новая
+          (if (number? (definition-value exp))
+              ;; значение переменной - число
+              (let* ((unassigned-var (compile-unassigned-variable
+                                      (definition-variable exp)))
+                     (service-fn-name (generate-name-string exp))
+                     (assign-var (make-global-created-var-int-assignment
+                                  (definition-variable exp)
+                                  (definition-value exp)))
+                     (call-service-fn (append (list service-fn-name)
+                                              (compile-parenthesis '()))))
+                (list (append unassigned-var
+                              (compile-service-fn service-fn-name assign-var))
+                      (list  call-service-fn)))
+              (let* ((unassigned-var (compile-unassigned-variable
+                                      (definition-variable exp)))
+                     (service-fn-name (generate-name-string exp))
+                     (assign-var (make-global-created-var-string-assignment
+                                  (definition-variable exp)
+                                  (definition-value exp)))
+                     (call-service-fn (append (list service-fn-name)
+                                              (compile-parenthesis '()))))
+                (list (append unassigned-var
+                              (compile-service-fn service-fn-name assign-var))
+                      (list  call-service-fn))))
+          ;; переопределение переменной
+          (let* ((service-fn-name (generate-name-string exp)))
+            (if (number? (definition-value exp))
+                (let* ((assignment (make-int-assignment var value))
+                       (call-service-fn (append (list service-fn-name)
+                                                (compile-parenthesis '()))))
+                  (list (compile-service-fn service-fn-name assignment)
+                        (list call-service-fn)))
+                (let* ((assignment (make-char-assignment var value))
+                       (call-service-fn (append (list service-fn-name)
+                                                (compile-parenthesis '()))))
+                  (list (compile-service-fn service-fn-name assignment)
+                        (list call-service-fn))))))))
+
+
+
+
+  (define (compile-definition-var-local exp env)
+
+    )
+#+END_SRC
+
 #+NAME: code
-#+BEGIN_SRC forth :tangle code.scheme  :noweb tangle :exports code :padline no :comments none
+#+BEGIN_SRC forth :tangle code.scheme :noweb tangle :exports code :padline no :comments none
   <<main>>
   <<list_string>>
   <<service_procedure>>
@@ -1648,4 +1866,5 @@
   <<compile_primitives_constructors>>
   <<compile_args>>
   <<compile_primitives>>
+  <<compile_definition_var>>
 #+END_SRC
