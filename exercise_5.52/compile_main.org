@@ -729,20 +729,22 @@
           (list  'reverse 'reverse)
           (list  'append 'append)
           (list  'assoc 'assoc)
-          (list  'length 'length)
+          (list  'length 'length_compile)
           (list  'last-pair 'last_pair)
-          (list  'true? 'true_predicate)
-          (list  'false? 'false_predicate)
-          (list  'null? 'null_predicate)
-          (list  'pair? 'pair_predicate)
-          (list  'symbol? 'symbol_predicate)
-          (list  'atom? 'atom_predicate)
-          (list  'string? 'string_predicate)
-          (list  'dotpair? 'dotpair_predicate)))
+          (list  'true? 'true_predicate_compile)
+          (list  'false? 'false_predicate_compile)
+          (list  'null? 'null_predicate_compile)
+          (list  'pair? 'pair_predicate_compile)
+          (list  'symbol? 'symbol_predicate_compile)
+          (list  'atom? 'atom_predicate_compile)
+          (list  'string? 'string_predicate_compile)
+          (list  'dotpair? 'dotpair_predicate_compile)))
 
   (define (primitive-procedure-objects)
-    (map (lambda (proc) (list 'primitive (cadr proc)))
-         primitive-procedures))
+    (map (lambda (proc)
+           (list (car proc)
+                 (list 'primitive (cadr proc))))
+         (primitive-proc-bindings)))
 #+END_SRC
 
 Конструируем аналоги сикповых процедур для окружений, только с тем
@@ -811,27 +813,29 @@
 
   (define (setup-environment)
     (let ((initial-env
-           (extend-environment (primitive-proc-bindings)
+           (extend-environment (primitive-procedure-objects)
                                the-empty-environment)))
       initial-env))
 
+  (define global-environment (setup-environment))
+
   ;; тесты
 
-  (define test-env (setup-environment))
+  ;; (define test-env (setup-environment))
 
-  (set! test-env (extend-environment '( f s n l) test-env))
+  ;; (set! test-env (extend-environment '( f s n l) test-env))
 
-  (add-binding-to-frame! 'd (first-frame test-env))
+  ;; (add-binding-to-frame! 'd (first-frame test-env))
 
-  (add-binding-to-frame! '(test_fn compound) (first-frame test-env))
+  ;; (add-binding-to-frame! '(test_fn compound) (first-frame test-env))
 
-  (lookup-variable '(test_fn compound) test-env)
+  ;; (lookup-variable '(test_fn compound) test-env)
 
-  (lookup-variable 's test-env)
+  ;; (lookup-variable 's test-env)
 
-  (lookup-variable '(s n) test-env)
+  ;; (lookup-variable '(s n) test-env)
 
-  (lookup-variable '(car car) test-env)
+  ;; (lookup-variable '(car car) test-env)
 
 #+END_SRC
 
@@ -861,6 +865,7 @@
 #+BEGIN_SRC scheme :noweb yes
   (define (transform-exp exp)
     (define (transform-exp-rec exp list-of-strings)
+      ;; (format #t "transform-exp-rec: exp ~A ~%" exp)
       (if (null? exp)
           list-of-strings
           (let ((first-elt (car exp )))
@@ -875,6 +880,10 @@
                                                           (append list-of-strings
                                                                   '( " ")
                                                                   (list first-elt))))
+                  ((pair? first-elt) (transform-exp-rec (cdr exp)
+                                                        (transform-exp-rec
+                                                         first-elt
+                                                         list-of-strings)))
                   (else
                    (cond ((eq? OPENING_BRACE first-elt)
                           (transform-exp-rec (cdr exp)
@@ -901,7 +910,7 @@
                          ((eq? SEMICOLON first-elt)
                           (transform-exp-rec (cdr exp)
                                              (append list-of-strings (list ";"))))
-                         ((eq? СOMMA first-elt)
+                         ((eq? COMMA first-elt)
                           (transform-exp-rec (cdr exp)
                                              (append list-of-strings (list ", "))))
                          ((eq? ASTERISK first-elt)
@@ -910,14 +919,14 @@
                          ((eq? ELLIPSIS first-elt)
                           (transform-exp-rec (cdr exp)
                                              (append list-of-strings (list " ..."))))
-                         (else
-                          (transform-exp-rec (cdr exp)
-                                             (append list-of-strings
-                                                     (list
-                                                      (string-append
-                                                       " "
-                                                       (symbol->string
-                                                        first-elt))))))))))))
+                         (else (transform-exp-rec (cdr exp)
+                                                  (append list-of-strings
+                                                          (list
+                                                           (string-append
+                                                            " "
+                                                            (symbol->string
+                                                             first-elt))))) )))))))
+    (format #t "transform-exp-rec: exp ~A ~% ~%" exp)
     (transform-exp-rec exp (list)))
 
   (define (compiled-code->string code)
@@ -952,12 +961,13 @@
                                                (compile-brackets
                                                 (list
                                                  'max_symbol_name_length))))))))))
-  ;; (transform-exp test-exp)
+  (transform-exp test-exp)
 
-  ;; (transform-exp test-exp2)
+  (transform-exp test-exp2)
 
-  ;; (compiled-code->string (list test-exp
-  ;;                              test-exp2))
+  (compiled-code->string (list test-exp
+                               test-exp2))
+
 #+END_SRC
 
 Данный алгоритм впечатывает преобразованный в строку код в файл, попутно
@@ -1142,6 +1152,7 @@
                                  (list (string-append "ptr_" var-name) '=))))
       (append char-pointer malloc-char (list SEMICOLON))))
 
+
   ;; (compile-malloc-char "dzen")
   ;; (print-code (transform-exp (compile-malloc-char "dzen")))
 
@@ -1149,9 +1160,9 @@
     (append
      '(strncpy) (compile-parenthesis
                  (append (list (string-append "ptr_" var-name))
-                         (list СOMMA)
+                         (list COMMA)
                          (list string)
-                         (list СOMMA)
+                         (list COMMA)
                          (list 100)))
      (list SEMICOLON)))
 
@@ -1350,7 +1361,7 @@
   ;; (print-code( transform-exp (compile-assoc '( some-key some-list))))
 
   (define (compile-length args)
-    (append '(length)
+    (append '(length_compile)
             (compile-parenthesis args)
             (list SEMICOLON)
             ))
@@ -1394,35 +1405,34 @@
             ))
 
   (define (compile-true? args)
-    (append '(true_predicate)
+    (append '(true_predicate_compile)
             (compile-parenthesis args)
             (list SEMICOLON)
             ))
 
   (define (compile-false? args)
-    (append '(false_predicate)
+    (append '(false_predicate_compile)
             (compile-parenthesis args)
             (list SEMICOLON)
             ))
 
   (define (compile-null? args)
-    (append '(null_predicate)
+    (append '(null_predicate_compile)
             (compile-parenthesis args)
             (list SEMICOLON)
             ))
 
   (define (compile-pair? args)
-    (append '(pair_predicate)
+    (append '(pair_predicate_compile)
             (compile-parenthesis args)
             (list SEMICOLON)
             ))
 
   (define (compile-atom? args)
-    (append '(atom_predicate)
+    (append '(atom_predicate_compile)
             (compile-parenthesis args)
             (list SEMICOLON)
             ))
-
 
   (print-code (compiled-code->string
                (list (compile-list '("\" 3 \"" 1 2 d))
@@ -1456,6 +1466,7 @@
 - переменными
 - строками
 - числами
+
 #+NAME: compile_args
 #+BEGIN_SRC scheme :noweb yes
   (define (self-evaluating? exp)
@@ -1468,11 +1479,24 @@
         (compile-numbers exp)
         (compile-strings exp)))
 
+  (define (compile-application exp env)
+    (cond ((primitive-proc? exp env)
+           (compile-primitive exp env))
+          ;; (compound-proc? exp)
+          ;; (compile-compound exp env))
+          (else true)))
+
+  (primitive-proc? '(list 1 2 3 4) global-environment)
+  (primitive-proc? '(cons 1 2 3 4) global-environment)
+  (primitive-proc? '(map 1 2 3 4) global-environment)
+
+  (compile-application '(list 1 2 3 4) global-environment)
+
   (define (compile exp env)
     ;; (format #t "compile: exp ~A ~%" exp)
     (cond ((self-evaluating? exp)
            (compile-self-evaluating exp))
-          (else true)))
+          (else (compile-application exp env))))
 
   ;; (compile 1 '())
 
@@ -1480,8 +1504,8 @@
     (define (compile-args-rec args compiled-code)
       (if (null? args)
           (begin
-          ;; (format #t "compile-args-rec: compiled-code ~A ~%" compiled-code)
-          compiled-code)
+            ;; (format #t "compile-args-rec: compiled-code ~A ~%" compiled-code)
+            compiled-code)
           (let* ((compiled-arg-code (compile (car args) env)))
             ;; (format #t "compile-args-rec: compiled-arg-code ~A ~%" compiled-arg-code)
             (compile-args-rec (cdr args) (append compiled-code (list
@@ -1490,17 +1514,39 @@
     ;; (format #t "compile-args: args ~A ~%" args)
     (compile-args-rec (cdr args) (list (compile (car args) env))))
 
-  (define (connect-all-exps lst)
+#+END_SRC
+
+#+NAME: compile_primitives
+#+BEGIN_SRC scheme :noweb yes
+  (define (primitive-proc? exp env)
+    (let* ((op (operator exp))
+           (value (lookup-variable op env)))
+      (if (pair? value)
+          (let ((proc-binding (cadr value)))
+            (if (eq? 'primitive (car proc-binding))
+                true
+                false))
+          false)))
+
+  (define (connect-compiled-exps compiled-exps-with-names)
     (define (connect-all-exps-rec lst new-lst)
       (if (null? lst)
           new-lst
-          (connect-all-exps-rec (cdr lst) (append new-lst (car lst)))))
-    (connect-all-exps-rec lst '()))
+          (let ((compiled-exp (caar lst)))
+            (connect-all-exps-rec (cdr lst) (append new-lst compiled-exp)))))
+    (connect-all-exps-rec compiled-exps-with-names '()))
+
+  (define (compile-application exp env)
+    (cond ((primitive-proc? exp env)
+           (compile-primitive exp env))
+          ;; (compound-proc? exp)
+          ;; (compile-compound exp env))
+          (else true)))
 
   (define (compile-primitive exp env)
     (define (compile-cur-primitive compiled-args-names)
-      (format #t "compile-cur-primitive: compiled-args-names ~A ~%"
-              compiled-args-names)
+      ;; (format #t "compile-cur-primitive: compiled-args-names ~A ~%"
+      ;;         compiled-args-names)
       (cond ((eq? (operator exp) 'list)
              (compile-list compiled-args-names))
             ((eq? (operator exp) 'cons)
@@ -1521,14 +1567,14 @@
              (compile-length compiled-args-names))
             ((eq? (operator exp) 'last-pair)
              (compile-last-pair compiled-args-names))
-            ((eq? (operator exp) 'add)
-             (compile-add compiled-args-names))
-            ((eq? (operator exp) 'sub)
-             (compile-sub compiled-args-names))
-            ((eq? (operator exp) 'mul)
-             (compile-mul compiled-args-names))
-            ((eq? (operator exp) 'division)
-             (compile-division compiled-args-names))
+            ((eq? (operator exp) '+)
+             (compile-add (compile-list compiled-args-names)))
+            ((eq? (operator exp) '-)
+             (compile-sub (compile-list compiled-args-names)))
+            ((eq? (operator exp) '*)
+             (compile-mul (compile-list compiled-args-names)))
+            ((eq? (operator exp) '/)
+             (compile-division (compile-list compiled-args-names)))
             ((eq? (operator exp) 'reverse)
              (compile-reverse compiled-args-names))
             ((eq? (operator exp) 'true?)
@@ -1545,23 +1591,44 @@
     (let* ((compiled-args
             (compile-args (operands exp) env))
            (compiled-args-names (map (lambda (code)
-                                       ;; (format #t "code ~A ~%" code)
                                        (caadr code))
                                      compiled-args))
-           (pre-result  (append
-                         (connect-all-exps (map (lambda (code)
-                                (format #t "code ~A ~%" code)
-                                (car code))
-                              compiled-args))
-                        '(return)
-                        (compile-cur-primitive compiled-args-names)))
+           (pre-result (append (connect-compiled-exps compiled-args)
+                               '(return)
+                               (compile-cur-primitive compiled-args-names)))
            (service-fn-name (generate-name-string exp))
            (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+      ;; (format #t "compile-cur-primitive: compiled-args ~A ~%"
+      ;;         compiled-args)
+      ;; (format #t "compile-cur-primitive: call-service-fn ~A ~%"
+      ;;         call-service-fn)
+      ;; (format #t "compile-cur-primitive: return val ~A ~%"
+      ;;         (list (compile-service-fn service-fn-name pre-result)
+      ;;               call-service-fn))
       (list (compile-service-fn service-fn-name pre-result)
-            call-service-fn)))
+           (list  call-service-fn))))
+#+END_SRC
 
+#+NAME: compile_primitive_tests
+#+BEGIN_SRC scheme :noweb yes
+  (print-code (compiled-code->string (compile '(list 1 2) global-environment)))
 
-  (print-code (compiled-code->string (compile-primitive '(list 1 2 3 4) '())))
+  (print-code (compiled-code->string (compile '(cons 1 2) global-environment)))
+
+  (print-code (compiled-code->string (compile '(car (car (list (list 1 2) 3)))
+                                              global-environment)))
+
+  (print-code (compiled-code->string (compile '(car (cons 1 2)) global-environment)))
+
+  (print-code (compiled-code->string (compile '(assoc 3 (list
+                                                         (cons 1 2) (cons 3 4)))
+                                              global-environment)))
+
+  (print-code (compiled-code->string (compile '(+ 1 2 3) global-environment)))
+
+  (print-code (compiled-code->string (compile '(+ 1 ( * 2 3)) global-environment)))
+
+  (print-code (compiled-code->string (compile '(true? 2) global-environment)))
 #+END_SRC
 
 #+NAME: code
@@ -1574,9 +1641,11 @@
   <<environment>>
   <<trasform_code>>
   <<print_code>>
-  <<compile_int_and_char_constructors>>
+  <<compile_int_constructors>>
   <<compile_symbol_constructors>>
   <<compile_numbers>>
   <<compile_symbols>>
   <<compile_primitives_constructors>>
+  <<compile_args>>
+  <<compile_primitives>>
 #+END_SRC
