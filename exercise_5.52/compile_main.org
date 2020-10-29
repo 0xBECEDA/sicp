@@ -799,6 +799,7 @@
       (define (scan vars)
         (cond ((null? vars)
                (begin
+                 (format #t "define-variable!: переменная новая ~%" )
                  (add-binding-to-frame! var frame)
                  'ok))
               ((and (pair? var) (pair? (car vars)))
@@ -809,7 +810,7 @@
                (if (eq? var (caar vars))
                    (car vars)
                    (scan (cdr vars))))
-              ((eq? var (car vars)) 'ok)
+              ((eq? var (car vars)) (car vars))
               (else (scan (cdr vars)))))
       (scan frame)))
 
@@ -1491,11 +1492,11 @@
           ;; (compile-compound exp env))
           (else true)))
 
-  (primitive-proc? '(list 1 2 3 4) global-environment)
-  (primitive-proc? '(cons 1 2 3 4) global-environment)
-  (primitive-proc? '(map 1 2 3 4) global-environment)
+  ;; (primitive-proc? '(list 1 2 3 4) global-environment)
+  ;; (primitive-proc? '(cons 1 2 3 4) global-environment)
+  ;; (primitive-proc? '(map 1 2 3 4) global-environment)
 
-  (compile-application '(list 1 2 3 4) global-environment)
+  ;; (compile-application '(list 1 2 3 4) global-environment)
 
   (define (compile exp env)
     ;; (format #t "compile: exp ~A ~%" exp)
@@ -1726,7 +1727,7 @@ define, так для начала проще реализовывать. К т�
 добавится дополнительый кадр с ее формальными параметрами, который
 исчезнет после того, как компиляция фнукции будет закончена.
 
-#+NAME: compile_definition_var
+#+NAME: compile_service_assignments
 #+BEGIN_SRC scheme :noweb yes
   (define (global-env? env)
     ( = ( length env) 1))
@@ -1739,8 +1740,7 @@ define, так для начала проще реализовывать. К т�
   (define (compile-definition-var exp env)
     (if (global-env? env)
         (compile-definition-var-global exp env)
-        (compile-definition-var-loсal exp env)))
-
+        (compile-definition-var-local exp env)))
 
   ;; компиляция переменной, содержащей в себе число
   ;; подходит для локальных переменных
@@ -1771,11 +1771,12 @@ define, так для начала проще реализовывать. К т�
 
   ;; присваивание числового значения переменной
   (define (make-int-assignment var value)
+    (format #t "make-int-assignment ~%")
     (let ((int-val-pointer (string-append(symbol->string var) "->uni_val.int_val"))
           (type-num-pointer (string-append(symbol->string var) "->type_num")))
       (append
        (list ASTERISK int-val-pointer '= value SEMICOLON)
-       (list ASTERISK type-num-pointer '= 'TYPE_INT SEMICOLON))))
+       (list type-num-pointer '= "TYPE_INT" SEMICOLON))))
 
   ;; присваивание значния-строки переменной
   (define (make-char-assignment var string)
@@ -1784,9 +1785,10 @@ define, так для начала проще реализовывать. К т�
       (append
        (compile-malloc-char (symbol->string var))
        (compile-strcpy (symbol->string var) string)
-       (list ASTERISK char-val-pointer '= ASTERISK (string-append
-                                                    "ptr_" (symbol->string var)))
-       (list ASTERISK type-num-pointer '= 'TYPE_STRING SEMICOLON))))
+       (list char-val-pointer '= (string-append
+                                   "ptr_" (symbol->string var))
+              SEMICOLON)
+       (list type-num-pointer '= "TYPE_STRING" SEMICOLON))))
 
   ;; присваивание числового значения уже существующей переменной
   (define (make-global-created-var-int-assignment var-name value)
@@ -1812,6 +1814,14 @@ define, так для начала проще реализовывать. К т�
 
   ;; (compile-unassigned-variable 'try)
 
+
+  ;; (define (compile-definition-var-local exp env)
+
+  ;;   )
+#+END_SRC
+
+#+NAME: compile_definition_global_var
+#+BEGIN_SRC scheme :noweb yes
   ;; компиляция глобальной переменной (пока что не поддерживает компиляцию функций)
   (define (compile-definition-var-global exp env)
     (let ((return-value (define-variable! (definition-variable exp) env)))
@@ -1819,60 +1829,55 @@ define, так для начала проще реализовывать. К т�
           ;; переменная новая
           (if (number? (definition-value exp))
               (begin
-                (format #t "новая переменная - число ~%")
+                (format #t "новая глобальная переменная - число ~%")
 
-              ;; значение переменной - число
-              (let* ((unassigned-var (compile-unassigned-variable
-                                      (definition-variable exp)))
-                     (service-fn-name (generate-name-string exp))
-                     (assign-var (make-global-created-var-int-assignment
-                                  (definition-variable exp)
-                                  (definition-value exp)))
-                     (call-service-fn (append (list service-fn-name)
-                                              (compile-parenthesis '()))))
-                (list (append unassigned-var
-                              (compile-service-fn service-fn-name assign-var))
-                      (list  call-service-fn))))
+                ;; значение переменной - число
+                (let* ((unassigned-var (compile-unassigned-variable
+                                        (definition-variable exp)))
+                       (service-fn-name (generate-name-string exp))
+                       (assign-var (make-global-created-var-int-assignment
+                                    (definition-variable exp)
+                                    (definition-value exp)))
+                       (call-service-fn (append (list service-fn-name)
+                                                (compile-parenthesis '()))))
+                  (list (append unassigned-var
+                                (compile-service-fn service-fn-name assign-var))
+                        (list  call-service-fn))))
               (begin
-                (format #t "новая переменная - строка ~%")
-              ;; значение переменной - строка
-              (let* ((unassigned-var (compile-unassigned-variable
-                                      (definition-variable exp)))
-                     (service-fn-name (generate-name-string exp))
-                     (assign-var (make-global-created-var-string-assignment
-                                  (definition-variable exp)
-                                  (definition-value exp)))
-                     (call-service-fn (append (list service-fn-name)
-                                              (compile-parenthesis '()))))
-                (list (append unassigned-var
-                              (compile-service-fn service-fn-name assign-var))
-                      (list  call-service-fn)))))
+                (format #t "новая глобальная переменная - строка ~%")
+                ;; значение переменной - строка
+                (let* ((unassigned-var (compile-unassigned-variable
+                                        (definition-variable exp)))
+                       (service-fn-name (generate-name-string exp))
+                       (assign-var (make-global-created-var-string-assignment
+                                    (definition-variable exp)
+                                    (definition-value exp)))
+                       (call-service-fn (append (list service-fn-name)
+                                                (compile-parenthesis '()))))
+                  (list (append unassigned-var
+                                (compile-service-fn service-fn-name assign-var))
+                        (list  call-service-fn)))))
           ;; переопределение переменной
           (begin
-            (format #t "переменная уже была определена ~%")
+            (format #t "глобальная переменная уже была определена ~%")
 
             (let* ((service-fn-name (generate-name-string exp)))
               (if (number? (definition-value exp))
-                  (let* ((assignment (make-int-assignment var value))
+                  (let* ((assignment (make-int-assignment (definition-variable exp)
+                                                          (definition-value exp)))
                          (call-service-fn (append (list service-fn-name)
                                                   (compile-parenthesis '()))))
                     (list (compile-service-fn service-fn-name assignment)
                           (list call-service-fn)))
-                  (let* ((assignment (make-char-assignment var value))
+                  (let* ((assignment (make-char-assignment(definition-variable exp)
+                                                          (definition-value exp)))
                          (call-service-fn (append (list service-fn-name)
                                                   (compile-parenthesis '()))))
                     (list (compile-service-fn service-fn-name assignment)
                           (list call-service-fn)))))))))
-
-
-
-
-  ;; (define (compile-definition-var-local exp env)
-
-  ;;   )
 #+END_SRC
 
-#+NAME: compile_definition_var_tests
+#+NAME: compile_definition_var_global_tests
 #+BEGIN_SRC scheme :noweb yes
   (print-code
    (compiled-code->string(compile-definition-var '(define n 10) global-environment)))
@@ -1886,6 +1891,68 @@ define, так для начала проще реализовывать. К т�
 
 #+END_SRC
 
+#+NAME: compile_definition_local_var
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-definition-var-local exp env)
+    (let ((return-value (define-variable! (definition-variable exp) env)))
+      (if (eq? return-value 'ok)
+          ;; переменная новая
+          (if (number? (definition-value exp))
+              (begin
+                (format #t "новая локальная переменная - число ~%")
+                (let* ((variable-code
+                        (compile-create-variable-with-num-value (definition-variable exp)
+                                                                (definition-value exp))))
+                  ;; (append variable-code (list (list (definition-variable exp))))
+                  (format #t "variable-code ~A ~%" variable-code)
+                  variable-code))
+              (begin
+                (format #t "новая локальная переменная - строка  ~%")
+                (let* ((variable-code
+                        (compile-create-variable-with-string-value
+                         (definition-variable exp)
+                         (definition-value exp))))
+                  ;; (append variable-code (list (list (definition-variable exp))))
+                  (format #t "variable-code ~A ~%" variable-code)
+                  variable-code)))
+          ;; переопределение переменной
+          (begin
+            (format #t "локальная переменная уже была определена ~%")
+            (if (number? (definition-value exp))
+                (let* ((assignment (make-int-assignment (definition-variable exp)
+                                                        (definition-value exp))))
+                  ;; (append assignment (list (definition-variable exp)))
+                  (format #t "variable-code ~A ~%" assignment)
+                  assignment)
+
+                (let* ((assignment (make-char-assignment(definition-variable exp)
+                                                        (definition-value exp))))
+                  ;; (append assignment (list (list (definition-variable exp))))
+                  (format #t "variable-code ~A ~%" assignment)
+                  assignment))))))
+#+END_SRC
+
+#+NAME: compile_definition_var_global_tests
+#+BEGIN_SRC scheme :noweb yes
+  ;; должен вернуть код для присваивания переменной нового значения
+  (print-code
+   (transform-exp( compile-definition-var '(define n 10) (cons '(s l n)
+                                                              global-environment))))
+  ;; должен вернуть код для создания локальной переменной
+  (print-code
+   (transform-exp( compile-definition-var '(define d 10) (cons '(s l n)
+                                                               global-environment))))
+  ;; должен вернуть код для присваивания переменной нового значения
+  (print-code
+   (transform-exp( compile-definition-var '(define s "\"some-string\"")
+                                          (cons '(s l n)
+                                                global-environment))))
+  ;; должен вернуть код для создания локальной переменной
+  (print-code
+   (transform-exp( compile-definition-var '(define f "\"some-string\"")
+                                          (cons '(s l n)
+                                                global-environment))))
+#+END_SRC
 #+NAME: code
 #+BEGIN_SRC forth :tangle code.scheme :noweb tangle :exports code :padline no :comments none
   <<main>>
