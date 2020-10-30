@@ -945,7 +945,7 @@
           (begin
             (append list-of-strings (transform-exp (car code))
                     (rec-compiled-code->string (cdr code) list-of-strings)))))
-    (rec-compiled-code->string code '()))
+    (rec-compiled-code->string (list code) '()))
 
   (define test-exp
     (compile-main
@@ -967,12 +967,12 @@
                                                (compile-brackets
                                                 (list
                                                  'max_symbol_name_length))))))))))
-  (transform-exp test-exp)
+  ;; (transform-exp test-exp)
 
-  (transform-exp test-exp2)
+  ;; (transform-exp test-exp2)
 
-  (compiled-code->string (list test-exp
-                               test-exp2))
+  ;; (print-code (compiled-code->string (list test-exp
+  ;;                                          test-exp2)))
 
 #+END_SRC
 
@@ -1480,6 +1480,9 @@
           ((string? exp) true)
           (else false)))
 
+  (define (true? exp)
+    (not (false? exp)))
+
   (define (compile-self-evaluating exp)
     (if (number? exp)
         (compile-numbers exp)
@@ -1499,10 +1502,22 @@
   ;; (compile-application '(list 1 2 3 4) global-environment)
 
   (define (compile exp env)
-    ;; (format #t "compile: exp ~A ~%" exp)
+    (format #t "compile: exp ~A ~%" exp)
     (cond ((self-evaluating? exp)
            (compile-self-evaluating exp))
+          ((variable? exp)
+           (compile-variable exp env)) ;; проверить, сработает ли
+          ((definition? exp)
+           (compile-definition exp env))
+          ((begin? exp)
+           (compile-sequences (begin-actions exp)
+                              env))
           (else (compile-application exp env))))
+
+  (define (compile-variable exp env)
+    (if (true? (lookup-variable exp env))
+        (list (list 'existing_var exp)
+              (list exp))))
 
   ;; (compile 1 '())
 
@@ -1510,14 +1525,14 @@
     (define (compile-args-rec args compiled-code)
       (if (null? args)
           (begin
-            ;; (format #t "compile-args-rec: compiled-code ~A ~%" compiled-code)
+            (format #t "compile-args-rec: compiled-code ~A ~%" compiled-code)
             compiled-code)
           (let* ((compiled-arg-code (compile (car args) env)))
             ;; (format #t "compile-args-rec: compiled-arg-code ~A ~%" compiled-arg-code)
             (compile-args-rec (cdr args) (append compiled-code (list
                                                                 compiled-arg-code))))))
 
-    ;; (format #t "compile-args: args ~A ~%" args)
+    (format #t "compile-args: args ~A ~%" args)
     (compile-args-rec (cdr args) (list (compile (car args) env))))
 
 #+END_SRC
@@ -1525,6 +1540,7 @@
 #+NAME: compile_primitives
 #+BEGIN_SRC scheme :noweb yes
   (define (primitive-proc? exp env)
+    (format #t "primitive proc exp ~A ~%" exp)
     (let* ((op (operator exp))
            (value (lookup-variable op env)))
       (if (pair? value)
@@ -1539,7 +1555,10 @@
       (if (null? lst)
           new-lst
           (let ((compiled-exp (caar lst)))
-            (connect-all-exps-rec (cdr lst) (append new-lst compiled-exp)))))
+            (if (and (pair? compiled-exp)
+                     (eq? (car compiled-exp) 'existing_var))
+                (connect-all-exps-rec (cdr lst) new-lst)
+                (connect-all-exps-rec (cdr lst) (append new-lst compiled-exp))))))
     (connect-all-exps-rec compiled-exps-with-names '()))
 
   (define (compile-application exp env)
@@ -1548,6 +1567,8 @@
           ;; (compound-proc? exp)
           ;; (compile-compound exp env))
           (else true)))
+
+  (compile-application '(+ x 2)  (cons '(x) global-environment))
 
   (define (compile-primitive exp env)
     (define (compile-cur-primitive compiled-args-names)
@@ -1593,7 +1614,7 @@
              (compile-pair? compiled-args-names))
             ((eq? (operator exp) 'atom?)
              (atom? compiled-args-names))
-            (else (error "Неизвестный примитив -- compile-primitive"))))
+            (else (error "Неизвестный примитив -- compile-primitive" (operator exp)))))
     (let* ((compiled-args
             (compile-args (operands exp) env))
            (compiled-args-names (map (lambda (code)
@@ -1890,6 +1911,10 @@ define, так для начала проще реализовывать. К т�
                                                  global-environment)))
 
 #+END_SRC
+Компиляция локальных переменных несколько проще, чем компиляция
+глобальных - переменную не надо объявлять заранее, - так что это очень
+похоже на компиляцию чисел или строк - просто нам не нужно будет
+генерировать имя для для них, оно у нас уже есть.
 
 #+NAME: compile_definition_local_var
 #+BEGIN_SRC scheme :noweb yes
@@ -1953,6 +1978,120 @@ define, так для начала проще реализовывать. К т�
                                           (cons '(s l n)
                                                 global-environment))))
 #+END_SRC
+
+~Копиляция функций~
+Основная сложность состоит в том, чтоб правильно скомпилировать тело функции.
+Тело функции представляет собой последовательность выражений. Так что нам
+просто нужно скомпилировать выражение одно за другим.
+
+Функция ~compile-sequences~ компилирует выражение одно за другим и
+возвращает список, где сar списка - это скомпилированный код выражений, а
+cdr - это имена скомпилированных блоков: имена переменных, служебных
+функци и т.д. Это обеспечит легкий доступ - вызов - скомпилированных
+блоков.
+
+#+NAME: compile_sequences
+#+BEGIN_SRC scheme :noweb yes
+  ;; (define (compile-sequences sequenses env)
+  ;;   (define (compile-sequences-rec sequenses compiled-code)
+  ;;     (if (null? sequenses)
+  ;;         compiled-code
+  ;;         (compile-sequences-rec (cdr sequenses)
+  ;;                                (append compiled-code (compile (car sequenses) env)))))
+  ;;   (format #t "compile-sequences ~A ~%" compile-sequences)
+  ;;   (compile-sequences-rec sequenses '()))
+
+  (define (compile-sequences sequenses env)
+    (define (compile-sequences-rec sequenses)
+      (if (null? sequenses)
+          '()
+          (cons (compile (car sequenses) env)
+                (compile-sequences-rec (cdr sequenses)))))
+    ;; (format #t "sequenses ~A ~%" sequenses)
+    ;; (format #t "sequenses env ~A ~%" env)
+    (let* ((compiled-code-with-names (compile-sequences-rec sequenses)))
+           (format #t "compiled-code-with-names ~A ~%" compiled-code-with-names)
+      (let*  ((compiled-code (connect-compiled-exps compiled-code-with-names))
+              (compiled-code-names (map (lambda (code)
+                                          (caadr code))
+                                        compiled-code-with-names)))
+        ;; (format #t "compiled-code-names ~A ~%" compiled-code-names)
+        (format #t "compiled-code ~A ~%" compiled-code)
+        (list compiled-code compiled-code-names))))
+
+  ;; (print-code (compiled-code->string (compile '(begin
+  ;;                                                (define n 10)
+  ;;                                                (list 1 2 3)
+  ;;                                                6) global-environment)))
+
+
+  (print-code (compiled-code->string (compile '(begin (+ x 1) (+ x 2))
+                                              (cons '(x)
+                                                    global-environment))))
+
+#+END_SRC
+
+Теперь нужно скомпилировать само определение функции. Для этого нужно
+вытащить формальные параметры, имя функции и правильно установить
+возвращаемое значение - это будет вызов или имя (если после выражение -
+это самовычисляющееся выражение, например) последнего выражения.
+
+В лиспе все функции - это по сути лямбды, даже если они
+именовынные. Просто в случае если они именованные, то значением
+переменной становится лямбда. Но у си несколько другая логика
+языка. Во-первых, в си отсутствют лямбды в принципе - чтоб их
+эмулировать, нам придесят генерировать служебное имя для функции, чтоб к
+ней можно было обратиться.
+Во-вторых, в си нельзя присвоить глобальной переменной в качестве
+значения неконстанту или же определение чего-либо. Следовательно, подход
+лиспа - когда мы при определении функции сначала превращали ее в лямбду,
+компилировали ее, а затем присваивали скомпиленное переменной - в си
+может сработать, но будет куда менее удобным.
+
+Так что мы создадим функцию для компиляции функции (простите за
+тавтологию), которая будет принимать: имя функции, формальные параметры,
+тело и окружение.
+Таким образом с помощью одного и того же инструмента мы свожем
+компилировать как лямбды, так и именованные функции. Просто для лямбд
+будем генерировать имя функции, а для именованных передавать как есть.
+
+#+NAME: compile_sequences
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-fn-params-in-c-syntax params)
+    (define (compile-fn-params-in-c-syntax-rec params-lisp params-c)
+      (if (null? params-lisp)
+          params-c
+          (let ((cur-param (if (null? (cdr params-lisp))
+                               (list 'val ASTERISK (car params-lisp))
+                               (list 'val ASTERISK (car params-lisp) COMMA))))
+            (compile-fn-params-in-c-syntax-rec (cdr params-lisp)
+                                               (append params-c cur-param)))))
+    ;; (format #t "~A ~%" params)
+    (compile-fn-params-in-c-syntax-rec params '()))
+
+  (define (compile-function fn-name params body env)
+    (let* ((new-env (extend-environment params env))
+           (compiled-body-with-names (compile-sequences body new-env))
+           (compiled-body (car compiled-body-with-names))
+           (names-and-calls (cadr compiled-body-with-names))
+           (return-value (append '(return) (last-pair names-and-calls) (list SEMICOLON)))
+           (param-in-c-syntax (compile-fn-params-in-c-syntax params)))
+      (append (list 'val ASTERISK fn-name)
+              (compile-parenthesis param-in-c-syntax)
+              (compile-braces
+               (append compiled-body
+                       return-value)))))
+
+
+  ;;пробуем скомпилить данный пример
+  ;; (define (test x)
+  ;;   (+ x 1)
+  ;;   (+ x 2))
+
+  ;; (print-code (compiled-code->string
+  ;;              (compile-function 'test '(x) '((+ x 1) (+ x 2)) global-environment)))
+#+END_SRC
+
 #+NAME: code
 #+BEGIN_SRC forth :tangle code.scheme :noweb tangle :exports code :padline no :comments none
   <<main>>
