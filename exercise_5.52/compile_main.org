@@ -1049,13 +1049,13 @@
 ~Компиляция примитивов~
 
 Предположим, компилятору на вход поступило выражение:
-#+NAME: compile_primitives
+#+NAME: compile_primitives_lisp_example
 #+BEGIN_SRC scheme :noweb yes
   (list 1 2 3 4 5)
 #+END_SRC
 
 Оно должно превратиться в это:
-#+NAME: compile_primitives
+#+NAME: compile_primitives_c_example
 #+BEGIN_SRC c :noweb yes
   val* some_fn() {
       int* ptr_a = malloc(sizeof(int));
@@ -1488,18 +1488,9 @@
         (compile-numbers exp)
         (compile-strings exp)))
 
-  (define (compile-application exp env)
-    (cond ((primitive-proc? exp env)
-           (compile-primitive exp env))
-          ;; (compound-proc? exp)
-          ;; (compile-compound exp env))
-          (else true)))
-
   ;; (primitive-proc? '(list 1 2 3 4) global-environment)
   ;; (primitive-proc? '(cons 1 2 3 4) global-environment)
   ;; (primitive-proc? '(map 1 2 3 4) global-environment)
-
-  ;; (compile-application '(list 1 2 3 4) global-environment)
 
   (define (compile exp env)
     (format #t "compile: exp ~A ~%" exp)
@@ -1525,14 +1516,14 @@
     (define (compile-args-rec args compiled-code)
       (if (null? args)
           (begin
-            (format #t "compile-args-rec: compiled-code ~A ~%" compiled-code)
+            ;; (format #t "compile-args-rec: compiled-code ~A ~%" compiled-code)
             compiled-code)
           (let* ((compiled-arg-code (compile (car args) env)))
             ;; (format #t "compile-args-rec: compiled-arg-code ~A ~%" compiled-arg-code)
             (compile-args-rec (cdr args) (append compiled-code (list
                                                                 compiled-arg-code))))))
 
-    (format #t "compile-args: args ~A ~%" args)
+    ;; (format #t "compile-args: args ~A ~%" args)
     (compile-args-rec (cdr args) (list (compile (car args) env))))
 
 #+END_SRC
@@ -1540,7 +1531,7 @@
 #+NAME: compile_primitives
 #+BEGIN_SRC scheme :noweb yes
   (define (primitive-proc? exp env)
-    (format #t "primitive proc exp ~A ~%" exp)
+    ;; (format #t "primitive proc exp ~A ~%" exp)
     (let* ((op (operator exp))
            (value (lookup-variable op env)))
       (if (pair? value)
@@ -1736,7 +1727,7 @@ define, так для начала проще реализовывать. К т�
 
   (define (compile-definition exp env)
     (if (definition-fn? exp)
-        (compile-definition-fn exp env)
+        (compile-named-function exp env)
         (compile-definition-var exp env)))
 #+END_SRC
 
@@ -1833,6 +1824,10 @@ define, так для начала проще реализовывать. К т�
               (compile-parenthesis (string-append "ptr_" name-string))
               (list SEMICOLON))))
 
+  ;; присваивание значения-символа уже существующей переменной
+  (define (make-global-created-var-symbol-assignment var-name symbol)
+    (list var-name '= symbol SEMICOLON))
+
   ;; (compile-unassigned-variable 'try)
 
 
@@ -1848,54 +1843,97 @@ define, так для начала проще реализовывать. К т�
     (let ((return-value (define-variable! (definition-variable exp) env)))
       (if (eq? return-value 'ok)
           ;; переменная новая
-          (if (number? (definition-value exp))
-              (begin
-                (format #t "новая глобальная переменная - число ~%")
+          (let* ((service-fn-name (generate-name-string exp))
+                 (call-service-fn (append (list service-fn-name)
+                                          (compile-parenthesis '()))))
 
-                ;; значение переменной - число
-                (let* ((unassigned-var (compile-unassigned-variable
-                                        (definition-variable exp)))
-                       (service-fn-name (generate-name-string exp))
-                       (assign-var (make-global-created-var-int-assignment
-                                    (definition-variable exp)
-                                    (definition-value exp)))
-                       (call-service-fn (append (list service-fn-name)
-                                                (compile-parenthesis '()))))
-                  (list (append unassigned-var
-                                (compile-service-fn service-fn-name assign-var))
-                        (list  call-service-fn))))
-              (begin
-                (format #t "новая глобальная переменная - строка ~%")
-                ;; значение переменной - строка
-                (let* ((unassigned-var (compile-unassigned-variable
-                                        (definition-variable exp)))
-                       (service-fn-name (generate-name-string exp))
-                       (assign-var (make-global-created-var-string-assignment
-                                    (definition-variable exp)
-                                    (definition-value exp)))
-                       (call-service-fn (append (list service-fn-name)
-                                                (compile-parenthesis '()))))
-                  (list (append unassigned-var
-                                (compile-service-fn service-fn-name assign-var))
-                        (list  call-service-fn)))))
+            (cond ((number? (definition-value exp))
+                   (begin
+                     ;; (format #t "новая глобальная переменная - число ~%")
+
+                     ;; значение переменной - число
+                     (let* ((unassigned-var (compile-unassigned-variable
+                                             (definition-variable exp)))
+                            (assign-var (make-global-created-var-int-assignment
+                                         (definition-variable exp)
+                                         (definition-value exp))))
+                       (list (append unassigned-var
+                                     (compile-service-fn service-fn-name assign-var))
+                             (list  call-service-fn)))))
+                  ((string? (definition-value exp))
+                   (begin
+                     ;; (format #t "новая глобальная переменная - строка ~%")
+                     ;; значение переменной - строка
+                     (let* ((unassigned-var (compile-unassigned-variable
+                                             (definition-variable exp)))
+                            (assign-var (make-global-created-var-string-assignment
+                                         (definition-variable exp)
+                                         (definition-value exp))))
+                       (list (append unassigned-var
+                                     (compile-service-fn service-fn-name assign-var))
+                             (list  call-service-fn)))))
+                  ;; значение переменной - символ (т.е. другая переменная)
+                  ((symbol? (definition-value exp))
+                   (if (lookup-variable (definition-value exp) env)
+                       (let* ((unassigned-var (compile-unassigned-variable
+                                               (definition-variable exp)))
+                              (assign-var (make-global-created-var-symbol-assignment
+                                           (definition-variable exp)
+                                           (definition-value exp))))
+                         (list (append unassigned-var
+                                       (compile-service-fn service-fn-name assign-var))
+                               (list  call-service-fn)))))
+                  ;; значение переменной - вызов функции
+                  (else
+                   (let* ((compile-definition-value
+                           (compile (definition-value exp) env))
+                          (definition-value-call (cadr compile-definition-value))
+                          (unassigned-var (compile-unassigned-variable
+                                           (definition-variable exp)))
+                          (service-fn-name (generate-name-string exp))
+                          (assign-var (list (definition-variable exp) '=
+                                            definition-value-call SEMICOLON))
+                          (call-service-fn (append (list service-fn-name)
+                                                   (compile-parenthesis '()))))
+                     (list (append unassigned-var
+                                   (car compile-definition-value)
+                                   (compile-service-fn service-fn-name assign-var))
+                           (list  call-service-fn))))))
           ;; переопределение переменной
-          (begin
-            (format #t "глобальная переменная уже была определена ~%")
+            (let* ((service-fn-name (generate-name-string exp))
+                   (call-service-fn (append (list service-fn-name)
+                                            (compile-parenthesis '()))))
 
-            (let* ((service-fn-name (generate-name-string exp)))
-              (if (number? (definition-value exp))
-                  (let* ((assignment (make-int-assignment (definition-variable exp)
-                                                          (definition-value exp)))
-                         (call-service-fn (append (list service-fn-name)
-                                                  (compile-parenthesis '()))))
-                    (list (compile-service-fn service-fn-name assignment)
-                          (list call-service-fn)))
-                  (let* ((assignment (make-char-assignment(definition-variable exp)
-                                                          (definition-value exp)))
-                         (call-service-fn (append (list service-fn-name)
-                                                  (compile-parenthesis '()))))
-                    (list (compile-service-fn service-fn-name assignment)
-                          (list call-service-fn)))))))))
+              ;; (format #t "глобальная переменная уже была определена ~%")
+              (cond ((number? (definition-value exp))
+                     (let* ((assignment (make-int-assignment (definition-variable exp)
+                                                             (definition-value exp))))
+                       (list (compile-service-fn service-fn-name assignment)
+                             (list call-service-fn))))
+                    ;; новое значение - строка
+                    ((string? (definition-value exp))
+                     (let* ((assignment (make-char-assignment(definition-variable exp)
+                                                             (definition-value exp))))
+                       (list (compile-service-fn service-fn-name assignment)
+                             (list call-service-fn))))
+                    ;; новое значение - символ
+                    ((symbol? (definition-value exp))
+                     (if (lookup-variable (definition-value exp) env)
+                         (let* ((assignment (make-global-created-var-symbol-assignment
+                                             (definition-variable exp)
+                                             (definition-value exp))))
+                           (list (compile-service-fn service-fn-name assignment)
+                                 (list call-service-fn)))))
+                    ;; новое значение - вызов функции
+                    (else
+                     (let* ((compile-definition-value
+                             (compile (definition-value exp) env))
+                            (definition-value-call (cadr compile-definition-value))
+                            (assignment (list (definition-variable exp) '=
+                                              definition-value-call SEMICOLON)))
+                       (list (append (car compile-definition-value)
+                                     (compile-service-fn service-fn-name assignment))
+                             (list  call-service-fn))))))))))
 #+END_SRC
 
 #+NAME: compile_definition_var_global_tests
@@ -1910,6 +1948,17 @@ define, так для начала проще реализовывать. К т�
    (compiled-code->string(compile-definition-var '(define n "\"some-string\"")
                                                  global-environment)))
 
+  (print-code
+   (compiled-code->string(compile-definition-var '(define test_define (list 1 2 3))
+                                                 global-environment)))
+
+  (print-code
+   (compiled-code->string(compile-definition-var '(define test_define (list 1 2 3 4 5))
+                                                 global-environment)))
+
+  (print-code
+   (compiled-code->string(compile-definition-var '(define test_define n)
+                                                 global-environment)))
 #+END_SRC
 Компиляция локальных переменных несколько проще, чем компиляция
 глобальных - переменную не надо объявлять заранее, - так что это очень
@@ -2010,13 +2059,13 @@ cdr - это имена скомпилированных блоков: имен�
     ;; (format #t "sequenses ~A ~%" sequenses)
     ;; (format #t "sequenses env ~A ~%" env)
     (let* ((compiled-code-with-names (compile-sequences-rec sequenses)))
-           (format #t "compiled-code-with-names ~A ~%" compiled-code-with-names)
+           ;; (format #t "compiled-code-with-names ~A ~%" compiled-code-with-names)
       (let*  ((compiled-code (connect-compiled-exps compiled-code-with-names))
               (compiled-code-names (map (lambda (code)
                                           (caadr code))
                                         compiled-code-with-names)))
         ;; (format #t "compiled-code-names ~A ~%" compiled-code-names)
-        (format #t "compiled-code ~A ~%" compiled-code)
+        ;; (format #t "compiled-code ~A ~%" compiled-code)
         (list compiled-code compiled-code-names))))
 
   ;; (print-code (compiled-code->string (compile '(begin
@@ -2025,9 +2074,9 @@ cdr - это имена скомпилированных блоков: имен�
   ;;                                                6) global-environment)))
 
 
-  (print-code (compiled-code->string (compile '(begin (+ x 1) (+ x 2))
-                                              (cons '(x)
-                                                    global-environment))))
+  ;; (print-code (compiled-code->string (compile '(begin (+ x 1) (+ x 2))
+  ;;                                             (cons '(x)
+  ;;                                                   global-environment))))
 
 #+END_SRC
 
@@ -2106,7 +2155,7 @@ cdr - это имена скомпилированных блоков: имен�
 #+END_SRC
 
 И еще легче скомпилировать именованную функцию:
-#+NAME: compile_lambda
+#+NAME: compile_named-function
 #+BEGIN_SRC scheme :noweb yes
   (define (named-fn-params exp)
     (cdr (cadr exp)))
@@ -2119,6 +2168,7 @@ cdr - это имена скомпилированных блоков: имен�
   ;; (named-fn-body '(define (test x) (+ x 1)))
 
   (define (compile-named-function exp env)
+    (define-variable! (definition-variable exp) env)
     (compile-function (definition-variable exp)
                       (named-fn-params exp) (named-fn-body exp) env))
 
@@ -2131,6 +2181,73 @@ cdr - это имена скомпилированных блоков: имен�
   ;;              (compile-named-function
   ;;               '(define (test x y) (+ x y) (* 3 4))
   ;;               global-environment)))
+
+  ;; (print-code (compiled-code->string
+  ;;              (compile
+  ;;               '(define (test x y) (+ x y) (* 3 4))
+  ;;               global-environment)))
+#+END_SRC
+
+Теперь можно скомиплировать вызовы примитивов и скомпонованных процедур.
+#+NAME: compile_application
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-application exp env)
+    (cond ((primitive-proc? exp env)
+           (compile-primitive exp env))
+          (else (compile-compound exp env))))
+
+  ;; (compile-application '(list 1 2 3 4) global-environment)
+
+  (define (compile-call-params-in-c-syntax params)
+    (define (compile-call-params-in-c-syntax-rec params-in-lisp params-in-c)
+      (if (null? params-in-lisp)
+          params-in-c
+          (let ((cur-param (if (null? (cdr params-in-lisp))
+                               (list  (car params-in-lisp))
+                               (list  (car params-in-lisp) COMMA))))
+            (compile-call-params-in-c-syntax-rec (cdr params-in-lisp)
+                                               (append params-in-c cur-param)))))
+    ;; (format #t "~A ~%" params)
+    (compile-call-params-in-c-syntax-rec params '()))
+
+
+  (define (compile-compound-proc-call exp env)
+    (let* ((compiled-args-with-names (compile-args (operands exp) env))
+           (compiled-code (connect-compiled-exps compiled-args-with-names))
+           (compiled-code-names (map (lambda (code)
+                                       (caadr code))
+                                     compiled-args-with-names))
+           (service-fn-name (generate-name-string exp))
+           (call-service-fn (append (list service-fn-name) (compile-parenthesis '())))
+           (call-params-in-c-syntax (compile-call-params-in-c-syntax compiled-code-names))
+           (return-value (append (list 'return (operator exp))
+                                 (compile-parenthesis call-params-in-c-syntax)
+                                 (list SEMICOLON))))
+
+      (append (list 'val ASTERISK service-fn-name)
+              (compile-parenthesis '())
+              (compile-braces (append
+                               compiled-code
+                               return-value)))))
+
+  (define (compile-compound exp env)
+    (if (lookup-variable (operator exp) env)
+        (compile-compound-proc-call exp env)))
+
+#+END_SRC
+
+#+NAME: compile_compound-procs-tests
+#+BEGIN_SRC scheme :noweb yes
+  (print-code (compiled-code->string
+               (compile
+                '(define (test x y) (+ x y) (* 3 4))
+                global-environment)))
+
+  (print-code (compiled-code->string
+               (compile '(test 1 2) global-environment)))
+
+  (print-code (compiled-code->string
+               (compile '(define test (list 1 2 3)) global-environment)))
 #+END_SRC
 
 #+NAME: code
@@ -2150,5 +2267,13 @@ cdr - это имена скомпилированных блоков: имен�
   <<compile_primitives_constructors>>
   <<compile_args>>
   <<compile_primitives>>
-  <<compile_definition_var>>
+  <<define_definitiotn>>
+  <<compile_service_assignments>>
+  <<compile_definition_global_var>>
+  <<compile_definition_local_var>>
+  <<compile_sequences>>
+  <<compile_function>>
+  <<compile_lambda>>
+  <<compile_named-function>>
+  <<compile_application>>
 #+END_SRC
