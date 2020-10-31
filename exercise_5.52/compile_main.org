@@ -2055,7 +2055,7 @@ cdr - это имена скомпилированных блоков: имен�
 компилировать как лямбды, так и именованные функции. Просто для лямбд
 будем генерировать имя функции, а для именованных передавать как есть.
 
-#+NAME: compile_sequences
+#+NAME: compile_function
 #+BEGIN_SRC scheme :noweb yes
   (define (compile-fn-params-in-c-syntax params)
     (define (compile-fn-params-in-c-syntax-rec params-lisp params-c)
@@ -2082,7 +2082,6 @@ cdr - это имена скомпилированных блоков: имен�
                (append compiled-body
                        return-value)))))
 
-
   ;;пробуем скомпилить данный пример
   ;; (define (test x)
   ;;   (+ x 1)
@@ -2090,6 +2089,48 @@ cdr - это имена скомпилированных блоков: имен�
 
   ;; (print-code (compiled-code->string
   ;;              (compile-function 'test '(x) '((+ x 1) (+ x 2)) global-environment)))
+#+END_SRC
+
+На основе этого инструмента очень легко скомпилировать лямбду. Достаточно
+только "вытащить" из выражения формальные параметры и тело.
+#+NAME: compile_lambda
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-lambda exp env)
+    (compile-function (generate-name-string exp) (lambda-parameters exp)
+                      (lambda-body exp) env))
+
+  ;; (print-code (compiled-code->string
+  ;;              (compile-lambda
+  ;;               '(lambda (x) (+ x 1) (* 3 4))
+  ;;               global-environment)))
+#+END_SRC
+
+И еще легче скомпилировать именованную функцию:
+#+NAME: compile_lambda
+#+BEGIN_SRC scheme :noweb yes
+  (define (named-fn-params exp)
+    (cdr (cadr exp)))
+
+  ;; (named-fn-params '(define (test x) (+ x 1)))
+
+  (define (named-fn-body exp)
+    (cdr (cdr exp)))
+
+  ;; (named-fn-body '(define (test x) (+ x 1)))
+
+  (define (compile-named-function exp env)
+    (compile-function (definition-variable exp)
+                      (named-fn-params exp) (named-fn-body exp) env))
+
+  ;; (print-code (compiled-code->string
+  ;;              (compile-named-function
+  ;;               '(define (test x) (+ x 1) (* 3 4))
+  ;;               global-environment)))
+
+  ;; (print-code (compiled-code->string
+  ;;              (compile-named-function
+  ;;               '(define (test x y) (+ x y) (* 3 4))
+  ;;               global-environment)))
 #+END_SRC
 
 #+NAME: code
