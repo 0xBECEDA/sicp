@@ -1380,6 +1380,29 @@
             (list SEMICOLON)
             ))
 
+  (define (compile-smaller-predicate-compile args)
+    (append '(smaller_predicate_compile)
+            (compile-parenthesis args)
+            (list SEMICOLON)
+            ))
+
+  (define (compile-bigger-predicate-compile args)
+    (append '(bigger_predicate_compile)
+            (compile-parenthesis args)
+            (list SEMICOLON)
+            ))
+
+  (define (compile-equal-numbers args)
+    (let ((first-arg (car args))
+          (second-arg (cadr args)))
+      (append '(equal_numbers_predicate_compile)
+              (compile-parenthesis
+               (append (list first-arg)
+                       (list COMMA)
+                       (list second-arg)))
+              (list SEMICOLON)
+              )))
+
   (define (compile-add args)
     (append '(add)
             (compile-parenthesis args)
@@ -1440,28 +1463,28 @@
             (list SEMICOLON)
             ))
 
-  (print-code (compiled-code->string
-               (list (compile-list '("\" 3 \"" 1 2 d))
-                     (compile-cons '(1 2))
-                     (compile-car '(some-list))
-                     (compile-cdr '(some-list))
-                     (compile-set-car '(some-list))
-                     (compile-set-cdr '(some-list))
-                     (compile-append '(some-list1 some-list2))
-                     (compile-assoc '( some-key some-list))
-                     (compile-length '(some-list))
-                     (compile-last-pair '(some-list))
-                     (compile-add '(some-args-list))
-                     (compile-sub '(some-args-list))
-                     (compile-mul '(some-args-list))
-                     (compile-division '(some-args-list))
-                     (compile-reverse '(some-list))
-                     (compile-reverse '(some-list))
-                     (compile-true? 'some-arg)
-                     (compile-false? 'some-arg)
-                     (compile-pair? 'some-arg)
-                     (compile-null? 'some-arg)
-                     (compile-atom? 'some-arg))))
+  ;; (print-code (compiled-code->string
+  ;;              (list (compile-list '("\" 3 \"" 1 2 d))
+  ;;                    (compile-cons '(1 2))
+  ;;                    (compile-car '(some-list))
+  ;;                    (compile-cdr '(some-list))
+  ;;                    (compile-set-car '(some-list))
+  ;;                    (compile-set-cdr '(some-list))
+  ;;                    (compile-append '(some-list1 some-list2))
+  ;;                    (compile-assoc '( some-key some-list))
+  ;;                    (compile-length '(some-list))
+  ;;                    (compile-last-pair '(some-list))
+  ;;                    (compile-add '(some-args-list))
+  ;;                    (compile-sub '(some-args-list))
+  ;;                    (compile-mul '(some-args-list))
+  ;;                    (compile-division '(some-args-list))
+  ;;                    (compile-reverse '(some-list))
+  ;;                    (compile-reverse '(some-list))
+  ;;                    (compile-true? 'some-arg)
+  ;;                    (compile-false? 'some-arg)
+  ;;                    (compile-pair? 'some-arg)
+  ;;                    (compile-null? 'some-arg)
+  ;;                    (compile-atom? 'some-arg))))
 
 #+END_SRC
 
@@ -1503,6 +1526,8 @@
           ((begin? exp)
            (compile-sequences (begin-actions exp)
                               env))
+          ((if? exp)
+           (compile-if exp env))
           (else (compile-application exp env))))
 
   (define (compile-variable exp env)
@@ -1559,7 +1584,7 @@
           ;; (compile-compound exp env))
           (else true)))
 
-  (compile-application '(+ x 2)  (cons '(x) global-environment))
+  ;; (compile-application '(+ x 2)  (cons '(x) global-environment))
 
   (define (compile-primitive exp env)
     (define (compile-cur-primitive compiled-args-names)
@@ -1585,8 +1610,14 @@
              (compile-length compiled-args-names))
             ((eq? (operator exp) 'last-pair)
              (compile-last-pair compiled-args-names))
+            ((eq? (operator exp) '=)
+             (compile-equal-numbers compiled-args-names))
             ((eq? (operator exp) '+)
              (compile-add (compile-list compiled-args-names)))
+            ((eq? (operator exp) '>)
+             (compile-bigger-predicate-compile (compile-list compiled-args-names)))
+            ((eq? (operator exp) '<)
+             (compile-smaller-predicate-compile (compile-list compiled-args-names)))
             ((eq? (operator exp) '-)
              (compile-sub (compile-list compiled-args-names)))
             ((eq? (operator exp) '*)
@@ -2250,6 +2281,130 @@ cdr - это имена скомпилированных блоков: имен�
                (compile '(define test (list 1 2 3)) global-environment)))
 #+END_SRC
 
+~Реализация if~
+
+Нам необходимы ветвления.
+В лиспе ~true~ все, что не пустой список. В си ~true~ все, что не
+NULL. Так что нам придется приспособить логику двух языков друг к другу
+так, чтобы код, написанный на лиспе, адекватно работал на си.
+
+Во-первых, нам необходимо скомпилировать условие, консеквент и
+антецедент. А затем уже скопилировать иф таким обрзом, чтоб в зависимости
+от истинности условия выполнялась та или иная ветка.
+У нас получится что-то вроде этого:
+
+#+NAME: compile_if_example
+#+BEGIN_SRC c :noweb yes
+  val* condition() {
+      /* some compiled code  */
+  }
+
+  val*  consequent() {
+      /* some compiled code  */
+  }
+
+  val* antecedent() {
+      /* some compiled code  */
+  }
+
+  val* current_if() {
+      val* condition_res = consequent();
+
+      if ( symbol_predicate( condition_res ) ) {
+
+          /* printf("eval_if symbol\n"); */
+          if ( eq_names_predicate("true",
+                                  condition_res->uni_val.char_val ) ) {
+
+                  return consequent();
+          }   else {
+              return antecedent();
+          }
+      } else if (true_predicate ( condition_res ) ) {
+          return consequent();
+
+      } else {
+          return antecedent();
+
+      }
+  }
+#+END_SRC
+
+Компиляция ифа.
+#+NAME: compile_if
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-if exp env)
+    ;; компилируем код для условия, консеквента и антецедента
+    (let* ((condition-code (compile (if-predicate exp) env))
+          (consequent-code (compile (if-consequent exp) env))
+          (alternative-code (compile (if-alternative exp) env))
+          ;; компилируем переменную, в которую бдем записывать результат выполния условия
+          (conpidion-result-var (generate-name-string exp))
+          (assign-condition-result (list 'val ASTERISK
+                                         conpidion-result-var '= (cadr condition-code)
+                                         SEMICOLON))
+          ;; компилируем возвращаемое значение консеквента и антецедента
+          (return_consequent (list 'return
+                                   (cadr consequent-code)
+                                   SEMICOLON))
+          (return_alternative (list 'return
+                                    (cadr alternative-code)
+                                    SEMICOLON))
+          ;; компилируем имя и вызов служебной функции, внутри которой
+          ;; будет исполняться иф
+          (service-fn-name (string-append
+                            conpidion-result-var "_if_fn"))
+          (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+      ;; компилируем служебную функцию
+      (list (append  (list 'val ASTERISK service-fn-name)
+               (compile-parenthesis '())
+               (compile-braces
+                ;; соединяем код условия, консеквента и антецедента
+                (append (car condition-code)
+                        (car consequent-code)
+                        (car alternative-code)
+                        ;; присоединяем к нему присваивание переменной результата выполнения
+                        ;; условия
+                        assign-condition-result
+                        ;; компиляция проверки условия
+                        (list 'if (compile-parenthesis (list 'symbol_predicate
+                                                             (compile-parenthesis
+                                                              conpidion-result-var)))
+                              (compile-braces
+                               (list 'if
+                                     (compile-parenthesis
+                                      (list 'eq_names_predicate
+                                            (compile-parenthesis
+                                             (list "\"true\"" COMMA
+                                                   (string-append
+                                                    conpidion-result-var
+                                                    "->uni_val.char_val")))))
+                                     (compile-braces return_consequent)
+                                     'else
+                                     (compile-braces return_alternative))))
+                        (list 'else 'if
+                              (compile-parenthesis
+                               (list 'true_predicate
+                                     (compile-parenthesis conpidion-result-var)))
+                              (compile-braces return_consequent)
+                              'else
+                              (compile-braces return_alternative)))))
+            call-service-fn)))
+
+
+  ;; (print-code (compiled-code->string (compile-if '(if (+ 1 2)
+  ;;                                                     2
+  ;;                                                     3) global-environment)))
+
+  ;; (print-code (compiled-code->string (compile-if '(if (true? 1)
+  ;;                                                     2
+  ;;                                                     3) global-environment)))
+
+  ;; (print-code (compiled-code->string (compile-if '(if (= 1 2)
+  ;;                                                     4
+  ;;                                                     3) global-environment)))
+#+END_SRC
+
 #+NAME: code
 #+BEGIN_SRC forth :tangle code.scheme :noweb tangle :exports code :padline no :comments none
   <<main>>
@@ -2276,4 +2431,5 @@ cdr - это имена скомпилированных блоков: имен�
   <<compile_lambda>>
   <<compile_named-function>>
   <<compile_application>>
+  <<compile_if>>
 #+END_SRC

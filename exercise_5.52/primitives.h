@@ -151,12 +151,24 @@ val* symbol_predicate_compile (val* cell);
 
 val* equal_numbers_predicate_compile ( val* n1, val* n2 );
 
+val* bigger_predicate_compile( val* args );
+
+val* smaller_predicate_compile( val* args );
+
 val* length_compile (val* cell);
+
+int eq_names_predicate ( char* name1, char* name2 );
 
 void wrap_brackets_if_not_atom_or_empty_cell (val* car);
 
 void ipprint (val* param);
 
 void pprint(val* param);
+
+val* set_true_and_false();
+
+val* ttrue;
+
+val* ffalse;
 
 #endif

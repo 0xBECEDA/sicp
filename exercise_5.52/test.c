@@ -87,6 +87,9 @@ val* symbol_predicate_compile (val* cell);
 
 val* equal_numbers_predicate_compile ( val* n1, val* n2 );
 
+val* ttrue;
+val* ffalse;
+
 /* объясления ошибок */
 val* car_error;
 val* cdr_error;
@@ -359,6 +362,13 @@ val* append (val* cell1, val* cell2) {
     }
 }
 
+int eq_names_predicate ( char* name1, char* name2 ) {
+    if(strcmp( name1, name2 ) == 0 ) {
+        return 1;
+    }
+    return 0;
+}
+
 val* reverse_rec(val* list, val* new_cell ) {
     if ( null_predicate( list ) ) {
         return new_cell;
@@ -452,6 +462,45 @@ int smaller_predicate( val* args ) {
     return -1;
 }
 
+val* smaller_predicate_compile( val* args ) {
+    val* result;
+    int prev_number;
+    val* first_elt;
+
+    val* smaller_predicate_rec( val* args ) {
+        if ( null_predicate( args ) ) {
+            return result;
+        } else {
+            first_elt = car( args );
+            if ( number_predicate( first_elt ) ) {
+                int cur_number = *first_elt->uni_val.int_val;
+                /* printf("smaller_predicate %d\n"); */
+                if ( prev_number < cur_number ) {
+                    result = ttrue;
+                    prev_number = cur_number;
+                    smaller_predicate_rec( cdr( args ) );
+
+                } else {
+                    result = ffalse;
+                    prev_number = cur_number;
+                    smaller_predicate_rec( cdr( args ) );
+                }
+            } else {
+                result = smaller_predicate_error;
+            }
+        }
+    }
+
+    if ( number_predicate( car( args ) ) ) {
+        first_elt = car( args );
+        prev_number = *first_elt->uni_val.int_val;
+        args = cdr(args);
+        result = ttrue;
+        return smaller_predicate_rec( args );
+    }
+    return smaller_predicate_error;
+}
+
 int bigger_predicate( val* args ) {
     int result = 0;
     int prev_number;
@@ -468,9 +517,6 @@ int bigger_predicate( val* args ) {
             first_elt = car( args );
             if ( number_predicate( first_elt ) ) {
                 int cur_number = *first_elt->uni_val.int_val;
-                /* printf("bigger_predicate prev_number %d cur_number %d \n", */
-                /*        prev_number, cur_number); */
-                /* fflush(stdout); */
 
                 if ( prev_number > cur_number ) {
                     result = 1;
@@ -498,6 +544,43 @@ int bigger_predicate( val* args ) {
     }
 
     return -1;
+}
+
+val* bigger_predicate_compile( val* args ) {
+    val* result;
+    int prev_number;
+    val* first_elt;
+
+    val* bigger_predicate_rec( val* args ) {
+        if ( null_predicate( args ) ) {
+            return result;
+        } else {
+            first_elt = car( args );
+            if ( number_predicate( first_elt ) ) {
+                int cur_number = *first_elt->uni_val.int_val;
+                if ( prev_number > cur_number ) {
+                    result = ttrue;
+                    prev_number = cur_number;
+                    bigger_predicate_rec( cdr( args ) );
+
+                } else {
+                    result = ffalse;
+                    prev_number = cur_number;
+                    bigger_predicate_rec( cdr( args ) );
+                }
+            } else {
+                result = bigger_predicate_error;
+            }
+        }
+    }
+    if ( number_predicate( car( args ) ) ) {
+        first_elt = car( args );
+        prev_number = *first_elt->uni_val.int_val;
+        args = cdr(args);
+        result = ttrue;
+        return bigger_predicate_rec( args );
+    }
+    return bigger_predicate_error;
 }
 
 val* add ( val* args ) {
@@ -721,15 +804,22 @@ int false_predicate(val* cell) {
     return 0;
 }
 
-val* false_predicate_compile(val* cell) {
-    int* retval = malloc(sizeof(int));
-    if( TYPE_NIL == cell->type_num ) {
-        *retval = 1;
-        return  int_val_constructor( retval );
-    }
-    *retval = 0;
-    return  int_val_constructor( retval );
+/* val* false_predicate_compile(val* cell) { */
+/*     int* retval = malloc(sizeof(int)); */
+/*     if( TYPE_NIL == cell->type_num ) { */
+/*         *retval = 1; */
+/*         return  int_val_constructor( retval ); */
+/*     } */
+/*     *retval = 0; */
+/*     return  int_val_constructor( retval ); */
 
+/* } */
+
+val* false_predicate_compile(val* cell) {
+    if( TYPE_NIL == cell->type_num ) {
+        return ttrue;
+    }
+    return ffalse;
 }
 
 int true_predicate(val* cell) {
@@ -740,16 +830,24 @@ int true_predicate(val* cell) {
     return 0;
 }
 
-val* true_predicate_compile(val* cell) {
-    int* retval = malloc(sizeof(int));
+/* val* true_predicate_compile(val* cell) { */
+/*     int* retval = malloc(sizeof(int)); */
 
+/*     if( ( !false_predicate( cell ) ) && */
+/*         ( TYPE_ERROR != cell->type_num ) ) { */
+/*         *retval = 1; */
+/*         return  int_val_constructor( retval ); */
+/*     } */
+/*     *retval = 0; */
+/*     return  int_val_constructor( retval ); */
+/* } */
+
+val* true_predicate_compile(val* cell) {
     if( ( !false_predicate( cell ) ) &&
         ( TYPE_ERROR != cell->type_num ) ) {
-        *retval = 1;
-        return  int_val_constructor( retval );
+        return ttrue;
     }
-    *retval = 0;
-    return  int_val_constructor( retval );
+    return ffalse;
 }
 
 int error_predicate(val* cell) {
@@ -770,19 +868,30 @@ int number_predicate(val* cell) {
     return 0;
 }
 
-val* number_predicate_compile(val* cell) {
-    int* retval = malloc(sizeof(int));
+/* val* number_predicate_compile(val* cell) { */
+/*     int* retval = malloc(sizeof(int)); */
 
+/*     if ( ( TYPE_SYMBOL != cell->type_num ) && */
+/*          ( TYPE_STRING != cell->type_num ) && */
+/*          ( TYPE_CELL != cell->type_num ) && */
+/*          ( TYPE_NIL != cell->type_num ) && */
+/*          ( TYPE_ERROR != cell->type_num ) ) { */
+/*         *retval = 1; */
+/*         return  int_val_constructor( retval ); */
+/*     } */
+/*     *retval = 0; */
+/*     return  int_val_constructor( retval ); */
+/* } */
+
+val* number_predicate_compile(val* cell) {
     if ( ( TYPE_SYMBOL != cell->type_num ) &&
          ( TYPE_STRING != cell->type_num ) &&
          ( TYPE_CELL != cell->type_num ) &&
          ( TYPE_NIL != cell->type_num ) &&
          ( TYPE_ERROR != cell->type_num ) ) {
-        *retval = 1;
-        return  int_val_constructor( retval );
+        return ttrue;
     }
-    *retval = 0;
-    return  int_val_constructor( retval );
+    return ffalse;
 }
 
 int symbol_predicate(val* cell) {
@@ -792,15 +901,22 @@ int symbol_predicate(val* cell) {
     return 0;
 }
 
-val* symbol_predicate_compile(val* cell) {
-    int* retval = malloc(sizeof(int));
+/* val* symbol_predicate_compile(val* cell) { */
+/*     int* retval = malloc(sizeof(int)); */
 
+/*     if ( TYPE_SYMBOL == cell->type_num ) { */
+/*         *retval = 1; */
+/*         return  int_val_constructor( retval ); */
+/*      } */
+/*     *retval = 0; */
+/*     return  int_val_constructor( retval ); */
+/* } */
+
+val* symbol_predicate_compile(val* cell) {
     if ( TYPE_SYMBOL == cell->type_num ) {
-        *retval = 1;
-        return  int_val_constructor( retval );
-     }
-    *retval = 0;
-    return  int_val_constructor( retval );
+        return ttrue;
+    }
+    return ffalse;
 }
 
 int string_predicate(val* cell) {
@@ -810,15 +926,23 @@ int string_predicate(val* cell) {
     return 0;
 }
 
+/* val* string_predicate_compile(val* cell) { */
+/*     int* retval = malloc(sizeof(int)); */
+
+/*     if ( TYPE_STRING == cell->type_num ) { */
+/*         *retval = 1; */
+/*         return  int_val_constructor( retval ); */
+/*     } */
+/*     *retval = 0; */
+/*     return  int_val_constructor( retval ); */
+/* } */
+
 val* string_predicate_compile(val* cell) {
-    int* retval = malloc(sizeof(int));
 
     if ( TYPE_STRING == cell->type_num ) {
-        *retval = 1;
-        return  int_val_constructor( retval );
+        return ttrue;
     }
-    *retval = 0;
-    return  int_val_constructor( retval );
+    return ffalse;
 }
 
 int atom_predicate (val* cell) {
@@ -830,17 +954,27 @@ int atom_predicate (val* cell) {
     return 0;
 }
 
+/* val* atom_predicate_compile (val* cell) { */
+/*     int* retval = malloc(sizeof(int)); */
+
+/*     if ( ( TYPE_STRING == cell->type_num ) || */
+/*          ( TYPE_SYMBOL == cell->type_num ) || */
+/*          ( TYPE_INT == cell->type_num ) ) { */
+/*         *retval = 1; */
+/*         return  int_val_constructor( retval ); */
+/*     } */
+/*     *retval = 0; */
+/*     return  int_val_constructor( retval ); */
+/* } */
+
 val* atom_predicate_compile (val* cell) {
-    int* retval = malloc(sizeof(int));
 
     if ( ( TYPE_STRING == cell->type_num ) ||
          ( TYPE_SYMBOL == cell->type_num ) ||
          ( TYPE_INT == cell->type_num ) ) {
-        *retval = 1;
-        return  int_val_constructor( retval );
+        return ttrue;
     }
-    *retval = 1;
-    return  int_val_constructor( retval );
+    return ffalse;
 }
 
 int null_predicate (val* cell) {
@@ -850,15 +984,22 @@ int null_predicate (val* cell) {
     return 0;
 }
 
-val* null_predicate_compile (val* cell) {
-    int* retval = malloc(sizeof(int));
-    if  ( TYPE_NIL == cell->type_num ) {
-        *retval = 1;
-        return  int_val_constructor( retval );
+/* val* null_predicate_compile (val* cell) { */
+/*     int* retval = malloc(sizeof(int)); */
+/*     if  ( TYPE_NIL == cell->type_num ) { */
+/*         *retval = 1; */
+/*         return  int_val_constructor( retval ); */
 
+/*     } */
+/*     *retval = 0; */
+/*     return  int_val_constructor( retval ); */
+/* } */
+
+val* null_predicate_compile (val* cell) {
+    if  ( TYPE_NIL == cell->type_num ) {
+        return ttrue;
     }
-    *retval = 0;
-    return  int_val_constructor( retval );
+    return ffalse;
 }
 
 
@@ -872,17 +1013,26 @@ int pair_predicate (val* cell) {
     }
 }
 
-val* pair_predicate_compile (val* cell) {
-    int* retval = malloc(sizeof(int));
+/* val* pair_predicate_compile (val* cell) { */
+/*     int* retval = malloc(sizeof(int)); */
 
+/*     if ( ( cell->type_num == TYPE_CELL ) && */
+/*          ( !dotpair_predicate( cell ) )) { */
+/*         *retval = 1; */
+/*         return  int_val_constructor( retval ); */
+
+/*     }else { */
+/*         *retval = 1; */
+/*         return  int_val_constructor( retval ); */
+/*     } */
+/* } */
+
+val* pair_predicate_compile (val* cell) {
     if ( ( cell->type_num == TYPE_CELL ) &&
          ( !dotpair_predicate( cell ) )) {
-        *retval = 1;
-        return  int_val_constructor( retval );
-
+        return ttrue;
     }else {
-        *retval = 1;
-        return  int_val_constructor( retval );
+        return ffalse;
     }
 }
 
@@ -900,23 +1050,37 @@ int equal_numbers_predicate( val* n1, val* n2 ) {
     return 0;
 }
 
-val* equal_numbers_predicate_compile( val* n1, val* n2 ) {
-    int* retval = malloc(sizeof(int));
+/* val* equal_numbers_predicate_compile( val* n1, val* n2 ) { */
+/*     int* retval = malloc(sizeof(int)); */
 
+/*     if ( ( number_predicate( n1 ) ) && */
+/*          ( number_predicate( n2 ) ) ) { */
+/*         int num1 = *n1->uni_val.int_val; */
+/*         int num2 = *n2->uni_val.int_val; */
+
+/*         if ( num1 == num2 ) { */
+/*             *retval = 1; */
+/*             return  int_val_constructor( retval ); */
+/*         } */
+/*         *retval = 0; */
+/*         return  int_val_constructor( retval ); */
+/*     } */
+/*     *retval = 0; */
+/*     return  int_val_constructor( retval ); */
+/* } */
+
+val* equal_numbers_predicate_compile( val* n1, val* n2 ) {
     if ( ( number_predicate( n1 ) ) &&
          ( number_predicate( n2 ) ) ) {
         int num1 = *n1->uni_val.int_val;
         int num2 = *n2->uni_val.int_val;
 
         if ( num1 == num2 ) {
-            *retval = 1;
-            return  int_val_constructor( retval );
+            return ttrue;
         }
-        *retval = 0;
-        return  int_val_constructor( retval );
+        return ffalse;
     }
-    *retval = 1;
-    return  int_val_constructor( retval );
+    return ffalse;
 }
 
 int dotpair_predicate (val* cell) {
@@ -935,24 +1099,40 @@ int dotpair_predicate (val* cell) {
     }
 }
 
-val* dotpair_predicate_compile (val* cell) {
-    int* retval = malloc(sizeof(int));
+/* val* dotpair_predicate_compile (val* cell) { */
+/*     int* retval = malloc(sizeof(int)); */
 
+/*     if (cell->type_num == TYPE_CELL) { */
+/*         val* cdr_cell = cdr( cell ); */
+
+/*         if( ( cdr_cell->type_num == TYPE_INT ) || */
+/*             ( cdr_cell->type_num == TYPE_STRING ) || */
+/*             ( cdr_cell->type_num == TYPE_SYMBOL ) ) { */
+/*             *retval = 1; */
+/*             return  int_val_constructor( retval ); */
+/*         } else { */
+/*             *retval = 0; */
+/*             return  int_val_constructor( retval ); */
+/*         } */
+/*     } else{ */
+/*         *retval = 1; */
+/*         return  int_val_constructor( retval ); */
+/*     } */
+/* } */
+
+val* dotpair_predicate_compile (val* cell) {
     if (cell->type_num == TYPE_CELL) {
         val* cdr_cell = cdr( cell );
 
         if( ( cdr_cell->type_num == TYPE_INT ) ||
             ( cdr_cell->type_num == TYPE_STRING ) ||
             ( cdr_cell->type_num == TYPE_SYMBOL ) ) {
-            *retval = 1;
-            return  int_val_constructor( retval );
+            return ttrue;
         } else {
-            *retval = 0;
-            return  int_val_constructor( retval );
+            return ffalse;
         }
     } else{
-        *retval = 1;
-        return  int_val_constructor( retval );
+        return ffalse;
     }
 }
 
@@ -1055,827 +1235,18 @@ void pprint(val* param) {
     }
 }
 
-void test_assoc() {
-    char* ptr_a = malloc(sizeof(char[1]));
-    strncpy( ptr_a, "a", 1 );
-    val* a_val = string_val_constructor( ptr_a );
+val* set_true_and_false () {
 
-    char* ptr_b = malloc(sizeof(char[1]));
-    strncpy( ptr_b, "b", 1 );
-    val* b_val = string_val_constructor( ptr_b );
+    char *string;
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string,
+             "true",
+             max_symbol_name_length );
+    ttrue = symbol_val_constructor( string );
 
-    char* ptr_c = malloc(sizeof(char[1]));
-    strncpy( ptr_c, "c", 1 );
-    val* c_val = string_val_constructor( ptr_c );
-
-    char* ptr_d = malloc(sizeof(char[1]));
-    strncpy( ptr_d, "d", 1 );
-    val* d_val = string_val_constructor( ptr_d );
-
-    int* ptr_1 = malloc(sizeof(int));
-    *ptr_1 = 1;
-    val* val_1 = int_val_constructor( ptr_1 );
-
-    int* ptr_2 = malloc(sizeof(int));
-    *ptr_2 = 2;
-    val* val_2 = int_val_constructor( ptr_2 );
-
-    int* ptr_3 = malloc(sizeof(int));
-    *ptr_3 = 3;
-    val* val_3 = int_val_constructor( ptr_3 );
-
-    int* ptr_4 = malloc(sizeof(int));
-    *ptr_4 = 4;
-    val* val_4 = int_val_constructor( ptr_4 );
-
-    val* null_val = nil_constructor();
-
-    val* result;
-    val* arg_list1 = make_list(4, cons( a_val, val_1), cons( b_val, val_2),
-                               cons( c_val, val_3), cons( d_val, val_4));
-
-    val* arg_list2 = make_list(4, cons( val_1, a_val), cons( val_2, b_val),
-                               cons( val_3, c_val), cons( val_4, d_val) );
-
-    val* arg_list3 = make_list(4, cons( val_1, a_val), cons( val_2, b_val),
-                               c_val, cons( val_4, d_val) );
-
-    result = assoc( d_val, arg_list1 );
-    ipprint(result);
-    printf("\n");
-
-    result = assoc( b_val, arg_list1 );
-    ipprint(result);
-    printf("\n");
-
-    result = assoc( val_4, arg_list1 );
-    ipprint(result);
-    printf("\n");
-
-    result = assoc( val_4, arg_list1 );
-    ipprint(result);
-    printf("\n");
-
-    result = assoc( val_4, arg_list2 );
-    ipprint(result);
-    printf("\n");
-
-    result = assoc( val_3, arg_list2 );
-    ipprint(result);
-    printf("\n");
-
-    /* проверка обработчика ошибки */
-    /* result = assoc( val_3, make_list(3, a_val, b_val, c_val)); */
-    /* ipprint(result); */
-    /* printf("\n"); */
-
-    /* проверка обработчика ошибки */
-    /* result = assoc( val_3, arg_list3); */
-    /* ipprint(result); */
-    /* printf("\n"); */
-
-    result = assoc( val_1, arg_list3);
-    ipprint(result);
-    printf("\n");
+    string = malloc( sizeof( char[max_symbol_name_length] ) );
+    strncpy( string,
+             "false",
+             max_symbol_name_length );
+    ffalse = symbol_val_constructor( string );
 }
-
-void test_make_list() {
-
-    int* ptr_a = malloc(sizeof(int));
-    *ptr_a = 4;
-    val* a_val = int_val_constructor( ptr_a );
-
-    char* ptr_b = malloc(sizeof(char[1]));
-    strncpy( ptr_b, "b", 1 );
-    val* b_val = symbol_val_constructor( ptr_b );
-
-    int* ptr_c = malloc(sizeof(int));
-    *ptr_c = 5;
-    val* c_val = int_val_constructor( ptr_c );
-
-    val* d_val = nil_constructor();
-
-    int* ptr_f = malloc(sizeof(int));
-    *ptr_f = 6;
-    val* f_val = int_val_constructor( ptr_f );
-
-    /* теперь соберем список (4 b 5) */
-    val* foobar = make_list(3, a_val, b_val, c_val);
-    ipprint( foobar );
-    printf("\n");
-
-    /* соберем вложенный список (4 ((4 5))) */
-    val* bazo = make_list(2, a_val,
-                          make_list(1,
-                                    make_list(2, a_val, c_val)));
-    ipprint( bazo );
-    printf("\n");
-
-    /* соберем () */
-    val* baz = make_list(0);
-    ipprint( baz );
-    printf("\n");
-
-    /* соберем (()) */
-    val* bar = make_list(1, make_list(0));
-    ipprint( bar );
-    printf("\n");
-
-    /* соберем (4 5 b 6) */
-    val* baro = make_list(4, a_val, b_val, c_val, f_val);
-    ipprint( baro );
-    printf("\n");
-}
-
-/* некоторые тесты проверяют срабатывания ошибок, поэтому закомменчены,
-   поскольку за ошибкой следует выход и до следующих тестов прога не доходит */
-/* void test_add_sub_mu_division(){ */
-/*     int* ptr_a = malloc(sizeof(int)); */
-/*     *ptr_a = 4; */
-/*     val* a_val = int_val_constructor( ptr_a ); */
-
-/*     char* ptr_b = malloc(sizeof(char[1])); */
-/*     strncpy( ptr_b, "b", 1 ); */
-/*     val* b_val = string_val_constructor( ptr_b ); */
-
-/*     int* ptr_c = malloc(sizeof(int)); */
-/*     *ptr_c = 5; */
-/*     val* c_val = int_val_constructor( ptr_c ); */
-
-/*     val* d_val = nil_constructor(); */
-
-/*     int* ptr_f = malloc(sizeof(int)); */
-/*     *ptr_f = 6; */
-/*     val* f_val = int_val_constructor( ptr_f ); */
-
-/*     val* result; */
-
-/*     printf("sub tests: \n"); */
-/*     result = sub(4, a_val, f_val, f_val, c_val); */
-/*     ipprint(  result ); */
-/*     printf("\n"); */
-
-/*     result = sub(1, f_val); */
-/*     ipprint(  result ); */
-/*     printf("\n"); */
-
-/*     /\* проверка срабатывания обработчика ошибки *\/ */
-/*     /\* result = sub(0); *\/ */
-/*     /\* ipprint(  result ); *\/ */
-/*     /\* printf("\n"); *\/ */
-
-/*     /\* проверка срабатывания обработчика ошибки *\/ */
-/*     /\* result = sub(1, b_val); *\/ */
-/*     /\* ipprint(  result ); *\/ */
-/*     /\* printf("\n"); *\/ */
-
-/*     /\* проверка срабатывания обработчика ошибки *\/ */
-/*     /\* result = sub(4, a_val, f_val, d_val, c_val); *\/ */
-/*     /\* ipprint(  result ); *\/ */
-/*     /\* printf("\n"); *\/ */
-
-/*     printf("add tests: \n"); */
-/*     result = add(5, a_val, f_val, f_val, c_val, f_val); */
-/*     ipprint(  result ); */
-/*     printf("\n"); */
-
-/*     result = add(1, f_val); */
-/*     ipprint(  result ); */
-/*     printf("\n"); */
-
-/*     result = add(0); */
-/*     ipprint(  result ); */
-/*     printf("\n"); */
-
-/*     /\* проверка срабатывания обработчика ошибки *\/ */
-/*     /\* result = add(4, a_val, f_val, d_val, c_val); *\/ */
-/*     /\* ipprint(  result ); *\/ */
-/*     /\* printf("\n"); *\/ */
-
-/*     printf("mul tests: \n"); */
-/*     result = mul(5, a_val, f_val, f_val, c_val, f_val); */
-/*     ipprint(  result ); */
-/*     printf("\n"); */
-
-/*     result = mul(1, f_val); */
-/*     ipprint(  result ); */
-/*     printf("\n"); */
-
-/*     result = mul(0); */
-/*     ipprint(  result ); */
-/*     printf("\n"); */
-
-/*     /\* проверка срабатывания обработчика ошибки *\/ */
-/*     /\* result = mul(4, a_val, f_val, d_val, c_val); *\/ */
-/*     /\* ipprint(  result ); *\/ */
-/*     /\* printf("\n"); *\/ */
-
-/*     printf("division tests: \n"); */
-
-/*     /\* проверка срабатывания обработчика ошибки *\/ */
-/*     /\* result = division(5, a_val, f_val, f_val, c_val, f_val); *\/ */
-/*     /\* ipprint(  result ); *\/ */
-/*     /\* printf("\n"); *\/ */
-
-/*     /\* проверка срабатывания обработчика ошибки *\/ */
-/*     /\* result = division(1, f_val); *\/ */
-/*     /\* ipprint(  result ); *\/ */
-/*     /\* printf("\n"); *\/ */
-
-/*     result = division(4, mul(5, a_val, f_val, f_val, c_val, f_val), a_val, a_val, f_val); */
-/*     ipprint(  result ); */
-/*     printf("\n"); */
-
-/*     /\* проверка срабатывания обработчика ошибки *\/ */
-/*     /\* result = division(0); *\/ */
-/*     /\* ipprint(  result ); *\/ */
-/*     /\* printf("\n"); *\/ */
-
-/*     /\* проверка срабатывания обработчика ошибки *\/ */
-/*     /\* result = division(1, b_val); *\/ */
-/*     /\* ipprint(  result ); *\/ */
-/*     /\* printf("\n"); *\/ */
-/* } */
-
-void test_fn( val* list, val* value ) {
-    set_car(list, value);
-}
-
-void test_set_car_and_set_cdr () {
-
-    int* ptr_a = malloc(sizeof(int));
-    *ptr_a = 4;
-    val* a_val = int_val_constructor( ptr_a );
-
-    char* ptr_b = malloc(sizeof(char[1]));
-    strncpy( ptr_b, "b", 1 );
-    val* b_val = symbol_val_constructor( ptr_b );
-
-    int* ptr_c = malloc(sizeof(int));
-    *ptr_c = 5;
-    val* c_val = int_val_constructor( ptr_c );
-
-    val* d_val = nil_constructor();
-
-    int* ptr_f = malloc(sizeof(int));
-    *ptr_f = 6;
-    val* f_val = int_val_constructor( ptr_f );
-
-    val* test = make_list( 3, a_val, b_val, c_val );
-    printf("test: ");
-    ipprint( test );
-    printf("\n");
-
-    val* test2 = test;
-    printf("test2: ");
-    ipprint( test2 );
-    printf("\n");
-
-    val* test3 = make_list(3, test, a_val, b_val );
-    printf("test3: ");
-    ipprint( test3 );
-    printf("\n");
-
-    val* test4 = car( test3 );
-    test_fn( test4, f_val );
-    /* set_car( test4, f_val ); */
-
-    printf("test: ");
-    ipprint( test );
-    printf("\n");
-
-    printf("test2: ");
-    ipprint( test2 );
-    printf("\n");
-
-    printf("test3: ");
-    ipprint( test3 );
-    printf("\n");
-
-}
-
-
-
-/* void test_set_car_and_set_cdr () { */
-/*     int* ptr_a = malloc(sizeof(int)); */
-/*     *ptr_a = 4; */
-/*     val* a_val = int_val_constructor( ptr_a ); */
-
-/*     char* ptr_b = malloc(sizeof(char[1])); */
-/*     strncpy( ptr_b, "b", 1 ); */
-/*     val* b_val = symbol_val_constructor( ptr_b ); */
-
-/*     int* ptr_c = malloc(sizeof(int)); */
-/*     *ptr_c = 5; */
-/*     val* c_val = int_val_constructor( ptr_c ); */
-
-/*     val* d_val = nil_constructor(); */
-
-/*     int* ptr_f = malloc(sizeof(int)); */
-/*     *ptr_f = 6; */
-/*     val* f_val = int_val_constructor( ptr_f ); */
-
-
-/*     /\* соберем вложенный список (4 ((4 5))) *\/ */
-/*     val* bazo = cons( a_val, cons (cons ( cons ( a_val, */
-/*                                                  cons( c_val, d_val )), */
-/*                                           d_val), */
-/*                                    d_val)); */
-
-/*     /\* теперь соберем список (4 b 5) *\/ */
-/*     val* foobar = cons( a_val, cons ( b_val, cons( c_val, d_val ))); */
-
-/*     /\* соберем вложенный список (4 (4 5) 5) *\/ */
-/*     val* baz = cons( a_val, cons ( cons( a_val, */
-/*                                          cons( c_val, d_val )), */
-/*                                    cons( c_val, d_val ))); */
-/*     /\* собираем список (6) *\/ */
-/*     val* bar = cons( f_val, nil_constructor()); */
-
-/*     /\* (6 (4 5) 5)*\/ */
-/*     set_car(baz, f_val); */
-/*     ipprint( baz ); */
-/*     printf("\n"); */
-
-/*     /\* ((6) b 5) *\/ */
-/*     set_car(foobar, bar); */
-/*     ipprint( foobar ); */
-/*     printf("\n"); */
-
-/*     /\* (4 6) *\/ */
-/*     set_cdr(bazo, bar); */
-/*     ipprint( bazo ); */
-/*     printf("\n"); */
-
-/*     /\* восстанавливаем заничение - иначе получаются циклические списки*\/ */
-/*     bazo = cons( a_val, cons (cons ( cons ( a_val, */
-/*                                             cons( c_val, d_val )), */
-/*                                      d_val), */
-/*                               d_val)); */
-/*     set_cdr(bar, bazo); */
-/*     ipprint( bar ); */
-/*     printf("\n"); */
-
-/*     bazo = cons( a_val, cons (cons ( cons ( a_val, */
-/*                                             cons( c_val, d_val )), */
-/*                                      d_val), */
-/*                               d_val)); */
-/*     set_car( bazo, b_val ); */
-/*     ipprint( bazo ); */
-/*     printf("\n"); */
-
-/*     set_car( bazo, c_val ); */
-/*     ipprint( bazo ); */
-/*     printf("\n"); */
-
-/*     set_car( bazo, nil_constructor() ); */
-/*     ipprint( bazo ); */
-/*     printf("\n"); */
-
-/* } */
-
-void test_map() {
-    int* ptr_a = malloc(sizeof(int));
-    *ptr_a = 4;
-    val* a_val = int_val_constructor( ptr_a );
-
-    char* ptr_b = malloc(sizeof(char[1]));
-    strncpy( ptr_b, "b", 1 );
-    val* b_val = string_val_constructor( ptr_b );
-
-    int* ptr_c = malloc(sizeof(int));
-    *ptr_c = 5;
-    val* c_val = int_val_constructor( ptr_c );
-
-    val* d_val = nil_constructor();
-
-    int* ptr_f = malloc(sizeof(int));
-    *ptr_f = 6;
-    val* f_val = int_val_constructor( ptr_f );
-
-    val* result;
-
-    val* arg_list;
-
-    val* test_fn1( val* arg ) {
-        add( make_list( 2, arg, f_val ) );
-    }
-
-    val* test_fn2(val* arg) {
-        sub( make_list( 2, arg, a_val ) );
-    }
-
-    val* test_fn3(val* arg) {
-        car( arg );
-    }
-
-
-    arg_list = make_list( 5, a_val, c_val, c_val, f_val, a_val );
-    printf("arg_list: ");
-    ipprint( arg_list );
-    printf( "\n" );
-
-    result = map( test_fn1, arg_list );
-    ipprint( result );
-    printf( "\n" );
-
-    result = map( test_fn2, arg_list );
-    ipprint( result );
-    printf( "\n" );
-
-    arg_list = make_list( 6, make_list(2,  a_val, c_val),
-                          make_list(2,  f_val, c_val),
-                          make_list(2,  c_val, f_val),
-                          make_list(2,  a_val, a_val),
-                          make_list(2,  d_val, d_val),
-                          make_list(2,  b_val, c_val));
-    printf("arg_list: ");
-    ipprint( arg_list );
-    printf( "\n" );
-
-    result = map( test_fn3, arg_list );
-    ipprint( result );
-    printf( "\n" );
-}
-
-void test_car_and_cdr () {
-
-    int* ptr_a = malloc(sizeof(int));
-    *ptr_a = 4;
-    val* a_val = int_val_constructor( ptr_a );
-
-    char* ptr_b = malloc(sizeof(char[1]));
-    strncpy( ptr_b, "b", 1 );
-    val* b_val = string_val_constructor( ptr_b );
-
-    int* ptr_c = malloc(sizeof(int));
-    *ptr_c = 5;
-    val* c_val = int_val_constructor( ptr_c );
-
-    val* d_val = nil_constructor();
-
-    /* соберем вложенный список (4 ((4 5))) */
-    val* bazo = cons( a_val, cons (cons ( cons ( a_val,
-                                                 cons( c_val, d_val )),
-                                          d_val),
-                                   d_val));
-    val* cart = car( bazo );
-    ipprint( cart );
-    printf( "\n" );
-
-    val* cdrt = cdr( bazo );
-    ipprint( cdrt );
-    printf( "\n" );
-
-    val* cadrt =  car(cdr( bazo ));
-    ipprint( cadrt );
-    printf( "\n" );
-}
-
-void test_reverse() {
-    int* ptr_a = malloc(sizeof(int));
-    *ptr_a = 4;
-    val* a_val = int_val_constructor( ptr_a );
-
-    char* ptr_b = malloc(sizeof(char[1]));
-    strncpy( ptr_b, "b", 1 );
-    val* b_val = string_val_constructor( ptr_b );
-
-    int* ptr_c = malloc(sizeof(int));
-    *ptr_c = 5;
-    val* c_val = int_val_constructor( ptr_c );
-
-    val* d_val = nil_constructor();
-
-    int* ptr_f = malloc(sizeof(int));
-    *ptr_f = 6;
-    val* f_val = int_val_constructor( ptr_f );
-
-    val* reversed_lst;
-
-    /* теперь соберем список (4 b 5) */
-    val* foobar = cons( a_val, cons ( b_val, cons( c_val, d_val )));
-
-    /* соберем вложенный список (4 (4 5) 5) */
-    val* baz = cons( a_val, cons ( cons( a_val,
-                                         cons( c_val, d_val )),
-                                   cons( c_val, d_val )));
-
-    val* bazo = cons( a_val, cons (cons ( cons ( a_val,
-                                                 cons( c_val, d_val )),
-                                          d_val),
-                                   d_val));
-
-    reversed_lst = reverse (baz);
-
-    printf( "reversed_lst baz\n" );
-    ipprint( reversed_lst );
-    printf( "\n" );
-
-    reversed_lst = reverse (foobar);
-
-    printf( "reversed_lst foobar\n" );
-    ipprint( reversed_lst );
-    printf( "\n" );
-
-    reversed_lst = reverse (bazo);
-
-    printf( "reversed_lst bazo\n" );
-    ipprint( reversed_lst );
-    printf( "\n" );
-
-    /* проверяем, что reverse создает копию списка,
-       а не перекомпоновывает указатели */
-    set_cdr(bazo, f_val);
-
-    /* печатает тот же reversed_lst,
-       поскольку он является копией и изменения в исходном списке
-       никак на него не влияют */
-    printf( "reversed_lst bazo \n" );
-    ipprint( reversed_lst );
-    printf( "\n" );
-
-}
-
-void test_pair () {
-    int* ptr_a = malloc(sizeof(int));
-    *ptr_a = 4;
-    val* a_val = int_val_constructor( ptr_a );
-
-    char* ptr_b = malloc(sizeof(char[1]));
-    strncpy( ptr_b, "b", 1 );
-    val* b_val = string_val_constructor( ptr_b );
-
-    int* ptr_c = malloc(sizeof(int));
-    *ptr_c = 5;
-    val* c_val = int_val_constructor( ptr_c );
-
-    val* d_val = nil_constructor();
-
-    /* теперь соберем список (4 5) */
-    val* bar = cons( a_val, cons( c_val, d_val ));
-
-    /* теперь соберем список (4 b 5) */
-    val* foobar = cons( a_val, cons ( b_val, cons( c_val, d_val )));
-
-    /* соберем вложенный список (4 (4 5) 5) */
-    val* baz = cons( a_val, cons ( cons( a_val,
-                                         cons( c_val, d_val )),
-                                   cons( c_val, d_val )));
-
-    /* создадим точечную пару (4 . 5) */
-    val* dotpair = cons( a_val, c_val );
-
-    /* соберем список из одного элемента NIL */
-    val* bazon = cons( d_val, d_val );
-
-    /* соберем вложенный список (4 ((4 5))) */
-    val* bazo = cons( a_val, cons (cons ( cons ( a_val,
-                                                 cons( c_val, d_val )),
-                                          d_val),
-                                   d_val));
-    printf( "pair? bar %d\n", pair_predicate( bar));
-
-    printf( "pair? bazo %d\n", pair_predicate( bazo));
-
-    printf( "pair? dotpair %d\n", pair_predicate( dotpair));
-
-    printf( "pair? d_val %d\n", pair_predicate( d_val));
-
-    printf( "pair? c_val %d\n", pair_predicate( c_val));
-
-}
-
-/* тест функции append - дотестить */
-void test_append () {
-
-    int* ptr_a = malloc(sizeof(int));
-    *ptr_a = 4;
-    val* a_val = int_val_constructor( ptr_a );
-
-    char* ptr_b = malloc(sizeof(char[1]));
-    strncpy( ptr_b, "b", 1 );
-    val* b_val = symbol_val_constructor( ptr_b );
-
-    int* ptr_c = malloc(sizeof(int));
-    *ptr_c = 5;
-    val* c_val = int_val_constructor( ptr_c );
-
-    val* d_val = nil_constructor();
-
-    val* appended_lst;
-
-    /* теперь соберем список (4 5) */
-    val* bar = cons( a_val, cons( c_val, d_val ));
-
-    /* теперь соберем список (4 b 5) */
-    val* foobar = cons( a_val, cons ( b_val, cons( c_val, d_val )));
-
-    /* соберем вложенный список (4 (4 5) 5) */
-    val* baz = cons( a_val, cons ( cons( a_val,
-                                         cons( c_val, d_val )),
-                                   cons( c_val, d_val )));
-
-    /* создадим точечную пару (4 . 5) */
-    val* dotpair = cons( a_val, c_val );
-
-    /* соберем список из одного элемента NIL */
-    val* bazon = cons( d_val, d_val );
-
-    /* соберем вложенный список (4 ((4 5))) */
-    val* bazo = cons( a_val, cons (cons ( cons ( a_val,
-                                                 cons( c_val, d_val )),
-                                          d_val),
-                                   d_val));
-
-    /* собираем список (4 b 5 ()) */
-    appended_lst = append (foobar, bazon);
-
-    printf( "appended_lst bazon + foobar \n" );
-    ipprint( appended_lst );
-    printf( "\n" );
-
-    /* восстановили значение foobar */
-    foobar = cons( a_val, cons ( b_val, cons( c_val, d_val )));
-
-    /* собираем (4 5 4 b 5) */
-    appended_lst = append (bar, foobar);
-
-    printf( "appended_lst bar + foobar \n" );
-    ipprint( appended_lst );
-    printf( "\n" );
-
-    /* восстановили значение foobar */
-    foobar = cons( a_val, cons ( b_val, cons( c_val, d_val )));
-
-    /* собираем список из (4 b 5) и () - должен вернуть первый список*/
-    appended_lst = append (foobar, d_val);
-
-    printf( "appended_lst foobar + d_val \n" );
-    ipprint( appended_lst );
-    printf( "\n" );
-
-    /* восстановили значение foobar */
-    foobar = cons( a_val, cons ( b_val, cons( c_val, d_val )));
-
-    /* собираем список (() 4 b 5)  */
-    appended_lst = append (bazon, foobar);
-
-    printf( "appended_lst bazon + foobar \n" );
-    ipprint( appended_lst );
-    printf( "\n" );
-
-    /* /\* собираем список из  (4 . 5) и () */
-    /*    - ошибка, append не может работать с дотпарами*\/ */
-    /* append(dotpair, d_val); */
-
-    /* собираем список из (4 b 5 . 5) */
-    appended_lst = append (foobar, c_val);
-
-    printf( "appended_lst foobar + с_val \n" );
-    ipprint( appended_lst );
-    printf( "\n" );
-}
-
-void test_ipprint() {
-
-    int* ptr_a = malloc(sizeof(int));
-    *ptr_a = 4;
-    val* a_val = int_val_constructor( ptr_a );
-
-    char* ptr_b = malloc(sizeof(char[1]));
-    strncpy( ptr_b, "b", 1 );
-    val* b_val = string_val_constructor( ptr_b );
-
-    int* ptr_c = malloc(sizeof(int));
-    *ptr_c = 5;
-    val* c_val = int_val_constructor( ptr_c );
-
-    val* d_val = nil_constructor();
-
-    /* распечатаем */
-    pprint( a_val );
-    printf( "\n" );
-    pprint( b_val );
-    printf( "\n" );
-    pprint( c_val );
-    printf( "\n" );
-    pprint( d_val );
-    printf( "\n" );
-
-    /* создадим список из одного эл-та = точечную пару (4 . NIL) */
-    val* single = cons( a_val, d_val );
-
-    /* распечатаем  */
-    ipprint( single );
-    printf( "\n" );
-
-
-    /* создадим точечную пару (4 . 5) */
-    val* dotpair = cons( a_val, c_val );
-
-    /* распечатаем её */
-    ipprint( dotpair );
-    printf( "\n" );
-
-
-    /* свяжем её с пятеркой спереди (5 4 . 5) */
-    val* foo = cons( c_val, dotpair );
-
-    /* распечатаем */
-    ipprint( foo );
-    printf( "\n" );
-
-    /* теперь соберем список (4 5) */
-    val* bar = cons( a_val, cons( c_val, d_val ));
-
-    /* распечатаем */
-    ipprint( bar );
-    printf( "\n" );
-
-    /* теперь соберем список (4 b 5) */
-    val* foobar = cons( a_val, cons ( b_val, cons( c_val, d_val )));
-
-    /* распечатаем */
-    ipprint( foobar );
-    printf( "\n" );
-
-    /* соберем вложенный список (4 ((4 5))) */
-    val* bazo = cons( a_val, cons (cons ( cons ( a_val,
-                                                 cons( c_val, d_val )),
-                                          d_val),
-                                   d_val));
-    /* распечатаем */
-    ipprint( bazo );
-    printf( "\n" );
-
-    /* соберем список из одного элемента NIL */
-    val* bazon = cons( d_val, d_val );
-
-    /* распечатаем */
-    ipprint( bazon );
-    printf( "\n" );
-
-    /* соберем список ((()))*/
-    val* bazont = cons (cons( d_val, d_val ), d_val);
-
-    /* распечатаем */
-    ipprint( bazont );
-    printf( "\n" );
-
-
-}
-
-void test_length() {
-    int* ptr_a = malloc(sizeof(int));
-    *ptr_a = 4;
-    val* a_val = int_val_constructor( ptr_a );
-
-    char* ptr_b = malloc(sizeof(char[1]));
-    strncpy( ptr_b, "b", 1 );
-    val* b_val = symbol_val_constructor( ptr_b );
-
-    int* ptr_c = malloc(sizeof(int));
-    *ptr_c = 5;
-    val* c_val = int_val_constructor( ptr_c );
-
-    val* d_val = nil_constructor();
-
-    int length_lst;
-
-    /* соберем вложенный список (4 (4 5) 5) */
-    val* baz = cons( a_val, cons ( cons( a_val,
-                                         cons( c_val, d_val )),
-                                   cons( c_val, d_val )));
-
-    length_lst = length( baz );
-    printf( "length baz: %d \n", length_lst );
-
-    /* список (4 b 5) */
-    val* foobar = cons( a_val, cons ( b_val, cons( c_val, d_val )));
-
-    length_lst = length( foobar );
-    printf( "length foobar: %d\n", length_lst );
-
-    length_lst = length( d_val );
-    printf( "length d_val: %d\n",  length_lst );
-
-}
-
-/* int main (void) { */
-/*     /\* тесты *\/ */
-
-/*     /\* test_reverse(); *\/ */
-/*     /\* test_set_car_and_set_cdr(); *\/ */
-/*     /\* test_make_list(); *\/ */
-/*     /\* test_map(); *\/ */
-/*     /\* test_add_sub_mu_division(); *\/ */
-/*     /\* test_assoc(); *\/ */
-/*     /\* test_pair(); *\/ */
-/*     /\* test_ipprint(); *\/ */
-/*     /\* test_append (); *\/ */
-/*     /\* test_car_and_cdr (); *\/ */
-/*     /\* test_length(); *\/ */
-
-/*     return 0; */
-/* } */
