@@ -476,25 +476,12 @@
   ;; превращает выражение в строку
   (define (list->string lst)
     (define (rec-list->string lst retval-string)
-      ;; (display "lst")
-      ;; (display lst)
-      ;; (newline)
-      ;; (display "retval-string")
-      ;; (display retval-string)
-      ;; (newline)
       (if (null? lst)
           (string-append retval-string ")")
           (if (pair? (car lst))
               (begin
-                ;; (newline)
-                ;; (display "car pair")
-                ;; (newline)
                 (let (( result (string-append (rec-list->string (car lst) "(")
                                               (rec-list->string (cdr lst) ""))))
-                  ;; (newline)
-                  ;; (display "result")
-                  ;; (display result)
-                  ;; (newline)
                   (string-append retval-string result)))
               (cond ((symbol? (car lst)) (rec-list->string (cdr lst)
                                                            (string-append retval-string
@@ -535,9 +522,6 @@
   ;; хэширует строку
   (define (hash-exp exp)
     (let ((string (exp->string exp)))
-      (display "hash-exp: string ")
-      (display string)
-      (newline)
       (string-hash string)))
 
   ;; тесты
@@ -558,23 +542,24 @@
 
   ;; создает "имя" для выражения
   (define (generate-name-string exp)
+    (format #t "generate-name-string: ~A ~%" exp)
     (let* ((hash (hash-exp exp))
            (hash-string (number->string hash)))
       ;; добавляем букву, чтоб си в будущем счел хэш именем, а не числом
       (string-append "a" hash-string)))
 
 
-  (generate-name-string
-   '(define (factorial n)
-      (if (= n 0)
-          1
-          (* n (factorial (= n 1))))))
+  ;; (generate-name-string
+  ;;  '(define (factorial n)
+  ;;     (if (= n 0)
+  ;;         1
+  ;;         (* n (factorial (= n 1))))))
 
-  (generate-name-string
-   '(1 2 2))
+  ;; (generate-name-string
+  ;;  '(1 2 2))
 
-  (generate-name-string
-   '(1 2 "2"))
+  ;; (generate-name-string
+  ;;  '(1 2 "2"))
  #+END_SRC
 
 Данный код будет генерировать код для служебных функций. Таких
@@ -932,7 +917,7 @@
                                                             " "
                                                             (symbol->string
                                                              first-elt))))) )))))))
-    (format #t "transform-exp-rec: exp ~A ~% ~%" exp)
+    ;; (format #t "transform-exp-rec: exp ~A ~% ~%" exp)
     (transform-exp-rec exp (list)))
 
   (define (compiled-code->string code)
@@ -1288,7 +1273,8 @@
       (append '(make_list)
               (compile-parenthesis
                (append (compile-list-rec args (list amount-of-args COMMA))))
-              (list SEMICOLON))))
+              ;; (list SEMICOLON)
+              )))
 
 
   ;; (print-code( transform-exp (compile-list '("\" 3 \"" 1 2 d))))
@@ -1301,7 +1287,7 @@
                (append (list first-arg)
                        (list COMMA)
                        (list second-arg)))
-              (list SEMICOLON)
+              ;; (list SEMICOLON)
               )))
 
   ;; (print-code( transform-exp (compile-cons '(1 2))))
@@ -1310,7 +1296,7 @@
   (define (compile-car args)
     (append '(car)
             (compile-parenthesis args)
-            (list SEMICOLON)
+            ;; (list SEMICOLON)
             ))
 
   ;; (print-code( transform-exp (compile-car '(some-list))))
@@ -1318,7 +1304,7 @@
   (define (compile-cdr args)
     (append '(cdr)
             (compile-parenthesis args)
-            (list SEMICOLON)
+            ;; (list SEMICOLON)
             ))
 
   ;; (print-code( transform-exp (compile-cdr '(some-list))))
@@ -1326,7 +1312,7 @@
   (define (compile-set-car args)
     (append '(set_car)
             (compile-parenthesis args)
-            (list SEMICOLON)
+            ;; (list SEMICOLON)
             ))
 
   ;; (print-code( transform-exp (compile-set-car '(some-list))))
@@ -1334,7 +1320,7 @@
   (define (compile-set-cdr args)
     (append '(set_cdr)
             (compile-parenthesis args)
-            (list SEMICOLON)
+            ;; (list SEMICOLON)
             ))
 
   ;; (print-code( transform-exp (compile-set-cdr '(some-list))))
@@ -1347,7 +1333,7 @@
                (append (list first-arg)
                        (list COMMA)
                        (list second-arg)))
-              (list SEMICOLON)
+              ;; (list SEMICOLON)
               )))
 
   ;; (print-code( transform-exp (compile-append '(some-list1 some-list2))))
@@ -1361,7 +1347,7 @@
                (append (list first-arg)
                        (list COMMA)
                        (list second-arg)))
-              (list SEMICOLON)
+              ;; (list SEMICOLON)
               )))
 
   ;; (print-code( transform-exp (compile-assoc '( some-key some-list))))
@@ -1369,7 +1355,7 @@
   (define (compile-length args)
     (append '(length_compile)
             (compile-parenthesis args)
-            (list SEMICOLON)
+            ;; (list SEMICOLON)
             ))
 
   ;; (print-code( transform-exp (compile-length '(some-list))))
@@ -1377,19 +1363,19 @@
   (define (compile-last-pair args)
     (append '(last-pair)
             (compile-parenthesis args)
-            (list SEMICOLON)
+            ;; (list SEMICOLON)
             ))
 
   (define (compile-smaller-predicate-compile args)
     (append '(smaller_predicate_compile)
             (compile-parenthesis args)
-            (list SEMICOLON)
+            ;; (list SEMICOLON)
             ))
 
   (define (compile-bigger-predicate-compile args)
     (append '(bigger_predicate_compile)
             (compile-parenthesis args)
-            (list SEMICOLON)
+            ;; (list SEMICOLON)
             ))
 
   (define (compile-equal-numbers args)
@@ -1400,67 +1386,67 @@
                (append (list first-arg)
                        (list COMMA)
                        (list second-arg)))
-              (list SEMICOLON)
+              ;; (list SEMICOLON)
               )))
 
   (define (compile-add args)
     (append '(add)
             (compile-parenthesis args)
-            (list SEMICOLON)
+            ;; (list SEMICOLON)
             ))
 
   (define (compile-sub args)
     (append '(sub)
             (compile-parenthesis args)
-            (list SEMICOLON)
+            ;; (list SEMICOLON)
             ))
 
   (define (compile-mul args)
     (append '(mul)
             (compile-parenthesis args)
-            (list SEMICOLON)
+            ;; (list SEMICOLON)
             ))
 
   (define (compile-division args)
     (append '(division)
             (compile-parenthesis args)
-            (list SEMICOLON)
+            ;; (list SEMICOLON)
             ))
 
   (define (compile-reverse args)
     (append '(reverse)
             (compile-parenthesis args)
-            (list SEMICOLON)
+            ;; (list SEMICOLON)
             ))
 
   (define (compile-true? args)
     (append '(true_predicate_compile)
             (compile-parenthesis args)
-            (list SEMICOLON)
+            ;; (list SEMICOLON)
             ))
 
   (define (compile-false? args)
     (append '(false_predicate_compile)
             (compile-parenthesis args)
-            (list SEMICOLON)
+            ;; (list SEMICOLON)
             ))
 
   (define (compile-null? args)
     (append '(null_predicate_compile)
             (compile-parenthesis args)
-            (list SEMICOLON)
+            ;; (list SEMICOLON)
             ))
 
   (define (compile-pair? args)
     (append '(pair_predicate_compile)
             (compile-parenthesis args)
-            (list SEMICOLON)
+            ;; (list SEMICOLON)
             ))
 
   (define (compile-atom? args)
     (append '(atom_predicate_compile)
             (compile-parenthesis args)
-            (list SEMICOLON)
+            ;; (list SEMICOLON)
             ))
 
   ;; (print-code (compiled-code->string
@@ -1531,7 +1517,8 @@
           (else (compile-application exp env))))
 
   (define (compile-variable exp env)
-    (if (true? (lookup-variable exp env))
+    (format #t "compile-variable: exp ~A ~%" exp)
+    (if (lookup-variable exp env)
         (list (list 'existing_var exp)
               (list exp))))
 
@@ -1568,23 +1555,20 @@
 
   (define (connect-compiled-exps compiled-exps-with-names)
     (define (connect-all-exps-rec lst new-lst)
+      (format #t "connect-all-exps-rec: new-lst ~A ~% " new-lst)
       (if (null? lst)
           new-lst
           (let ((compiled-exp (caar lst)))
+            ;; (format #t "connect-all-exps-rec: compiled-exp ~A ~% " compiled-exp)
             (if (and (pair? compiled-exp)
                      (eq? (car compiled-exp) 'existing_var))
-                (connect-all-exps-rec (cdr lst) new-lst)
+                (begin
+                  (format #t " existing_var true ~%")
+                (connect-all-exps-rec (cdr lst) new-lst))
                 (connect-all-exps-rec (cdr lst) (append new-lst compiled-exp))))))
+    ;; (format #t "connect-all-exps: lst ~A ~% ~% " compiled-exps-with-names)
     (connect-all-exps-rec compiled-exps-with-names '()))
 
-  (define (compile-application exp env)
-    (cond ((primitive-proc? exp env)
-           (compile-primitive exp env))
-          ;; (compound-proc? exp)
-          ;; (compile-compound exp env))
-          (else true)))
-
-  ;; (compile-application '(+ x 2)  (cons '(x) global-environment))
 
   (define (compile-primitive exp env)
     (define (compile-cur-primitive compiled-args-names)
@@ -1637,6 +1621,7 @@
             ((eq? (operator exp) 'atom?)
              (atom? compiled-args-names))
             (else (error "Неизвестный примитив -- compile-primitive" (operator exp)))))
+    (format #t "compile-cur-primitive: exp ~A ~%" exp)
     (let* ((compiled-args
             (compile-args (operands exp) env))
            (compiled-args-names (map (lambda (code)
@@ -1644,18 +1629,19 @@
                                      compiled-args))
            (pre-result (append (connect-compiled-exps compiled-args)
                                '(return)
-                               (compile-cur-primitive compiled-args-names)))
+                               (compile-cur-primitive compiled-args-names) (list
+                                                                            SEMICOLON )))
            (service-fn-name (generate-name-string exp))
            (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
-      ;; (format #t "compile-cur-primitive: compiled-args ~A ~%"
-      ;;         compiled-args)
+      (format #t "compile-cur-primitive: compiled-args ~A ~%"
+              (connect-compiled-exps compiled-args))
       ;; (format #t "compile-cur-primitive: call-service-fn ~A ~%"
       ;;         call-service-fn)
       ;; (format #t "compile-cur-primitive: return val ~A ~%"
       ;;         (list (compile-service-fn service-fn-name pre-result)
       ;;               call-service-fn))
       (list (compile-service-fn service-fn-name pre-result)
-           (list  call-service-fn))))
+            (list  call-service-fn))))
 #+END_SRC
 
 #+NAME: compile_primitive_tests
@@ -1757,6 +1743,7 @@ define, так для начала проще реализовывать. К т�
     (pair? (cadr exp)))
 
   (define (compile-definition exp env)
+    (format #t "compile-definition ~A ~%" exp)
     (if (definition-fn? exp)
         (compile-named-function exp env)
         (compile-definition-var exp env)))
@@ -2072,32 +2059,30 @@ cdr - это имена скомпилированных блоков: имен�
 
 #+NAME: compile_sequences
 #+BEGIN_SRC scheme :noweb yes
-  ;; (define (compile-sequences sequenses env)
-  ;;   (define (compile-sequences-rec sequenses compiled-code)
-  ;;     (if (null? sequenses)
-  ;;         compiled-code
-  ;;         (compile-sequences-rec (cdr sequenses)
-  ;;                                (append compiled-code (compile (car sequenses) env)))))
-  ;;   (format #t "compile-sequences ~A ~%" compile-sequences)
-  ;;   (compile-sequences-rec sequenses '()))
-
   (define (compile-sequences sequenses env)
-    (define (compile-sequences-rec sequenses)
+    (define (compile-sequences-rec sequenses compiled-code)
+      ;; (format #t "compile-sequences-rec: compiled-code ~A ~% ~%" compiled-code)
       (if (null? sequenses)
-          '()
-          (cons (compile (car sequenses) env)
-                (compile-sequences-rec (cdr sequenses)))))
+          compiled-code
+          (let ((first-compiled-seq (compile (car sequenses) env)))
+            (format #t "compile-sequences-rec: first-compiled-seq ~A ~%" first-compiled-seq)
+            (compile-sequences-rec (cdr sequenses)
+                                   (cons first-compiled-seq compiled-code)))))
     ;; (format #t "sequenses ~A ~%" sequenses)
     ;; (format #t "sequenses env ~A ~%" env)
-    (let* ((compiled-code-with-names (compile-sequences-rec sequenses)))
-           ;; (format #t "compiled-code-with-names ~A ~%" compiled-code-with-names)
+    ;; (format #t "compile-sequences: sequences ~A ~%" sequenses)
+    (let* ((compiled-code-with-names (reverse (compile-sequences-rec sequenses '()))))
+      (format #t "compiled-code-with-names ~A ~%" compiled-code-with-names)
       (let*  ((compiled-code (connect-compiled-exps compiled-code-with-names))
               (compiled-code-names (map (lambda (code)
+                                          (format #t "(caadr code) ~A ~%" (caadr code))
                                           (caadr code))
                                         compiled-code-with-names)))
-        ;; (format #t "compiled-code-names ~A ~%" compiled-code-names)
-        ;; (format #t "compiled-code ~A ~%" compiled-code)
+        (format #t "compiled-code-names ~A ~%" compiled-code-names)
+        ;; (format #t "compile-sequences compiled-code ~A ~% ~%" compiled-code)
         (list compiled-code compiled-code-names))))
+
+
 
   ;; (print-code (compiled-code->string (compile '(begin
   ;;                                                (define n 10)
@@ -2150,12 +2135,16 @@ cdr - это имена скомпилированных блоков: имен�
     (compile-fn-params-in-c-syntax-rec params '()))
 
   (define (compile-function fn-name params body env)
+    ;; (format #t "compile-function: fn-name ~A params ~A body ~A ~%"
+    ;;         fn-name params body)
     (let* ((new-env (extend-environment params env))
            (compiled-body-with-names (compile-sequences body new-env))
            (compiled-body (car compiled-body-with-names))
            (names-and-calls (cadr compiled-body-with-names))
            (return-value (append '(return) (last-pair names-and-calls) (list SEMICOLON)))
            (param-in-c-syntax (compile-fn-params-in-c-syntax params)))
+      (format #t "compile-function: last-pair ~A ~% ~% "(last-pair names-and-calls))
+      (format #t "compile-function: names-and-calls ~A ~% ~% "names-and-calls)
       (append (list 'val ASTERISK fn-name)
               (compile-parenthesis param-in-c-syntax)
               (compile-braces
@@ -2223,6 +2212,7 @@ cdr - это имена скомпилированных блоков: имен�
 #+NAME: compile_application
 #+BEGIN_SRC scheme :noweb yes
   (define (compile-application exp env)
+    (format #t "compile-application: exp ~A ~%" exp)
     (cond ((primitive-proc? exp env)
            (compile-primitive exp env))
           (else (compile-compound exp env))))
@@ -2254,12 +2244,14 @@ cdr - это имена скомпилированных блоков: имен�
            (return-value (append (list 'return (operator exp))
                                  (compile-parenthesis call-params-in-c-syntax)
                                  (list SEMICOLON))))
+      (format #t "compile-compound-proc-call: compiled-code ~A ~% ~%" compiled-code)
 
-      (append (list 'val ASTERISK service-fn-name)
+      (list (append (list 'val ASTERISK service-fn-name)
               (compile-parenthesis '())
               (compile-braces (append
                                compiled-code
-                               return-value)))))
+                               return-value)))
+            call-service-fn)))
 
   (define (compile-compound exp env)
     (if (lookup-variable (operator exp) env)
@@ -2330,7 +2322,7 @@ NULL. Так что нам придется приспособить логик�
   }
 #+END_SRC
 
-Компиляция ифа.
+~Компиляция ифа~.
 #+NAME: compile_if
 #+BEGIN_SRC scheme :noweb yes
   (define (compile-if exp env)
@@ -2389,21 +2381,98 @@ NULL. Так что нам придется приспособить логик�
                               (compile-braces return_consequent)
                               'else
                               (compile-braces return_alternative)))))
-            call-service-fn)))
+            ;; если не обернуть в список дополнительно, то ничего не заработает
+            ;; хорошо бы узнать, почему
+            (list call-service-fn))))
 
-
-  ;; (print-code (compiled-code->string (compile-if '(if (+ 1 2)
-  ;;                                                     2
-  ;;                                                     3) global-environment)))
-
-  ;; (print-code (compiled-code->string (compile-if '(if (true? 1)
-  ;;                                                     2
-  ;;                                                     3) global-environment)))
-
-  ;; (print-code (compiled-code->string (compile-if '(if (= 1 2)
-  ;;                                                     4
-  ;;                                                     3) global-environment)))
 #+END_SRC
+
+#+NAME: compile_if_tests
+#+BEGIN_SRC scheme :noweb yes
+  (print-code (compiled-code->string (compile '(if (+ 1 2)
+                                                   2
+                                                   3) global-environment)))
+
+  (print-code (compiled-code->string (compile '(if (true? 1)
+                                                      2
+                                                      3) global-environment)))
+
+  (print-code (compiled-code->string (compile '(if (= 1 2)
+                                                      4
+                                                      3) global-environment)))
+  (print-code (compiled-code->string (compile
+                                      '(define (factorial n)
+                                        (if (= n 0)
+                                            1
+                                            (* n (factorial (- n 1)))))
+                                      global-environment)))
+
+  ;; (print-code (compiled-code->string (compile '(if (= n 0)
+  ;;                                                  "true"
+  ;;                                                  "false") global-environment)))
+
+  (define (my-reverse-rec lst new-lst)
+    (if (null? lst)
+        new-lst
+        (my-reverse-rec (cdr lst)  (cons (car lst) new-lst))))
+
+  (define (my-reverse lst)
+    (define (my-reverse-rec lst new-lst)
+      (if (null? lst)
+          new-lst
+          (my-reverse-rec (cdr lst)  (cons (car lst) new-lst))))
+    (my-reverse-rec lst '()))
+
+  (my-reverse '(1 2 3 4))
+
+  (print-code (compiled-code->string
+               (compile
+                '(define (my-reverse-rec lst new-lst)
+                   (if (null? lst)
+                       new-lst
+                       (my-reverse-rec (cdr lst)  (cons (car lst) new-lst))))
+                global-environment)))
+
+
+
+  (print-code (compiled-code->string
+               (compile
+                '(define (test x)
+                   (test (+ 1 x))) global-environment)))
+
+  ;; тесты проходят
+  (print-code (compiled-code->string
+               (compile
+                '(define (test x)
+                   (if (= x 0)
+                       "true"
+                       (test (- x 1)))) global-environment)))
+
+  ;; (print-code (compiled-code->string
+  ;;              (compile
+  ;;               '(define n 10) global-environment)))
+
+  ;; (print-code (compiled-code->string
+  ;;              (compile
+  ;;               '(test (+ n 10)) global-environment)))
+#+END_SRC
+~компиляция заковыченных выражений~
+
+Заковыченное - заквотированное выражение - это выражение, которое не
+вычисляется.
+Следовательно, все, что нужно, - это скомпилировать выражение "как
+есть". Если заковыченна цифра, то компилируем само число, если заковычен
+символ, вроде ~'d~, то компилируем символ d.
+Но есть некоторая деталь. Предположим, мы получили на вход заковыченное
+выражение вида ~'(define n 10)~. Перед тем, как скомпилировать список,
+нам нужно правильно скомплировать его аргументы. Если мы просто передадим
+все аргументы списка в компилятор, то она начнет "спотыкаться" сначала об
+define - после этго символа компилятор будет ожидать определение, затем
+не смодет "переварить" переменную n, ну и т.д.
+
+Поэтому перед тем, как вызвать компиляцию списка и его аргументов,
+обойдем список и превратим все его аргументы в список строк. И только
+затем начнем компилировать.
 
 #+NAME: code
 #+BEGIN_SRC forth :tangle code.scheme :noweb tangle :exports code :padline no :comments none
