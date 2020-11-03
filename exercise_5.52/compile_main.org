@@ -1265,16 +1265,13 @@
     (define (compile-list-rec args compiled-code)
       (if (null? args)
           compiled-code
-          (if (null? (cdr args))
-              (compile-list-rec (cdr args) (append compiled-code (list (car args))))
-              (compile-list-rec (cdr args) (append compiled-code (list (car args))
-                                                   (list COMMA))))))
+          (compile-list-rec (cdr args) (append compiled-code
+                                               (list COMMA)
+                                               (list (car args))))))
     (let ((amount-of-args (length args)))
       (append '(make_list)
               (compile-parenthesis
-               (append (compile-list-rec args (list amount-of-args COMMA))))
-              ;; (list SEMICOLON)
-              )))
+               (append (compile-list-rec args (list amount-of-args)))))))
 
 
   ;; (print-code( transform-exp (compile-list '("\" 3 \"" 1 2 d))))
@@ -1286,42 +1283,32 @@
               (compile-parenthesis
                (append (list first-arg)
                        (list COMMA)
-                       (list second-arg)))
-              ;; (list SEMICOLON)
-              )))
+                       (list second-arg))))))
 
   ;; (print-code( transform-exp (compile-cons '(1 2))))
 
 
   (define (compile-car args)
     (append '(car)
-            (compile-parenthesis args)
-            ;; (list SEMICOLON)
-            ))
+            (compile-parenthesis args)))
 
   ;; (print-code( transform-exp (compile-car '(some-list))))
 
   (define (compile-cdr args)
     (append '(cdr)
-            (compile-parenthesis args)
-            ;; (list SEMICOLON)
-            ))
+            (compile-parenthesis args)))
 
   ;; (print-code( transform-exp (compile-cdr '(some-list))))
 
   (define (compile-set-car args)
     (append '(set_car)
-            (compile-parenthesis args)
-            ;; (list SEMICOLON)
-            ))
+            (compile-parenthesis args)))
 
   ;; (print-code( transform-exp (compile-set-car '(some-list))))
 
   (define (compile-set-cdr args)
     (append '(set_cdr)
-            (compile-parenthesis args)
-            ;; (list SEMICOLON)
-            ))
+            (compile-parenthesis args)))
 
   ;; (print-code( transform-exp (compile-set-cdr '(some-list))))
 
@@ -1332,9 +1319,7 @@
               (compile-parenthesis
                (append (list first-arg)
                        (list COMMA)
-                       (list second-arg)))
-              ;; (list SEMICOLON)
-              )))
+                       (list second-arg))))))
 
   ;; (print-code( transform-exp (compile-append '(some-list1 some-list2))))
 
@@ -1346,37 +1331,27 @@
               (compile-parenthesis
                (append (list first-arg)
                        (list COMMA)
-                       (list second-arg)))
-              ;; (list SEMICOLON)
-              )))
+                       (list second-arg))))))
 
   ;; (print-code( transform-exp (compile-assoc '( some-key some-list))))
 
   (define (compile-length args)
     (append '(length_compile)
-            (compile-parenthesis args)
-            ;; (list SEMICOLON)
-            ))
+            (compile-parenthesis args)))
 
   ;; (print-code( transform-exp (compile-length '(some-list))))
 
   (define (compile-last-pair args)
     (append '(last-pair)
-            (compile-parenthesis args)
-            ;; (list SEMICOLON)
-            ))
+            (compile-parenthesis args)))
 
   (define (compile-smaller-predicate-compile args)
     (append '(smaller_predicate_compile)
-            (compile-parenthesis args)
-            ;; (list SEMICOLON)
-            ))
+            (compile-parenthesis args)))
 
   (define (compile-bigger-predicate-compile args)
     (append '(bigger_predicate_compile)
-            (compile-parenthesis args)
-            ;; (list SEMICOLON)
-            ))
+            (compile-parenthesis args)))
 
   (define (compile-equal-numbers args)
     (let ((first-arg (car args))
@@ -1385,69 +1360,47 @@
               (compile-parenthesis
                (append (list first-arg)
                        (list COMMA)
-                       (list second-arg)))
-              ;; (list SEMICOLON)
-              )))
+                       (list second-arg))))))
 
   (define (compile-add args)
     (append '(add)
-            (compile-parenthesis args)
-            ;; (list SEMICOLON)
-            ))
+            (compile-parenthesis args)))
 
   (define (compile-sub args)
     (append '(sub)
-            (compile-parenthesis args)
-            ;; (list SEMICOLON)
-            ))
+            (compile-parenthesis args)))
 
   (define (compile-mul args)
     (append '(mul)
-            (compile-parenthesis args)
-            ;; (list SEMICOLON)
-            ))
+            (compile-parenthesis args)))
 
   (define (compile-division args)
     (append '(division)
-            (compile-parenthesis args)
-            ;; (list SEMICOLON)
-            ))
+            (compile-parenthesis args)))
 
   (define (compile-reverse args)
     (append '(reverse)
-            (compile-parenthesis args)
-            ;; (list SEMICOLON)
-            ))
+            (compile-parenthesis args)))
 
   (define (compile-true? args)
     (append '(true_predicate_compile)
-            (compile-parenthesis args)
-            ;; (list SEMICOLON)
-            ))
+            (compile-parenthesis args)))
 
   (define (compile-false? args)
     (append '(false_predicate_compile)
-            (compile-parenthesis args)
-            ;; (list SEMICOLON)
-            ))
+            (compile-parenthesis args)))
 
   (define (compile-null? args)
     (append '(null_predicate_compile)
-            (compile-parenthesis args)
-            ;; (list SEMICOLON)
-            ))
+            (compile-parenthesis args)))
 
   (define (compile-pair? args)
     (append '(pair_predicate_compile)
-            (compile-parenthesis args)
-            ;; (list SEMICOLON)
-            ))
+            (compile-parenthesis args)))
 
   (define (compile-atom? args)
     (append '(atom_predicate_compile)
-            (compile-parenthesis args)
-            ;; (list SEMICOLON)
-            ))
+            (compile-parenthesis args)))
 
   ;; (print-code (compiled-code->string
   ;;              (list (compile-list '("\" 3 \"" 1 2 d))
@@ -1555,9 +1508,12 @@
 
   (define (connect-compiled-exps compiled-exps-with-names)
     (define (connect-all-exps-rec lst new-lst)
-      (format #t "connect-all-exps-rec: new-lst ~A ~% " new-lst)
+      ;; (format #t "connect-all-exps-rec: new-lst ~A ~% " new-lst)
+      ;; (format #t "connect-all-exps-rec: lst ~A ~% " lst)
       (if (null? lst)
-          new-lst
+          (begin
+            (format #t "exit from connect-all-exps-rec ~%")
+            new-lst)
           (let ((compiled-exp (caar lst)))
             ;; (format #t "connect-all-exps-rec: compiled-exp ~A ~% " compiled-exp)
             (if (and (pair? compiled-exp)
@@ -1622,26 +1578,35 @@
              (atom? compiled-args-names))
             (else (error "Неизвестный примитив -- compile-primitive" (operator exp)))))
     (format #t "compile-cur-primitive: exp ~A ~%" exp)
-    (let* ((compiled-args
-            (compile-args (operands exp) env))
-           (compiled-args-names (map (lambda (code)
-                                       (caadr code))
-                                     compiled-args))
-           (pre-result (append (connect-compiled-exps compiled-args)
-                               '(return)
-                               (compile-cur-primitive compiled-args-names) (list
-                                                                            SEMICOLON )))
-           (service-fn-name (generate-name-string exp))
-           (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
-      (format #t "compile-cur-primitive: compiled-args ~A ~%"
-              (connect-compiled-exps compiled-args))
-      ;; (format #t "compile-cur-primitive: call-service-fn ~A ~%"
-      ;;         call-service-fn)
-      ;; (format #t "compile-cur-primitive: return val ~A ~%"
-      ;;         (list (compile-service-fn service-fn-name pre-result)
-      ;;               call-service-fn))
-      (list (compile-service-fn service-fn-name pre-result)
-            (list  call-service-fn))))
+    (if (null? (operands exp))
+        (let* ((compiled-args '())
+               (pre-result (append '(return)
+                                   (compile-cur-primitive compiled-args)
+                                   (list SEMICOLON)))
+               (service-fn-name (generate-name-string exp))
+               (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+          (list (compile-service-fn service-fn-name pre-result)
+                (list  call-service-fn)))
+        (let* ((compiled-args
+                (compile-args (operands exp) env))
+               (compiled-args-names (map (lambda (code)
+                                           (caadr code))
+                                         compiled-args))
+               (pre-result (append (connect-compiled-exps compiled-args)
+                                   '(return)
+                                   (compile-cur-primitive compiled-args-names) (list
+                                                                                SEMICOLON )))
+               (service-fn-name (generate-name-string exp))
+               (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+          (format #t "compile-cur-primitive: compiled-args ~A ~%"
+                  (connect-compiled-exps compiled-args))
+          ;; (format #t "compile-cur-primitive: call-service-fn ~A ~%"
+          ;;         call-service-fn)
+          ;; (format #t "compile-cur-primitive: return val ~A ~%"
+          ;;         (list (compile-service-fn service-fn-name pre-result)
+          ;;               call-service-fn))
+          (list (compile-service-fn service-fn-name pre-result)
+                (list call-service-fn)))))
 #+END_SRC
 
 #+NAME: compile_primitive_tests
@@ -1997,7 +1962,7 @@ define, так для начала проще реализовывать. К т�
                                                                 (definition-value exp))))
                   ;; (append variable-code (list (list (definition-variable exp))))
                   (format #t "variable-code ~A ~%" variable-code)
-                  variable-code))
+                  (list variable-code (list (list (definition-variable exp))))))
               (begin
                 (format #t "новая локальная переменная - строка  ~%")
                 (let* ((variable-code
@@ -2006,7 +1971,8 @@ define, так для начала проще реализовывать. К т�
                          (definition-value exp))))
                   ;; (append variable-code (list (list (definition-variable exp))))
                   (format #t "variable-code ~A ~%" variable-code)
-                  variable-code)))
+                  (list variable-code (list (list
+                                             (definition-variable exp))))))))
           ;; переопределение переменной
           (begin
             (format #t "локальная переменная уже была определена ~%")
@@ -2015,13 +1981,13 @@ define, так для начала проще реализовывать. К т�
                                                         (definition-value exp))))
                   ;; (append assignment (list (definition-variable exp)))
                   (format #t "variable-code ~A ~%" assignment)
-                  assignment)
+                  (list assignment (list (list (definition-variable exp)))))
 
                 (let* ((assignment (make-char-assignment(definition-variable exp)
                                                         (definition-value exp))))
                   ;; (append assignment (list (list (definition-variable exp))))
                   (format #t "variable-code ~A ~%" assignment)
-                  assignment))))))
+                  (list assignment (list (list (definition-variable exp))))))))))
 #+END_SRC
 
 #+NAME: compile_definition_var_global_tests
@@ -2165,8 +2131,9 @@ cdr - это имена скомпилированных блоков: имен�
 #+NAME: compile_lambda
 #+BEGIN_SRC scheme :noweb yes
   (define (compile-lambda exp env)
-    (compile-function (generate-name-string exp) (lambda-parameters exp)
-                      (lambda-body exp) env))
+    (list (compile-function (generate-name-string exp) (lambda-parameters exp)
+                            (lambda-body exp) env)
+          (list (definition-variable exp))))
 
   ;; (print-code (compiled-code->string
   ;;              (compile-lambda
@@ -2189,8 +2156,9 @@ cdr - это имена скомпилированных блоков: имен�
 
   (define (compile-named-function exp env)
     (define-variable! (definition-variable exp) env)
-    (compile-function (definition-variable exp)
-                      (named-fn-params exp) (named-fn-body exp) env))
+    (list (compile-function (definition-variable exp)
+                            (named-fn-params exp) (named-fn-body exp) env)
+          (list (definition-variable exp))))
 
   ;; (print-code (compiled-code->string
   ;;              (compile-named-function
@@ -2251,7 +2219,7 @@ cdr - это имена скомпилированных блоков: имен�
               (compile-braces (append
                                compiled-code
                                return-value)))
-            call-service-fn)))
+            (list call-service-fn))))
 
   (define (compile-compound exp env)
     (if (lookup-variable (operator exp) env)
@@ -2400,6 +2368,12 @@ NULL. Так что нам придется приспособить логик�
   (print-code (compiled-code->string (compile '(if (= 1 2)
                                                       4
                                                       3) global-environment)))
+
+  (print-code (compiled-code->string (compile '(if (= n 2)
+                                                   (* n (test (- 3 1)))
+                                                   "\"false\"")
+                                              global-environment)))
+
   (print-code (compiled-code->string (compile
                                       '(define (factorial n)
                                         (if (= n 0)
@@ -2407,54 +2381,43 @@ NULL. Так что нам придется приспособить логик�
                                             (* n (factorial (- n 1)))))
                                       global-environment)))
 
-  ;; (print-code (compiled-code->string (compile '(if (= n 0)
-  ;;                                                  "true"
-  ;;                                                  "false") global-environment)))
+  (print-code (compiled-code->string (compile '(define n 10) global-environment)))
 
-  (define (my-reverse-rec lst new-lst)
-    (if (null? lst)
-        new-lst
-        (my-reverse-rec (cdr lst)  (cons (car lst) new-lst))))
+  (print-code (compiled-code->string (compile '(define (test x)
+                                                 (+ x 1)) global-environment)))
 
-  (define (my-reverse lst)
-    (define (my-reverse-rec lst new-lst)
-      (if (null? lst)
-          new-lst
-          (my-reverse-rec (cdr lst)  (cons (car lst) new-lst))))
-    (my-reverse-rec lst '()))
+  (print-code (compiled-code->string (compile '(if (= n 2)
+                                                   (* n (test (- 3 1)))
+                                                   "\"false\"")
+                                              global-environment)))
 
-  (my-reverse '(1 2 3 4))
+  ;; (print-code (compiled-code->string (compile '(list 1 2 3 4) global-environment)))
+
+  (print-code (compiled-code->string
+               (compile '(define (my-reverse-rec lst new-lst)
+                          (if (null? lst)
+                              new-lst
+                              (my-reverse-rec (cdr lst) (cons (car lst) new-lst))))
+                        global-environment)))
 
   (print-code (compiled-code->string
                (compile
-                '(define (my-reverse-rec lst new-lst)
-                   (if (null? lst)
-                       new-lst
-                       (my-reverse-rec (cdr lst)  (cons (car lst) new-lst))))
+                '(list) global-environment)))
+
+  (print-code (compiled-code->string
+               (compile '(define (my-reverse lst)
+                           (define (my-reverse-rec lst new-lst)
+                             (if (null? lst)
+                                 new-lst
+                                 (my-reverse-rec (cdr lst)  (cons (car lst) new-lst))))
+                           (my-reverse-rec lst (list))) global-environment)))
+
+  (print-code (compiled-code->string
+               (compile
+                '(define (test x)
+                   (define n 10)
+                   (* x n))
                 global-environment)))
-
-
-
-  (print-code (compiled-code->string
-               (compile
-                '(define (test x)
-                   (test (+ 1 x))) global-environment)))
-
-  ;; тесты проходят
-  (print-code (compiled-code->string
-               (compile
-                '(define (test x)
-                   (if (= x 0)
-                       "true"
-                       (test (- x 1)))) global-environment)))
-
-  ;; (print-code (compiled-code->string
-  ;;              (compile
-  ;;               '(define n 10) global-environment)))
-
-  ;; (print-code (compiled-code->string
-  ;;              (compile
-  ;;               '(test (+ n 10)) global-environment)))
 #+END_SRC
 ~компиляция заковыченных выражений~
 
