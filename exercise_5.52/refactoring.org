@@ -1,0 +1,281 @@
+#+STARTUP: showall indent hidestars
+
+Основные принципы системы:
+
+1. Каждая строка кода, написанного на схеме во время компиляции
+   оборачивается в служебную функцию. Служебная функция - это функция,
+   чье имя генерируется как хэш от выражения на схеме, которое является
+   исходником для данного скомпилированного кода. Всегда вызывается без
+   аргументов.
+
+2. После компиляции любого выражения, компилятор возвращает 2 значения:
+   скомпилированный код и способ, как его можно вызвать, как к нему можно
+   обратиться. Если мы скомпилировали функцию, то способ к ней
+   обратиться - это вызывать ее. Если мы скомпилировали число или
+   строку - а для их компиляции нам нужно выделить память, записать в нее
+   значение и вызвать соответствующий конструктор (их мы создали при
+   написании интерпретатора) - то способ к ним обратиться - это имена
+   переменных, в которых они лежат, и т. д.
+
+3. При компиляции мы рекурсивно обходим выражение. Выражение можно
+   представить как дерево, где каждый узел - это выражение. Дерево может
+   состоять из одного узла. После обработки каждого выражения мы должны
+   получить скомпилированный код  и способ, с помощью которого мы можем к
+   нему обратиться. Если мы компилируем несколько выражения -
+   последовательность, например - то весь скомпилированный код будет
+   соединен в единой выражение, а способ к нему обратиться - это вызов
+   самой внешней служебнй функции, которая оборачивает весь прочий код.
+
+
+На основе этих трех идей пробуем отрефакторить уже написанный код,
+сделать его работу более прозрачной и простой.
+
+~Синтаксис~
+
+Си имеет сложный синтаксис, поэтому создадим переменные, которые будут
+содержать в себе необходимый синтаксис.
+Затем мы будем его обрабатывать, заменяя на строковые
+символы. Т.е. вместо ~#\}~ в готовом скомпилированном коде появится ~}~.
+
+#+NAME: syntax_symbols
+#+BEGIN_SRC scheme :noweb yes
+  ;; преставление { и } в компилируемом коде
+  (define OPENING_BRACE #\{)
+  (define CLOSING_BRACE #\})
+
+  ;; преставление ( и ) в компилируемом коде
+
+  (define OPENING_PARENTHESIS #\()
+  (define CLOSING_PARENTHESIS #\))
+
+  ;; преставление [ и ] в компилируемом коде
+
+  (define OPENING_BRACKET #\[)
+  (define CLOSING_BRACKET #\])
+
+  ;; преставление : и , в компилируемом коде
+  (define СOLON #\:)
+  (define COMMA #\,)
+
+  ;; преставление * в компилируемом коде
+  (define ASTERISK #\*)
+
+  ;; преставление ; в компилируемом коде
+  (define SEMICOLON #\;)
+
+  ;; представление ... в компилируемом коде
+  (define ELLIPSIS 'ELLIPSIS)
+  #+END_SRC
+
+Конструкторы, компилирующие разнообразные скобки вокруг уже
+скомпилированного кода.
+#+NAME: syntax_constructors
+#+BEGIN_SRC scheme :noweb yes
+  ;; компилирует { }
+  (define(compile-braces code)
+    (if (or (pair? code) (null? code))
+        (append (list OPENING_BRACE)
+                code
+                (list CLOSING_BRACE))
+        (append (list OPENING_BRACE)
+                (list code)
+                (list CLOSING_BRACE))))
+
+  ;; компилирует ()
+  (define(compile-parenthesis code)
+    (if (or (pair? code) (null? code))
+        (append (list OPENING_PARENTHESIS)
+                code
+                (list CLOSING_PARENTHESIS))
+        (append (list OPENING_PARENTHESIS)
+                (list code)
+                (list CLOSING_PARENTHESIS))))
+
+  ;; компилирует []
+  (define(compile-brackets code)
+    (if (or (pair? code) (null? code))
+        (append (list OPENING_BRACKET)
+                code
+                (list CLOSING_BRACKET))
+        (append (list OPENING_BRACKET)
+                (list code)
+                (list CLOSING_BRACKET))))
+
+  ;; компилирует :
+  (define(compile-colon code)
+    (append code
+            (list COLON)))
+
+  ;; компилирует ;
+  (define(compile-semicolon code)
+    (append code
+            (list SEMICOLON)))
+
+  ;; компилирует ...
+  (define(compile-ellipsis code)
+    (append code
+            (list ELLIPSIS)))
+
+#+END_SRC
+
+~main~
+
+Сишному коду, в отличие от схемовского, необходима точка входа -
+main. Так что создадим конструктор для компиляции main.
+#+NAME: main
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-main fn-calls)
+    (let ((code-into-braces (compile-braces fn-calls)))
+      (append (list 'int 'main)
+              (compile-parenthesis())
+              code-into-braces)))
+#+END_SRC
+
+~Генерация имен~
+
+Для генерации имен переменных и функций необходимо:
+- перевести целиком полученное выражение на схеме в строку (без пробелов)
+  целиком
+- вычислить от нее хэш
+- добавить к хэшу буквенный символ - хэш представляет собой числовое
+  значение, которое не может быть поспринято как имя в си. Поэтому хэшу
+  необходимо добавить хотя бы одну букву
+
+Так же у нас есть следующая проблема.
+Часто приходится генерировать имя для переменной и имя для указателя на
+выделенную память. Например, когда нужно скомпилировать число. Если
+вычислять хэш от выражения в обоих случаях, то хэш будет одинаковым,
+следовательно, имена будут одинаковыми. А в си так нельзя.
+Поэтому мы создадим два конструктора: один будет присоединять к хэшу
+приставку ~ptr_~ - так мы будет обозначать указатель - а другой будет
+присоединять ~val_~ - так мы бдем обозначать именя переменных.
+
+Превращаем выражение в строку без пробелов.
+
+#+NAME: list_string
+#+BEGIN_SRC scheme :noweb yes
+  ;; превращает выражение в строку
+  (define (list->string lst)
+    (define (rec-list->string lst retval-string)
+      (if (null? lst)
+          (string-append retval-string ")")
+          (if (pair? (car lst))
+              (begin
+                (let (( result (string-append (rec-list->string (car lst) "(")
+                                              (rec-list->string (cdr lst) ""))))
+                  (string-append retval-string result)))
+              (cond ((symbol? (car lst)) (rec-list->string (cdr lst)
+                                                           (string-append retval-string
+                                                                          (symbol->string
+                                                                           (car lst)))))
+                    ((number? (car lst)) (rec-list->string (cdr lst)
+                                                           (string-append retval-string
+                                                                          (number->string
+                                                                           (car lst)))))
+                    (else (rec-list->string (cdr lst)
+                                            (string-append retval-string
+                                                           "string" (car lst))))))))
+
+    (rec-list->string lst "("))
+#+END_SRC
+
+Пишем тесты
+#+NAME: list_string_tests
+#+BEGIN_SRC scheme :noweb yes
+  (list->string '(1 2 3))
+
+  (list->string '(lambda (x) (+ x 1)))
+
+  (list->string '(define (factorial n)
+                   (if (= n 0)
+                       1
+                       (* n (factorial (= n 1))))))
+
+  (list->string '(let ((a 3)
+                       (b 4))
+                   (+ 1 a b)))
+
+  (list->string '(1 2 "2"))
+
+  (list->string '(1 2 "(+ 1 2 )"))
+
+#+END_SRC
+
+Превращаем полученную строку в хэш и генерируем имя
+#+NAME: generate_name
+#+BEGIN_SRC scheme :noweb yes
+  (define (exp->string exp)
+    (list->string exp))
+
+  (define (hash-exp exp)
+    (let ((string (exp->string exp)))
+      (string-hash string)))
+
+  (define (generate-name-string exp)
+    ;; (format #t "generate-name-string: ~A ~%" exp)
+    (let* ((hash (hash-exp exp))
+           (hash-string (number->string hash)))
+      (string-append "a" hash-string)))
+#+END_SRC
+
+#+NAME: generate_name_tests
+#+BEGIN_SRC scheme :noweb yes
+  (hash-exp '(1 2 "(+ 1 2 )"))
+
+  (hash-exp '(let ((a 3)
+                   (b 4))
+               (+ 1 a b)))
+
+  (hash-exp '(let ((a 3)
+                   (b 4))
+               (+ 1 a b)))
+
+  (hash-exp '(define (factorial n)
+               (if (= n 0)
+                   1
+                   (* n (factorial (= n 1))))))
+
+  (generate-name-string
+   '(define (factorial n)
+      (if (= n 0)
+          1
+          (* n (factorial (= n 1))))))
+
+  (generate-name-string
+   '(1 2 2))
+
+  (generate-name-string
+   '(1 2 "2"))
+#+END_SRC
+
+Теперь создаем конструкторы для присоежинения приствок ~ptr_~ и ~val_~
+#+NAME: generate_ptr_and_val_names
+#+BEGIN_SRC scheme :noweb yes
+  (define (append-ptr str)
+    (string-append "ptr_" str))
+
+  (define (append-val str)
+    (string-append "val_" str))
+#+END_SRC
+
+#+NAME: generate_ptr_and_val_names_tests
+#+BEGIN_SRC scheme :noweb yes
+  (append-ptr "a324789404")
+  (append-val "a33189410")
+
+  (append-ptr (generate-name-string
+   '(1 2 2)))
+
+  (append-val (generate-name-string
+               '(1 2 2)))
+#+END_SRC
+
+#+NAME: code
+#+BEGIN_SRC forth :tangle code.scheme :noweb tangle :exports code :padline no :comments none
+  <<syntax_symbols>>
+  <<syntax_constructors>>
+  <<main>>
+  <<list_string>>
+  <<generate_name>>
+  <<generate_ptr_and_val_names>>
+#+END_SRC
