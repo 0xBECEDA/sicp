@@ -270,6 +270,377 @@ main. Так что создадим конструктор для компил�
                '(1 2 2)))
 #+END_SRC
 
+~печать скомпилированного кода в файл~
+
+Чтоб не ломать каждый раз голову, как должен выглядеть скомпилированный
+код - с замененными символами и проч. - сразу напишем функционал, который
+будет обрабатывать скомпилированный код и печатать его в файл.
+
+Трансформируем полученное выражение в список строк,  попутно заменяя символы
+вроде ~#/}~ на ~}~ и т.д.
+#+NAME: transform_exp
+#+BEGIN_SRC scheme :noweb yes
+  (define (transform-exp exp)
+    (if (null? exp)
+        '(" ")
+        (let ((first-elt (car exp )))
+          ;; если число, превратить число в строку и присоединить к списку строк
+          (cond ((number? first-elt) (cons (string_append (number->string
+                                                           first-elt) " ")
+                                           (transform-exp (cdr exp))))
+                ;; если строка, присоединить как есть
+                ((string? first-elt) (cons (string_append " " first-elt)
+                                           (transform-exp (cdr exp))))
+                ;; если список, то обойти его, преобразовать и присоединить все элементы
+                ((pair? first-elt) (cons (transform-exp first-elt)
+                                         (transform-exp (cdr exp))))
+                ;; если символ
+                (else
+                 ;; то проверить на совпадение с синтаксическими символами, при необходимости
+                 ;; заменить на строковое представление
+                 (cond ((eq? OPENING_BRACE first-elt)
+                        (cons " {" (transform-exp (cdr exp))))
+                       ((eq? CLOSING_BRACE first-elt)
+                        (cons " }" (transform-exp (cdr exp))))
+                       ((eq? OPENING_PARENTHESIS first-elt)
+                        (cons " (" (transform-exp (cdr exp))))
+                       ((eq? CLOSING_PARENTHESIS first-elt)
+                        (cons " )" (transform-exp (cdr exp))))
+                       ((eq? OPENING_BRACKET first-elt)
+                        (cons " [" (transform-exp (cdr exp))))
+                        ((eq? CLOSING_BRACKET first-elt)
+                         (cons " ]" (transform-exp (cdr exp))))
+                        ((eq? СOLON first-elt)
+                         (cons ":" (transform-exp (cdr exp))))
+                        ((eq? SEMICOLON first-elt)
+                         (cons ";" (transform-exp (cdr exp))))
+                        ((eq? COMMA first-elt)
+                         (cons ", " (transform-exp (cdr exp))))
+                        ((eq? ASTERISK first-elt)
+                         (cons "*" (transform-exp (cdr exp))))
+                        ((eq? ELLIPSIS first-elt)
+                         (cons " ..." (transform-exp (cdr exp))))
+                        ;; это какой-то другой символ
+                        ;; преобразовать в строку, присоединить к списку строк
+                        (else (cons (string-append " " (symbol->string first-elt))
+                                    (transform-exp (cdr exp))))))))))
+
+#+END_SRC
+
+#+NAME: transform_exp_tests
+#+BEGIN_SRC scheme :noweb yes
+  (define test-exp
+    (compile-main
+     (append (list 'proc1) (compile-parenthesis '()) (list SEMICOLON)
+             (list 'proc2) (compile-parenthesis '()) (list SEMICOLON)
+             (list 'proc3) (compile-parenthesis '()) (list SEMICOLON))))
+
+  (transform-exp test-exp)
+
+  (define test-exp2
+    (append (list 'val) (list ASTERISK) (list 'init_syntax_errors)
+            (compile-parenthesis '())
+            (compile-braces (append (list 'char) (list ASTERISK) (list 'string)
+                                    (list ASTERISK) (list '=)
+                                    (list 'malloc)
+                                    (compile-parenthesis
+                                     (append (list 'sizeof)
+                                             (compile-parenthesis
+                                              (append
+                                               (list 'char)
+                                               (compile-brackets
+                                                (list
+                                                 'max_symbol_name_length))))))))))
+
+  (transform-exp test-exp2)
+#+END_SRC
+Теперь напишем функцию, которая будет принимать несколько списков -
+скомпилированных выражений - и вызывать transform-exp для каждого из них
+и возвращать общий список из результатов, которые вернул transform-exp
+
+#+NAME: compiled_code_to_string
+#+BEGIN_SRC scheme :noweb yes
+  (define (compiled-code->string code)
+    (if (null? code)
+        '()
+        (let ((first-exp (car code)))
+          (if (pair? first-exp)
+              (append (transform-exp first-exp) (compiled-code->string (cdr code)))
+              (transform-exp code)))))
+
+#+END_SRC
+
+#+NAME: compiled_code_to_string_tests
+#+BEGIN_SRC scheme :noweb yes
+  (define test-exp
+    (compile-main
+     (append (list 'proc1) (compile-parenthesis '()) (list SEMICOLON)
+             (list 'proc2) (compile-parenthesis '()) (list SEMICOLON)
+             (list 'proc3) (compile-parenthesis '()) (list SEMICOLON))))
+
+  (transform-exp test-exp)
+
+  (define test-exp2
+    (append (list 'val) (list ASTERISK) (list 'init_syntax_errors)
+            (compile-parenthesis '())
+            (compile-braces (append (list 'char) (list ASTERISK) (list 'string)
+                                    (list ASTERISK) (list '=)
+                                    (list 'malloc)
+                                    (compile-parenthesis
+                                     (append (list 'sizeof)
+                                             (compile-parenthesis
+                                              (append
+                                               (list 'char)
+                                               (compile-brackets
+                                                (list
+                                                 'max_symbol_name_length))))))))))
+  (compiled-code->string (list test-exp
+                               test-exp2))
+
+  (compiled-code->string test-exp)
+
+  (compiled-code->string test-exp2)
+#+END_SRC
+
+Теперь пишем функцию, которая запишет полученный список строк в заданный
+файл, снабжая печать переводом строкив случае если:
+- это открывающая или закрывающая фигурная скобка
+- двоеточие
+- точка с запятой
+
+#+NAME: print_code
+#+BEGIN_SRC scheme :noweb yes
+  (load-option 'format)
+  (define *c-file* "test-file.txt")
+
+  (define (print-code-into-file code-string)
+    (define (rec-print-code code-string output-port)
+      (if (null? code-string)
+          'ok
+          (let ((first-string (car code-string)))
+            (if (or (equal? first-string " {" )
+                    (equal? first-string " }" )
+                    (equal? first-string ";" )
+                    (equal? first-string ":" ))
+                (begin
+                  (format output-port "~A ~% "first-string)
+                  (rec-print-code (cdr code-string) output-port))
+                (begin
+                  (format output-port "~A" first-string)
+                  (rec-print-code (cdr code-string) output-port))))))
+    (let ((output-port (open-output-file  *c-file*)))
+      (rec-print-code code-string output-port)
+      (close-output-port output-port)
+      'ok))
+#+END_SRC
+
+#+NAME: print_code_tests
+#+BEGIN_SRC scheme :noweb yes
+  (define test-exp
+    (compile-main
+     (append (list 'proc1) (compile-parenthesis '()) (list SEMICOLON)
+             (list 'proc2) (compile-parenthesis '()) (list SEMICOLON)
+             (list 'proc3) (compile-parenthesis '()) (list SEMICOLON))))
+
+  (define test-exp2
+    (append (list 'val) (list ASTERISK) (list 'init_syntax_errors)
+            (compile-parenthesis '())
+            (compile-braces (append (list 'char) (list ASTERISK) (list 'string)
+                                    (list '=)
+                                    (list 'malloc)
+                                    (compile-parenthesis
+                                     (append (list 'sizeof)
+                                             (compile-parenthesis
+                                              (append
+                                               (list 'char)
+                                               (compile-brackets
+                                                (list
+                                                 'max_symbol_name_length))))))
+                                    (list SEMICOLON)))))
+
+  (define tokens (compiled-code->string (list test-exp
+                                              test-exp2)))
+  (print-code-into-file tokens)
+#+END_SRC
+
+Теперь напишем соберем все в единую функцию, которая будет вызывать
+преобразование всех скомпилированных выражений и их печать
+
+#+NAME: print-code
+#+BEGIN_SRC scheme :noweb yes
+  (define (print-code exps)
+    (print-code-into-file (compiled-code->string exps)))
+#+END_SRC
+
+~Построение окружений~
+
+Здесь обошлось без рефакторинга.
+
+Окружения нужны только для того, чтоб компилятор мог отслеживать, в каком месте
+появляется переменная и определена ли она была вообще. Получается, что
+данные "окружения" будут состоять только из имен переменных без их
+значений, поскольку на этапе компиляции значения не играют никакой роли.
+Максимум можно указывать какого именно типа переменная - функция, число и
+т.д., поскольку мы компилим код для си. Но это необязательно.
+
+Окружения будут иметь списковую структуру как в сикпе, только если в
+сикпе кадр состояит из двух списков, где первый список - это имена
+переменных, а второй - это их значения, то мои псевдоокружения будут
+состоять из кадров, которые будут содержать только имена переменных. Чем
+ближе кадр к концу списка кадров, тем ближе он к глобальной области видимости.
+
+То есть в окружении ((d f g h) (n test-fn factorial) (primitives-proc-names))
+последий кадр является глобальным окружением.
+При запуске компилятора будет устанавливаться начальное окружение,
+состоящего только из кадра с примитивами.
+
+При компиляции функции окружение будет расширяться кадром, который будет
+наследовать все переменные глобального окружения + формальные параметры
+функции, а затем будет дополняться новыми переменными, если в этом
+возникнет необходимость. По завершению компиляции этот кадр будет
+удаляться, поскольку никакие другие процедуры кроме текущей не должны
+иметь доступ к переменным, объявленным внутри этой функции.
+
+Связываем имена лисповых примитивов и сишных, чтоб знать, какие именно
+имена компилировать, если использованы данные примитивы, поскольку имена
+сишных примитивов и примитивов схемы не всегда совпадают из-за
+синтаксических правил си банального неудобства.
+
+#+NAME: primitives
+#+BEGIN_SRC scheme :noweb yes
+  (define (primitive-proc-bindings)
+    (list (list 'car 'car)
+          (list 'cdr 'cdr)
+          (list 'cons 'cons)
+          (list 'list 'make-list)
+          (list  '+ 'add)
+          (list  '- 'sub)
+          (list  '* 'mul)
+          (list  '/ 'division)
+          (list  '= 'equal_numbers_predicate)
+          (list  '> 'bigger_predicate)
+          (list  '< 'smaller_predicate)
+          (list  'reverse 'reverse)
+          (list  'append 'append)
+          (list  'assoc 'assoc)
+          (list  'length 'length_compile)
+          (list  'last-pair 'last_pair)
+          (list  'true? 'true_predicate_compile)
+          (list  'false? 'false_predicate_compile)
+          (list  'null? 'null_predicate_compile)
+          (list  'pair? 'pair_predicate_compile)
+          (list  'symbol? 'symbol_predicate_compile)
+          (list  'atom? 'atom_predicate_compile)
+          (list  'string? 'string_predicate_compile)
+          (list  'dotpair? 'dotpair_predicate_compile)))
+
+  (define (primitive-procedure-objects)
+    (map (lambda (proc)
+           (list (car proc)
+                 (list 'primitive (cadr proc))))
+         (primitive-proc-bindings)))
+#+END_SRC
+
+Конструируем аналоги сикповых процедур для окружений, только с тем
+расчетом, что у нас кадр состоит только из имен переменных.
+#+NAME: environment
+#+BEGIN_SRC scheme :noweb yes
+  (define (atom? arg)
+    (or (string? arg) (number? arg)
+        (symbol? arg)))
+
+  (define (enclosing-environment env) (cdr env))
+
+  (define (first-frame env) (car env))
+
+  (define the-empty-environment '())
+
+  (define (add-binding-to-frame! var frame)
+    (let* ((first-elt (car frame))
+           (rest (cdr frame)))
+      (set-car! frame var)
+      (set-cdr! frame (list first-elt))
+      (let ((last-elt (last-pair frame)))
+        (set-cdr! last-elt rest)
+        frame)))
+
+  (define (extend-environment vars base-env)
+    (cons vars base-env))
+
+  (define (lookup-variable var env)
+    (define (env-loop env)
+      (define (scan vars)
+        (cond ((null? vars)
+               (env-loop (enclosing-environment env)))
+              ((and (pair? var) (pair? (car vars)))
+               (if (eq? (car var) (caar vars))
+                   (car vars)
+                   (scan (cdr vars))))
+              ((and (not (pair? var)) (pair? (car vars)))
+               (if (eq? var (caar vars))
+                   (car vars)
+                   (scan (cdr vars))))
+              ((eq? var (car vars)) 'ok)
+              (else (scan (cdr vars)))))
+      (if (eq? env the-empty-environment)
+          (error "Compile: Несвязанная переменная" var)
+          (let ((frame (first-frame env)))
+            (scan frame))))
+    (env-loop env))
+
+  (define (define-variable! var env)
+    (let ((frame (first-frame env)))
+      (define (scan vars)
+        (cond ((null? vars)
+               (begin
+                 (format #t "define-variable!: переменная новая ~%" )
+                 (add-binding-to-frame! var frame)
+                 'ok))
+              ((and (pair? var) (pair? (car vars)))
+               (if (eq? (car var) (caar vars))
+                   (car vars)
+                   (scan (cdr vars))))
+              ((and (atom? var) (pair? (car vars)))
+               (if (eq? var (caar vars))
+                   (car vars)
+                   (scan (cdr vars))))
+              ((eq? var (car vars)) (car vars))
+              (else (scan (cdr vars)))))
+      (scan frame)))
+
+  (define (delete-frame env)
+    (set! env (cdr env)))
+
+  (define (setup-environment)
+    (let ((initial-env
+           (extend-environment (primitive-procedure-objects)
+                               the-empty-environment)))
+      initial-env))
+
+  (define global-environment (setup-environment))
+
+  ;; тесты
+
+  ;; (define test-env (setup-environment))
+
+  ;; (set! test-env (extend-environment '( f s n l) test-env))
+
+  ;; (add-binding-to-frame! 'd (first-frame test-env))
+
+  ;; (add-binding-to-frame! '(test_fn compound) (first-frame test-env))
+
+  ;; (lookup-variable '(test_fn compound) test-env)
+
+  ;; (lookup-variable 's test-env)
+
+  ;; (lookup-variable '(s n) test-env)
+
+  ;; (lookup-variable '(car car) test-env)
+
+#+END_SRC
+
+
+
 #+NAME: code
 #+BEGIN_SRC forth :tangle code.scheme :noweb tangle :exports code :padline no :comments none
   <<syntax_symbols>>
