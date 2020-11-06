@@ -154,16 +154,19 @@ main. Так что создадим конструктор для компил�
 
 #+NAME: list_string
 #+BEGIN_SRC scheme :noweb yes
+  (define (atom? arg)
+    (or (string? arg) (number? arg)
+        (symbol? arg)))
+
   ;; превращает выражение в строку
   (define (list->string lst)
     (define (rec-list->string lst retval-string)
       (if (null? lst)
           (string-append retval-string ")")
           (if (pair? (car lst))
-              (begin
-                (let (( result (string-append (rec-list->string (car lst) "(")
-                                              (rec-list->string (cdr lst) ""))))
-                  (string-append retval-string result)))
+              (let ((result (string-append (rec-list->string (car lst) "(")
+                                           (rec-list->string (cdr lst) ""))))
+                (string-append retval-string result))
               (cond ((symbol? (car lst)) (rec-list->string (cdr lst)
                                                            (string-append retval-string
                                                                           (symbol->string
@@ -175,8 +178,11 @@ main. Так что создадим конструктор для компил�
                     (else (rec-list->string (cdr lst)
                                             (string-append retval-string
                                                            "string" (car lst))))))))
-
-    (rec-list->string lst "("))
+    (if (atom? lst)
+        (cond ((symbol? lst) (symbol->string lst))
+              ((number? lst) (string-append (number->string lst)))
+              (else (string-append "string" lst)))
+    (rec-list->string lst "(")))
 #+END_SRC
 
 Пишем тесты
@@ -306,7 +312,7 @@ main. Так что создадим конструктор для компил�
                 ((string? first-elt) (cons (string-append " " first-elt)
                                            (transform-exp (cdr exp))))
                 ;; если список, то обойти его, преобразовать и присоединить все элементы
-                ((pair? first-elt) (cons (transform-exp first-elt)
+                ((pair? first-elt) (append (transform-exp first-elt)
                                          (transform-exp (cdr exp))))
                 ;; если символ
                 (else
@@ -790,6 +796,7 @@ main. Так что создадим конструктор для компил�
 #+NAME: compile_primitives_constructors
 #+BEGIN_SRC scheme :noweb yes
   (define (compile-call-params-in-c-syntax params)
+    ;; (format #t "compile-call-params-in-c-syntax: params ~A ~%" params)
     (if (null? params)
         '()
         (let ((cur-param (if (null? (cdr params))
@@ -860,7 +867,7 @@ main. Так что создадим конструктор для компил�
             (compile-parenthesis args)))
 
   (define (compile-last-pair args)
-    (append '(last-pair)
+    (append '(last_pair)
             (compile-parenthesis args)))
 
   (define (compile-smaller-predicate-compile args)
@@ -1005,7 +1012,10 @@ main. Так что создадим конструктор для компил�
       (if (and (pair? compiled-code)
                (pair? name-compiled-code))
           (map (lambda (code)
-                 (cadr code)) compiled-exps-with-names)
+                 (if (= 1 (length (cadr code)))
+                     (caadr code)
+                 ;; (format #t "get-names-and-calls: ~A ~%" (cadr code))
+                     (cadr code))) compiled-exps-with-names)
           (cadr compiled-exps-with-names))))
 #+END_SRC
 
@@ -1041,13 +1051,189 @@ main. Так что создадим конструктор для компил�
   (print-code (get-names-and-calls test-code4))
 #+END_SRC
 
-Теперь напишем процедуру, которая будет вызывать тот или иной конструктор
-в зависимости от того, вызов какого примитива нужено скомпилировать
-
-#+NAME: compile_primitives
+Пишем конструктор для создания возвращемого значения.
+#+NAME: return_value_constructor
 #+BEGIN_SRC scheme :noweb yes
+  (define (return-value-constructor retval)
+    (if (pair? retval)
+        (append '(return)
+                retval (list SEMICOLON))
+        (list 'return retval SEMICOLON)))
+#+END_SRC
+
+#+NAME: return_value_constructor_tests
+#+BEGIN_SRC scheme :noweb yes
+  (return-value-constructor (append (list "some_fn_call")
+                                    (compile-parenthesis'())))
+
+  (return-value-constructor 1)
+#+END_SRC
+
+Теперь нам нужна процедура, которая будет вызывать компиляцию всех
+аргументов. Она нам пригодится не только для вызова примитивов, но и для
+вызова любых процедур.
+
+Механизм очень простой: каждый аргумент будет передаваться в функцию
+~compile~, которая будет определять, какого типа у нас выражение:
+определение, вызов функции, переменная и т.д. и вызывать соответствующий
+констрктор для компиляции выражения.
+
+Пока что ~compile~ будет поддерживать только 3 вида выражений:
+самовычисляющиеся - строки и числа - нахождение переменных и вызов
+примитивов.
+
+#+NAME: compile_args
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-args args env)
+    (define (compile-args-rec args compiled-code)
+      (if (null? args)
+          (begin
+            (format #t "compiled-code ~A ~%" compiled-code)
+            compiled-code)
+          (let* ((compiled-arg-code (compile (car args) env)))
+            ;; (format #t "compiled-arg-code ~A ~%" compiled-arg-code)
+            (compile-args-rec (cdr args) (append compiled-code (list
+                                                                compiled-arg-code))))))
+    (compile-args-rec (cdr args) (list (compile (car args) env))))
+#+END_SRC
+
+#+NAME: compile_self_evaluating
+#+BEGIN_SRC scheme :noweb yes
+  (define (self-evaluating? exp)
+    (cond ((number? exp) true)
+          ((string? exp) true)
+          (else false)))
+
+  (define (compile-self-evaluating exp)
+    ;; (format #t "compile-self-evaluating ~A ~%" exp)
+    (if (number? exp)
+        (compile-int-val-constructor (generate-name-string exp)
+                                     exp)
+        (compile-string-val-constructor (generate-name-string exp)
+                                        exp)))
+#+END_SRC
+
+#+NAME: compile_variable
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-variable exp env)
+    ;; (format #t "compile-variable: exp ~A ~%" exp)
+    (if (lookup-variable exp env)
+        (list (list 'existing_var exp)
+              (list exp))))
+#+END_SRC
+
+Создаем ~compile~ для наших текущих целей. По мере добавления нового
+функционала в компилятор эта функция будет расширяться.
+#+NAME: compile_for_primitives
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile exp env)
+    (cond ((self-evaluating? exp)
+           (compile-self-evaluating exp))
+          ((variable? exp)
+           (compile-variable exp env))
+          (else (compile-primitive exp env))))
 
 #+END_SRC
+
+Теперь напишем процедуру, которая будет вызывать тот или иной конструктор
+для в зависимости от того, вызов какого примитива нужено скомпилировать
+#+NAME: compile_primitives
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-primitive-call operator compiled-args-names)
+    ;; (format #t "compile-primitive-call: compiled-args-names ~A ~%" compiled-args-names)
+    (cond ((eq? operator 'list)
+           (compile-list compiled-args-names))
+          ((eq? operator 'cons)
+           (compile-cons compiled-args-names))
+          ((eq? operator 'car)
+           (compile-car compiled-args-names))
+          ((eq? operator 'cdr)
+           (compile-cdr compiled-args-names))
+          ((eq? operator 'set-car!)
+           (compile-set-car compiled-args-names))
+          ((eq? operator 'set-cdr!)
+           (compile-set-cdr compiled-args-names))
+          ((eq? operator 'append)
+           (compile-append compiled-args-names))
+          ((eq? operator 'assoc)
+           (compile-assoc compiled-args-names))
+          ((eq? operator 'length)
+           (compile-length compiled-args-names))
+          ((eq? operator 'last-pair)
+           (compile-last-pair compiled-args-names))
+          ((eq? operator '=)
+           (compile-equal-numbers compiled-args-names))
+          ((eq? operator '+)
+           (compile-add (compile-list compiled-args-names)))
+          ((eq? operator '>)
+           (compile-bigger-predicate-compile (compile-list compiled-args-names)))
+          ((eq? operator '<)
+           (compile-smaller-predicate-compile (compile-list compiled-args-names)))
+          ((eq? operator '-)
+           (compile-sub (compile-list compiled-args-names)))
+          ((eq? operator '*)
+           (compile-mul (compile-list compiled-args-names)))
+          ((eq? operator '/)
+           (compile-division (compile-list compiled-args-names)))
+          ((eq? operator 'reverse)
+           (compile-reverse compiled-args-names))
+          ((eq? operator 'true?)
+           (compile-true? compiled-args-names))
+          ((eq? operator 'false?)
+           (compile-false? compiled-args-names))
+          ((eq? operator 'null?)
+           (compile-null? compiled-args-names))
+          ((eq? operator 'pair?)
+           (compile-pair? compiled-args-names))
+          ((eq? operator 'atom?)
+           (atom? compiled-args-names))
+          (else (error "Неизвестный примитив -- compile-primitive" operator))))
+
+  (define (compile-primitive exp env)
+    (if (null? (operands exp))
+        (let* ((compiled-args '())
+               (return-value (return-value-constructor
+                              (compile-primitive-call (operator exp) compiled-args)))
+               (service-fn-name (generate-name-string exp))
+               (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+          (list (compile-service-fn service-fn-name return-value)
+                (list  call-service-fn)))
+        (let* ((compiled-args (compile-args (operands exp) env)))
+          ;; (format #t "compiled-args ~A ~%" compiled-args)
+          (let*
+              ((compiled-args-names (get-names-and-calls compiled-args))
+            (return-value (return-value-constructor
+                           (compile-primitive-call (operator exp) compiled-args-names)))
+            (service-fn-name (generate-name-string exp))
+            (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+          ;; (format #t "compile-cur-primitive: compiled-args ~A ~%"
+          ;; (connect-compiled-exps compiled-args))
+          (list (compile-service-fn service-fn-name
+                                    (append (connect-compiled-exps compiled-args)
+                                            return-value))
+                call-service-fn)))))
+#+END_SRC
+
+#+NAME: compile_primitives_tests
+#+BEGIN_SRC scheme :noweb yes
+  (print-code (compile-primitive '(list 1 2 3 4) global-environment))
+
+  (print-code (compile-primitive '(cons 1 2) global-environment))
+
+  (print-code (compile-primitive '(cons (list 1 2) (list 3 4)) global-environment))
+
+  (print-code (compile-primitive '(cons (+ 1 2) (list 4 5)) global-environment))
+
+  (print-code (compile-primitive '(+ (* 1 2) (/ 9 (+ 1 2)) (- 4 5) 8)
+                                 global-environment))
+
+  (print-code (compile-primitive '(last-pair (list 1 2 3 4))
+                                 global-environment))
+
+  (print-code (compile-primitive '(> 1 2)
+                                 global-environment))
+#+END_SRC
+
 
 #+NAME: code
 #+BEGIN_SRC forth :tangle code.scheme :noweb tangle :exports code :padline no :comments none
@@ -1067,4 +1253,11 @@ main. Так что создадим конструктор для компил�
   <<allocate_memory_constructors>>
   <<nums_strings_symbols_constructors>>
   <<compile_primitives_constructors>>
+  <<connect_compiled_code>>
+  <<get_names_and_calls>>
+  <<return_value_constructor>>
+  <<compile_args>>
+  <<compile_self_evaluating>>
+  <<compile_variable>>
+  <<compile_primitives>>
 #+END_SRC
