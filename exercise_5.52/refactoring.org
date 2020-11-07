@@ -1235,6 +1235,317 @@ main. Так что создадим конструктор для компил�
 #+END_SRC
 
 
+~Определения~
+
+Определять можно как функции, так и переменные, а так же это можно делать
+локально или глобально.
+
+Сначала определяем, поступило нам на вход определение функции или
+переменной.
+#+NAME: define_definition
+#+BEGIN_SRC scheme :noweb yes
+  (define (tagged-list? exp tag)
+    (if (pair? exp)
+        (eq? (car exp) tag)
+        false))
+
+  (define (definition? exp)
+    (tagged-list? exp 'define))
+
+  (define (definition-fn? exp)
+    (pair? (cadr exp)))
+
+  (define (compile-definition exp env)
+    ;; (format #t "compile-definition ~A ~%" exp)
+    (if (definition-fn? exp)
+        (compile-named-function exp env)
+        (compile-definition-var exp env)))
+#+END_SRC
+
+Сначала разбираемся с переменными.
+Нам нужно пределить, локальная она или глобальная. Если у нас 1 кадр в
+окружении, то мы в голобальном окружении. Иначе считаем окружение
+локальным.
+
+А теперь мысль: область виимости переменной определяет буквально то
+место, где она была объявлена. То есть скомпиленный код в моем случае
+будет вкомпилен туда, откуда его вызвали. Так что нет никакой разницы
+между кодом, который я буду компилить для локальной переменной или
+глобальной.
+
+Пока что не включать этот код в компилятор.
+#+NAME: compile_definition_var
+#+BEGIN_SRC scheme :noweb yes
+  (define (global-env? env)
+    ( = ( length env) 1))
+
+  ;; (global-env? global-environment)
+
+  ;; (global-env? (cons '(some var names) global-environment))
+
+  ;; вызывает компиляцию локальной или глобальной переменной
+  (define (compile-definition-var exp env)
+    (if (global-env? env)
+        (compile-definition-var-global exp env)
+        (compile-definition-var-local exp env)))
+#+END_SRC
+
+Начнем с глобальных переменных.
+Объявление неинициализированной глобальной переменной в си.
+
+Вкопиль сюда switch!
+#+NAME: compile_unassigned_variable
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-unassigned-variable var-name)
+    (list 'val ASTERISK (symbol->string var-name) SEMICOLON))
+#+END_SRC
+
+Теперь компиляция присваивания ей значений. Значения могут:
+- другая переменная
+- список
+- строка
+- число
+- символ
+
+При присваивании есть тонкость. Переменные могут быть как определены
+только что, так и переопределены. В случае, если переменные уже были
+определны и теперь переопределяются, память под них уже выделена, поэтому
+к ней можно обращаться, не рискуя наткнуться на NULL или мусор, который в
+дальнейшем приведет к падению сишной программы.
+Но если переменная была только объявлена и неинициализированна, то память
+под нее еще не выделена, следовательно при попытке получить указатель на
+значение, чтоб присвоить ему другое значение, можно наткнуться на крупные
+неприятности.
+
+Поэтому присваивание значения будет выполняться по-разному в завиимости
+от того, определяем мы переменную заново или переопределяем.
+
+Сначала сделаем присваиния для случая, кoгда переменная
+неинициализирована.
+
+#+NAME: make_unassigned-var_assingments
+#+BEGIN_SRC scheme :noweb yes
+  (define (make-int-assignment-for-unassigned-var var-name var-value)
+    (let* ((var-name-string (if (string? var-name)
+                                var-name
+                                (symbol->string var-name)))
+           (allocated-memory (compile-malloc-int var-name-string))
+           (set-value-to-pointer (compile-set-value-to-pointer var-name-string var-value)))
+      (list (append allocated-memory
+                    set-value-to-pointer
+                    (list var-name-string '= 'int_val_constructor)
+                    (compile-parenthesis (append-ptr var-name-string))
+                    (list SEMICOLON))
+            (list var-name-string))))
+
+
+  (define (make-string-assignment-for-unassigned-var var-name string)
+    (let* ((var-name-string (if (string? var-name)
+                                var-name
+                                (symbol->string var-name)))
+           (allocated-memory (compile-malloc-char var-name-string))
+           (strcpy (compile-strcpy var-name-string string)))
+      (list (append
+             allocated-memory strcpy
+             (list var-name-string '= 'string_val_constructor)
+             (compile-parenthesis (append-ptr var-name-string))
+             (list SEMICOLON)) (list var-name-string))))
+
+
+  (define (make-symbol-assignment-for-unassigned-var var-name string)
+    (let* ((var-name-string (if (string? var-name)
+                                var-name
+                                (symbol->string var-name)))
+           (allocated-memory (compile-malloc-char var-name-string))
+           (strcpy (compile-strcpy var-name-string string)))
+      (list (append
+             allocated-memory strcpy
+             (list var-name-string '= 'symbol_val_constructor)
+             (compile-parenthesis (append-ptr var-name-string))
+             (list SEMICOLON)) (list var-name-string))))
+
+  (define (make-var-assignment-for-unassigned-var var-name1 var-name2)
+    (list (list var-name1 '= var-name2 SEMICOLON) (list var-name1)))
+
+
+  (define (make-var-assignment-for-unassigned-var var-name1 var-name2)
+    (list (list ASTERISK var-name1 '= ASTERISK var-name2 SEMICOLON) (list var-name1)))
+#+END_SRC
+
+
+#+NAME: make_unassigned-var_assingments_tests
+#+BEGIN_SRC scheme :noweb yes
+  (print-code (make-int-assignment-for-unassigned-var 's 1))
+
+  (print-code (make-int-assignment-for-unassigned-var "s" 1))
+
+  (print-code (make-string-assignment-for-unassigned-var "s" "\" string \""))
+
+  (print-code (make-string-assignment-for-unassigned-var 's "\" string \""))
+
+  (print-code (make-symbol-assignment-for-unassigned-var "s" "symbol"))
+
+  (print-code (make-symbol-assignment-for-unassigned-var 's "symbol"))
+
+  (print-code (make-var-assignment-for-unassigned-var 's 'n))
+
+#+END_SRC
+
+Все констуркторы, созданные ниже, пригодятся при определении
+присваиваний.
+#+NAME: make_assingments
+#+BEGIN_SRC scheme :noweb yes
+  (define (make-int-assignment-for-assigned-var var value)
+    ;; (format #t "make-int-assignment ~%")
+    (let* ((var-name (if (symbol? var)
+                         (symbol->string var)
+                         var))
+           (int-val-pointer (string-append var-name "->uni_val.int_val"))
+           (type-num-pointer (string-append var-name "->type_num")))
+      (list (append
+             (list ASTERISK int-val-pointer '= value SEMICOLON)
+             (list type-num-pointer '= "TYPE_INT" SEMICOLON))
+            (list var))))
+
+  (define (make-string-assignment-for-assigned-var var string)
+    (let* ((var-name (if (symbol? var)
+                         (symbol->string var)
+                         var))
+           (char-val-pointer (string-append var-name "->uni_val.char_val"))
+           (type-num-pointer (string-append var-name "->type_num")))
+      (list (append
+             (compile-malloc-char var-name)
+             (compile-strcpy var-name string)
+             (list char-val-pointer '= (append-ptr var-name) SEMICOLON)
+             (list type-num-pointer '= "TYPE_STRING" SEMICOLON))
+            (list var))))
+
+  (define (make-symbol-assignment-for-assigned-var var string)
+    (let* ((var-name (if (symbol? var)
+                         (symbol->string var)
+                         var))
+           (char-val-pointer (string-append var-name "->uni_val.char_val"))
+           (type-num-pointer (string-append var-name "->type_num")))
+      (list (append
+             (compile-malloc-char var-name)
+             (compile-strcpy var-name string)
+             (list char-val-pointer '= (append-ptr var-name) SEMICOLON)
+             (list type-num-pointer '= "TYPE_SYMBOL" SEMICOLON))
+            (list var))))
+
+#+END_SRC
+
+Теперь создем две функции.
+Одна будет компилировать код для глобальной переменной, которая ранее не
+была определена, а вторая будет компилировать код для переопределения
+глобальной переменной.
+
+#+NAME: define_global_var
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-definition-var var-name value env)
+    (let* ((unassigned-variable (compile-unassigned-variable var-name))
+          (var-assignment
+           (cond ((variable? value)
+                  (if (lookup-variable value env)
+                      (connect-compiled-exps
+                       (make-var-assignment-for-unassigned-var var-name value))))
+                 ((number? value)
+                  (connect-compiled-exps
+                   (make-int-assignment-for-unassigned-var var-name value)))
+                 ((string? value)
+                  (connect-compiled-exps
+                   (make-string-assignment-for-unassigned-var var-name value)))
+                 (else (let* ((compiled-value (compile value env))
+                              (compile-value-code (connect-compiled-exps compiled-value))
+                              (value-call (get-names-and-calls compiled-value)))
+                         (append
+                          compile-value-code
+                          (list var-name '= value-call SEMICOLON))))))
+          (service-fn-name (generate-name-string var-name))
+          (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+      (list (append
+             unassigned-variable
+             (compile-service-fn service-fn-name
+                                 var-assignment))
+
+            call-service-fn)))
+
+  (define (compile-redefinition-var var-name value env)
+    (let* ((var-assignment
+           (cond ((variable? value)
+                  (if (lookup-variable value env)
+                      (connect-compiled-exps
+                       (make-var-assignment-for-unassigned-var var-name value))))
+                 ((number? value)
+                  (connect-compiled-exps
+                   (make-int-assignment-for-assigned-var var-name value)))
+                 ((string? value)
+                  (connect-compiled-exps
+                   (make-string-assignment-for-assigned-var var-name value)))
+                 (else (let* ((compiled-value (compile value env))
+                              (compile-value-code (connect-compiled-exps compiled-value))
+                              (value-call (get-names-and-calls compiled-value)))
+                         (append
+                          compile-value-code
+                          (list var-name '= value-call SEMICOLON))))))
+          (service-fn-name (generate-name-string var-name))
+          (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+      (list (compile-service-fn service-fn-name
+                                var-assignment)
+      call-service-fn)))
+#+END_SRC
+
+#+NAME: compile_global_var
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-global-var exp env)
+    (let ((return-value (define-variable! (definition-variable exp) env)))
+      (if (eq? return-value 'ok)
+          (compile-definition-global-var (definition-variable exp)
+                                         (definition-value exp) env)
+          (compile-redefinition-global-var (definition-variable exp)
+                                           (definition-value exp) env))))
+#+END_SRC
+
+Теперь тестим это.
+
+#+NAME: compile_global_var_tests
+#+BEGIN_SRC scheme :noweb yes
+  ;; определяем 4 новые прееменные
+  ;; (если их нет в окружении, в противном случае они будут переопределены)
+  (print-code (compile-global-var '(define n 10)  global-environment))
+
+  (print-code (compile-global-var '(define f "\"some string\"")  global-environment))
+
+  (print-code (compile-global-var '(define b n)  global-environment))
+
+  (print-code (compile-global-var '(define c (list 1 2 3))  global-environment))
+
+  ;; теперь пробуем переопределить переменные
+
+  (print-code (compile-global-var '(define n "\"some string\"")  global-environment))
+
+  (print-code (compile-global-var '(define c b)  global-environment))
+
+  (print-code (compile-global-var '(define c f)  global-environment))
+
+  (print-code (compile-global-var '(define f 0)  global-environment))
+#+END_SRC
+
+#+NAME: make_assingments
+#+BEGIN_SRC scheme :noweb yes
+  (print-code (make-int-assignment-for-assigned-var 's 1))
+
+  (print-code (make-int-assignment-for-assigned-var "s" 1))
+
+  (print-code (make-string-assignment-for-assigned-var 's "\" string\""))
+
+  (print-code (make-string-assignment-for-assigned-var "s" "\" string\""))
+
+  (print-code (make-symbol-assignment-for-assigned-var 's "\"symbol\""))
+
+  (print-code (make-symbol-assignment-for-assigned-var "s" "\"symbol\""))
+#+END_SRC
+
 #+NAME: code
 #+BEGIN_SRC forth :tangle code.scheme :noweb tangle :exports code :padline no :comments none
   <<syntax_symbols>>
