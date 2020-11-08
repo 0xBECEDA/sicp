@@ -54,7 +54,7 @@
   (define CLOSING_BRACKET #\])
 
   ;; преставление : и , в компилируемом коде
-  (define СOLON #\:)
+  (define COLON #\:)
   (define COMMA #\,)
 
   ;; преставление * в компилируемом коде
@@ -708,6 +708,13 @@ main. Так что создадим конструктор для компил�
            (char-pointer (list 'char ASTERISK (append-ptr var-name) '=)))
       (append char-pointer malloc-char (list SEMICOLON))))
 
+  (define (compile-malloc-cell var-name)
+    (let* ((malloc-int (append '(malloc)
+                               (compile-parenthesis (append '(sizeof)
+                                                            (compile-parenthesis 'cell)))))
+           (int-pointer (list 'int  ASTERISK (append-ptr var-name) '=)))
+      (append int-pointer malloc-int (list SEMICOLON))))
+
   ;; комиплирует код для комипрования строки в выделенную память
   (define (compile-strcpy var-name string)
     (append
@@ -749,7 +756,6 @@ main. Так что создадим конструктор для компил�
                  (compile-parenthesis (append-ptr var-name))
                  (list SEMICOLON)) (list var-name)))
         (error "var-name should be a string -- compile-symbol-val-constructor" var-name)))
-
 
   (define (compile-string-val-constructor var-name string)
     (if (string? var-name)
@@ -1294,6 +1300,13 @@ main. Так что создадим конструктор для компил�
 Объявление неинициализированной глобальной переменной в си.
 
 Вкопиль сюда switch!
+
+Нельзя просто так приравнять одну переменную другой, поскольку в
+скомпиленном коде мы все врем оперируем указателями на структуры,
+следовательно, при попытке сделать ~n = d;~ мы приравняем указатели. А
+нам нужно, чтоб в n попало значение d. Так что придется выяснять,какого
+типа структура d - строка, символ, ячейка и т.д. и приравнивать
+соответствующим образом.
 #+NAME: compile_unassigned_variable
 #+BEGIN_SRC scheme :noweb yes
   (define (compile-unassigned-variable var-name)
@@ -1370,8 +1383,92 @@ main. Так что создадим конструктор для компил�
 
   (define (make-var-assignment-for-unassigned-var var-name1 var-name2)
     (list (list ASTERISK var-name1 '= ASTERISK var-name2 SEMICOLON) (list var-name1)))
-#+END_SRC
 
+  (define (make-int-ptr-malloc-assignment ptr-name)
+    (list  ptr-name '=
+          (append '(malloc)
+                  (compile-parenthesis (append '(sizeof)
+                                               (compile-parenthesis 'int))))
+          SEMICOLON))
+
+  (define (make-char-ptr-malloc-assignment ptr-name)
+    (list ptr-name '=
+          (append '(malloc)
+                  (compile-parenthesis (append '(sizeof)
+                                               (compile-parenthesis
+                                                (append '(char)
+                                                        (compile-brackets
+                                                         100))))))
+          SEMICOLON))
+
+  (define (make-var-assignment-for-unassigned-var var1 var2)
+    (let* ((var-name1 (if (symbol? var1)
+                          (symbol->string var1)
+                          var1))
+           (var-name2 (if (symbol? var2)
+                          (symbol->string var2)
+                          var2))
+           (type-num-pointer (string-append var-name2 "->type_num"))
+           (char-ptr (append-ptr (string-append "char_" var-name1)))
+           (int-ptr (append-ptr (string-append "int_" var-name1))))
+      (list
+       (append
+        (list 'int ASTERISK int-ptr SEMICOLON)
+        (list 'char ASTERISK char-ptr SEMICOLON)
+        (list '(switch) (compile-parenthesis type-num-pointer)
+              (compile-braces (append
+                               (append
+                                (list 'case "TYPE_INT" COLON)
+                                (make-int-ptr-malloc-assignment
+                                 int-ptr)
+                                (compile-set-value-to-pointer
+                                 (string-append "int_" var-name1)
+                                 (list
+                                  ASTERISK
+                                  (string-append var-name2 "->uni_val.int_val")))
+                                (list var-name1 '= 'int_val_constructor)
+                                (compile-parenthesis int-ptr)
+                                (list SEMICOLON)
+                                (list 'break SEMICOLON))
+
+                               (append
+                                (list 'case "TYPE_STRING" COLON)
+                                (make-char-ptr-malloc-assignment char-ptr)
+                                (compile-strcpy (string-append "char_" var-name1)
+                                                (string-append var-name2
+                                                               "->uni_val.char_val"))
+                                (list var-name1 '= 'string_val_constructor)
+                                (compile-parenthesis char-ptr)
+                                (list SEMICOLON)
+                                (list 'break SEMICOLON))
+
+                               (append
+                                (list 'case "TYPE_SYMBOL" COLON)
+                                (make-char-ptr-malloc-assignment char-ptr)
+                                (compile-strcpy (string-append "char_" var-name1)
+                                                (string-append var-name2
+                                                               "->uni_val.char_val"))
+                                (list var-name1 '= 'symbol_val_constructor)
+                                (compile-parenthesis char-ptr)
+                                (list SEMICOLON)
+                                (list 'break SEMICOLON))
+
+                               (append
+                                (list 'case "TYPE_NIL" COLON)
+                                (list var-name1 '= 'nil_constructor)
+                                (compile-parenthesis '())
+                                (list SEMICOLON)
+                                (list 'break SEMICOLON))
+
+                               (append
+                                (list 'case "TYPE_CELL" COLON)
+                                (list var-name1 '= 'cell_val_constructor)
+                                (compile-parenthesis (string-append var-name2
+                                                                    "->uni_val.cell_val"))
+                                (list SEMICOLON)
+                                (list 'break SEMICOLON))))))
+       (list var-name1))))
+#+END_SRC
 
 #+NAME: make_unassigned-var_assingments_tests
 #+BEGIN_SRC scheme :noweb yes
@@ -1396,13 +1493,15 @@ main. Так что создадим конструктор для компил�
 #+NAME: make_assingments
 #+BEGIN_SRC scheme :noweb yes
   (define (make-int-assignment-for-assigned-var var value)
-    ;; (format #t "make-int-assignment ~%")
     (let* ((var-name (if (symbol? var)
                          (symbol->string var)
                          var))
            (int-val-pointer (string-append var-name "->uni_val.int_val"))
            (type-num-pointer (string-append var-name "->type_num")))
       (list (append
+             (make-int-ptr-malloc-assignment
+              (string-append var-name
+                             "->uni_val.int_val"))
              (list ASTERISK int-val-pointer '= value SEMICOLON)
              (list type-num-pointer '= "TYPE_INT" SEMICOLON))
             (list var))))
@@ -1433,6 +1532,87 @@ main. Так что создадим конструктор для компил�
              (list type-num-pointer '= "TYPE_SYMBOL" SEMICOLON))
             (list var))))
 
+
+  (define (compile-strcpy-existed-ptr var-name string)
+    (append
+     '(strncpy) (compile-parenthesis
+                 (list var-name COMMA string COMMA 100))
+     (list SEMICOLON)))
+
+  (define (make-var-assignment-for-assigned-var var1 var2)
+    ;; (format #t "make-var-assignment-for-assigned-var ~%")
+    (let* ((var-name1 (if (symbol? var1)
+                          (symbol->string var1)
+                          var1))
+           (var-name2 (if (symbol? var2)
+                          (symbol->string var2)
+                          var2))
+           (type-num-pointer2 (string-append var-name2 "->type_num"))
+           (type-num-pointer1 (string-append var-name1 "->type_num"))
+           (char-ptr (append-ptr (string-append "char_" var-name1)))
+           (int-ptr (append-ptr (string-append "int_" var-name1))))
+      (list
+       (append
+        (list 'int ASTERISK int-ptr SEMICOLON)
+        (list 'char ASTERISK char-ptr SEMICOLON)
+        (list '(switch) (compile-parenthesis type-num-pointer2)
+              (compile-braces (append
+                               (append
+                                (list 'case "TYPE_INT" COLON)
+                                (make-int-ptr-malloc-assignment
+                                 (string-append var-name1
+                                                "->uni_val.int_val"))
+                                (list
+                                 ASTERISK
+                                 (string-append var-name1 "->uni_val.int_val")
+                                 '=)
+                                (list
+                                 ASTERISK
+                                 (string-append var-name2 "->uni_val.int_val") SEMICOLON)
+                                (list type-num-pointer1 '= "TYPE_INT" SEMICOLON)
+                                (list 'break SEMICOLON))
+
+                               (append
+                                (list 'case "TYPE_STRING" COLON)
+                                (make-char-ptr-malloc-assignment
+                                 (string-append var-name1
+                                                "->uni_val.char_val"))
+                                (compile-strcpy-existed-ptr (string-append var-name1
+                                                               "->uni_val.char_val")
+                                                (string-append var-name2
+                                                               "->uni_val.char_val"))
+                                (list type-num-pointer1 '= "TYPE_STRING" SEMICOLON)
+                                (list 'break SEMICOLON))
+
+                               (append
+                                (list 'case "TYPE_SYMBOL" COLON)
+                                (make-char-ptr-malloc-assignment
+                                 (string-append var-name1
+                                                "->uni_val.char_val"))
+                                (compile-strcpy-existed-ptr (string-append var-name1
+                                                               "->uni_val.char_val")
+                                                (string-append var-name2
+                                                               "->uni_val.char_val"))
+                                (list type-num-pointer1 '= "TYPE_SYMBOL" SEMICOLON)
+                                (list 'break SEMICOLON))
+
+                               (append
+                                (list 'case "TYPE_NIL" COLON)
+                                (list type-num-pointer1 '= "TYPE_NIL" SEMICOLON)
+                                (list 'break SEMICOLON))
+
+                               (append
+                                (list 'case "TYPE_CELL" COLON)
+                                (list
+                                 ASTERISK
+                                 (string-append var-name1 "->uni_val.cell_val")
+                                 '=)
+                                 (list
+                                  ASTERISK
+                                  (string-append var-name2 "->uni_val.cell_val") SEMICOLON)
+                                (list type-num-pointer1 '= "TYPE_CELL" SEMICOLON)
+                                (list 'break SEMICOLON))))))
+       (list var-name1))))
 #+END_SRC
 
 Теперь создем две функции.
@@ -1444,25 +1624,25 @@ main. Так что создадим конструктор для компил�
 #+BEGIN_SRC scheme :noweb yes
   (define (compile-definition-var var-name value env)
     (let* ((unassigned-variable (compile-unassigned-variable var-name))
-          (var-assignment
-           (cond ((variable? value)
-                  (if (lookup-variable value env)
-                      (connect-compiled-exps
-                       (make-var-assignment-for-unassigned-var var-name value))))
-                 ((number? value)
-                  (connect-compiled-exps
-                   (make-int-assignment-for-unassigned-var var-name value)))
-                 ((string? value)
-                  (connect-compiled-exps
-                   (make-string-assignment-for-unassigned-var var-name value)))
-                 (else (let* ((compiled-value (compile value env))
-                              (compile-value-code (connect-compiled-exps compiled-value))
-                              (value-call (get-names-and-calls compiled-value)))
-                         (append
-                          compile-value-code
-                          (list var-name '= value-call SEMICOLON))))))
-          (service-fn-name (generate-name-string var-name))
-          (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+           (var-assignment
+            (cond ((variable? value)
+                   (if (lookup-variable value env)
+                       (connect-compiled-exps
+                        (make-var-assignment-for-unassigned-var var-name value))))
+                  ((number? value)
+                   (connect-compiled-exps
+                    (make-int-assignment-for-unassigned-var var-name value)))
+                  ((string? value)
+                   (connect-compiled-exps
+                    (make-string-assignment-for-unassigned-var var-name value)))
+                  (else (let* ((compiled-value (compile value env))
+                               (compile-value-code (connect-compiled-exps compiled-value))
+                               (value-call (get-names-and-calls compiled-value)))
+                          (append
+                           compile-value-code
+                           (list var-name '= value-call SEMICOLON))))))
+           (service-fn-name (generate-name-string var-name))
+           (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
       (list (append
              unassigned-variable
              (compile-service-fn service-fn-name
@@ -1471,28 +1651,31 @@ main. Так что создадим конструктор для компил�
             call-service-fn)))
 
   (define (compile-redefinition-var var-name value env)
+    (format #t "compile-redefinition-var ~%")
     (let* ((var-assignment
-           (cond ((variable? value)
-                  (if (lookup-variable value env)
-                      (connect-compiled-exps
-                       (make-var-assignment-for-unassigned-var var-name value))))
-                 ((number? value)
-                  (connect-compiled-exps
-                   (make-int-assignment-for-assigned-var var-name value)))
-                 ((string? value)
-                  (connect-compiled-exps
-                   (make-string-assignment-for-assigned-var var-name value)))
-                 (else (let* ((compiled-value (compile value env))
-                              (compile-value-code (connect-compiled-exps compiled-value))
-                              (value-call (get-names-and-calls compiled-value)))
-                         (append
-                          compile-value-code
-                          (list var-name '= value-call SEMICOLON))))))
-          (service-fn-name (generate-name-string var-name))
-          (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+            (cond ((variable? value)
+                   (if (lookup-variable value env)
+                       (begin
+                         (format #t "значение = переменная ~%")
+                         (connect-compiled-exps
+                          (make-var-assignment-for-assigned-var var-name value)))))
+                  ((number? value)
+                   (connect-compiled-exps
+                    (make-int-assignment-for-assigned-var var-name value)))
+                  ((string? value)
+                   (connect-compiled-exps
+                    (make-string-assignment-for-assigned-var var-name value)))
+                  (else (let* ((compiled-value (compile value env))
+                               (compile-value-code (connect-compiled-exps compiled-value))
+                               (value-call (get-names-and-calls compiled-value)))
+                          (append
+                           compile-value-code
+                           (list var-name '= value-call SEMICOLON))))))
+           (service-fn-name (generate-name-string var-name))
+           (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
       (list (compile-service-fn service-fn-name
                                 var-assignment)
-      call-service-fn)))
+            call-service-fn)))
 #+END_SRC
 
 #+NAME: compile_global_var
@@ -1500,17 +1683,21 @@ main. Так что создадим конструктор для компил�
   (define (compile-global-var exp env)
     (let ((return-value (define-variable! (definition-variable exp) env)))
       (if (eq? return-value 'ok)
-          (compile-definition-global-var (definition-variable exp)
-                                         (definition-value exp) env)
-          (compile-redefinition-global-var (definition-variable exp)
-                                           (definition-value exp) env))))
+          (begin
+            (format #t "Новая переменная ~%")
+          (compile-definition-var (definition-variable exp)
+                                         (definition-value exp) env))
+          (begin
+            (format #t "Переопределение переменной ~%")
+            (compile-redefinition-var (definition-variable exp)
+                                             (definition-value exp) env)))))
 #+END_SRC
 
 Теперь тестим это.
 
 #+NAME: compile_global_var_tests
 #+BEGIN_SRC scheme :noweb yes
-  ;; определяем 4 новые прееменные
+  ;; определяем новые прееменные
   ;; (если их нет в окружении, в противном случае они будут переопределены)
   (print-code (compile-global-var '(define n 10)  global-environment))
 
@@ -1520,15 +1707,23 @@ main. Так что создадим конструктор для компил�
 
   (print-code (compile-global-var '(define c (list 1 2 3))  global-environment))
 
+  (print-code (compile-global-var '(define a f)  global-environment))
+
+  (print-code (compile-global-var '(define g c)  global-environment))
+
   ;; теперь пробуем переопределить переменные
 
   (print-code (compile-global-var '(define n "\"some string\"")  global-environment))
+
+  (print-code (compile-global-var '(define b g)  global-environment))
 
   (print-code (compile-global-var '(define c b)  global-environment))
 
   (print-code (compile-global-var '(define c f)  global-environment))
 
   (print-code (compile-global-var '(define f 0)  global-environment))
+
+  (define global-environment (setup-environment))
 #+END_SRC
 
 #+NAME: make_assingments
