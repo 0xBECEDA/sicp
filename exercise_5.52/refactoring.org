@@ -1098,18 +1098,10 @@ main. Так что создадим конструктор для компил�
           (if (and (pair? compiled-code)
                    (pair? name-compiled-code))
               ;; выражений множество
-              (if (eq? (car compiled-code) 'existing_var)
-                  ;; первый из них - это результат поиска переменной в
-                  ;; окружении компилятора, пропускем его, он нам не нужен
-                  (connect-compiled-exps (cdr compiled-exps-with-names))
-                  ;; иначе присоединяем скомпиленный код к общему списку
-                  (append compiled-code
-                          (connect-compiled-exps (cdr compiled-exps-with-names))))
-              ;; выражение было единичным, проверяем, является ли оно разельтатом от поиска
-              ;; переменной в окружении комилятора
-              (if (eq? compiled-code 'existing_var)
-                 '()
-                  compiled-exp)))))
+              (append compiled-code
+                      (connect-compiled-exps (cdr compiled-exps-with-names)))
+              ;; выражение было единичным
+              compiled-exp))))
 #+END_SRC
 
 И напишем функцию, которая будет вытаскивать вызовы скомпилированного
@@ -1231,8 +1223,12 @@ main. Так что создадим конструктор для компил�
   (define (compile-variable exp env)
     ;; (format #t "compile-variable: exp ~A ~%" exp)
     (if (lookup-variable exp env)
-        (list (list 'existing_var exp)
-              (list exp))))
+        (let* ((return-value (return-value-constructor exp))
+               (service-fn-name (generate-name-string exp))
+               (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+          (list (compile-service-fn service-fn-name
+                                    return-value)
+                call-service-fn))))
 #+END_SRC
 
 Создаем ~compile~ для наших текущих целей. По мере добавления нового
@@ -2131,13 +2127,135 @@ main. Так что создадим конструктор для компил�
            (compile-sequences (begin-actions exp) env))
            (else (compile-application exp env))))
 #+END_SRC
-#+NAME: compile_application
+
+#+NAME: compile_application_tests
 #+BEGIN_SRC scheme :noweb yes
   (print-code (compile-sequences
                '((define (test x)
                   (define n 10)
                   (+ n x))
                (test 3)) global-environment))
+#+END_SRC
+
+~Компиляция ифа~.
+#+NAME: compile_if
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-if exp env)
+    ;; компилируем код для условия, консеквента и антецедента
+    (let* ((condition-code (compile (if-predicate exp) env))
+          (consequent-code (compile (if-consequent exp) env))
+          (alternative-code (compile (if-alternative exp) env))
+          ;; компилируем переменную, в которую бдем записывать результат выполния условия
+          (conpidion-result-var (generate-name-string exp))
+          (assign-condition-result (list 'val ASTERISK
+                                         conpidion-result-var '= (cadr condition-code)
+                                         SEMICOLON))
+          ;; компилируем возвращаемое значение консеквента и антецедента
+          (return_consequent (return-value-constructor
+                              (get-names-and-calls consequent-code)))
+          (return_alternative (return-value-constructor
+                               (get-names-and-calls
+                                    alternative-code)))
+          ;; компилируем имя и вызов служебной функции, внутри которой
+          ;; будет исполняться иф
+          (service-fn-name (string-append
+                            conpidion-result-var "_if_fn"))
+          (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+      ;; компилируем служебную функцию
+      (list (append  (list 'val ASTERISK service-fn-name)
+               (compile-parenthesis '())
+               (compile-braces
+                ;; соединяем код условия, консеквента и антецедента
+                (append (connect-compiled-exps condition-code)
+                        (connect-compiled-exps consequent-code)
+                        (connect-compiled-exps alternative-code)
+                        ;; присоединяем к нему присваивание переменной результата выполнения
+                        ;; условия
+                        assign-condition-result
+                        ;; компиляция проверки условия
+                        (list 'if (compile-parenthesis (list 'symbol_predicate
+                                                             (compile-parenthesis
+                                                              conpidion-result-var)))
+                              (compile-braces
+                               (list 'if
+                                     (compile-parenthesis
+                                      (list 'eq_names_predicate
+                                            (compile-parenthesis
+                                             (list "\"true\"" COMMA
+                                                   (string-append
+                                                    conpidion-result-var
+                                                    "->uni_val.char_val")))))
+                                     (compile-braces return_consequent)
+                                     'else
+                                     (compile-braces return_alternative))))
+                        (list 'else 'if
+                              (compile-parenthesis
+                               (list 'true_predicate
+                                     (compile-parenthesis conpidion-result-var)))
+                              (compile-braces return_consequent)
+                              'else
+                              (compile-braces return_alternative)))))
+            ;; если не обернуть в список дополнительно, то ничего не заработает
+            ;; хорошо бы узнать, почему
+            call-service-fn)))
+
+#+END_SRC
+
+#+NAME: compile_for_if
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile exp env)
+    (cond ((self-evaluating? exp)
+           (compile-self-evaluating exp))
+          ((variable? exp)
+           (compile-variable exp env))
+          ((definition? exp)
+           (compile-definition exp env))
+          ((lambda? exp)
+           (compile-lambda exp env))
+          ((if? exp)
+           (compile-if exp env))
+          ((begin? exp)
+           (compile-sequences (begin-actions exp) env))
+           (else (compile-application exp env))))
+#+END_SRC
+
+#+NAME: compile_if_tests
+#+BEGIN_SRC scheme :noweb yes
+  (print-code (compile '(if (+ 1 2)
+                            2
+                            3) global-environment))
+
+  (print-code (compile '(if (true? 1)
+                            2
+                            3) global-environment))
+
+  (print-code (compile '(if (= 1 2)
+                            4
+                            (list 1 2 3 4) global-environment)))
+  (print-code  (compile
+                '(define (factorial n)
+                   (if (= n 0)
+                       1
+                       (* n (factorial (- n 1)))))
+                global-environment))
+
+  (print-code (compile '(define (my-reverse lst)
+                           (define (my-reverse-rec lst new-lst)
+                             (if (null? lst)
+                                 new-lst
+                                 (my-reverse-rec (cdr lst) (cons (car lst) new-lst))))
+                           (my-reverse-rec lst (list))) global-environment))
+
+  (print-code (compile '(define (my_reverse lst)
+                          (define (my_reverse_rec lst new_lst)
+                            (if (null? lst)
+                                new_lst
+                                (my_reverse_rec (cdr lst) (cons (car lst) new_lst))))
+                          (my_reverse_rec lst (list))) global-environment))
+
+  (print-code (compile '(my_reverse (list 1 2 3 4))
+                       global-environment))
+
 #+END_SRC
 
 #+NAME: code
@@ -2176,4 +2294,5 @@ main. Так что создадим конструктор для компил�
   <<compile_global_var>>
   <<compile_for_definitions>>
   <<compile_lambda>>
+  <<compile_application>>
 #+END_SRC
