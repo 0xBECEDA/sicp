@@ -131,6 +131,95 @@ main. Так что создадим конструктор для компил�
               code-into-braces)))
 #+END_SRC
 
+Процедуры для синтаксического анализа выражений
+#+NAME: syntax_procs
+#+BEGIN_SRC scheme :noweb yes
+  (define (variable? exp) (symbol? exp))
+
+  (define (quoted? exp)
+    (tagged-list? exp 'quote))
+
+  (define (text-of-quotation exp) (cadr exp))
+
+  (define (tagged-list? exp tag)
+    (if (pair? exp)
+        (eq? (car exp) tag)
+        false))
+
+  (define (assignment? exp)
+    (tagged-list? exp 'set!))
+
+  (define (assignment-variable exp) (cadr exp))
+
+  (define (assignment-value exp) (caddr exp))
+
+  (define (definition? exp)
+    (tagged-list? exp 'define))
+
+  (define (definition-variable exp)
+    (if (symbol? (cadr exp))
+        (cadr exp)
+        (caadr exp)))
+
+  (define (definition-value exp)
+    (if (symbol? (cadr exp))
+        (caddr exp)
+        (make-lambda (cdadr exp)
+                     (cddr exp))))
+
+  (define (lambda? exp) (tagged-list? exp 'lambda))
+
+  (define (lambda-parameters exp) (cadr exp))
+
+  (define (lambda-body exp) (cddr exp))
+
+  (define (make-lambda parameters body)
+    (cons 'lambda (cons parameters body)))
+
+  (define (if? exp) (tagged-list? exp 'if))
+
+  (define (if-predicate exp) (cadr exp))
+
+  (define (if-consequent exp) (caddr exp))
+
+  (define (if-alternative exp)
+    (if (not (null? (cdddr exp)))
+        (cadddr exp)
+        'false))
+
+  (define (make-if predicate consequent alternative)
+    (list 'if predicate consequent alternative))
+
+  (define (begin? exp) (tagged-list? exp 'begin))
+
+  (define (begin-actions exp) (cdr exp))
+
+  (define (last-exp? seq) (null? (cdr seq)))
+
+  (define (first-exp seq) (car seq))
+
+  (define (rest-exps seq) (cdr seq))
+
+  (define (sequence->exp seq)
+    (cond ((null? seq) seq)
+          ((last-exp? seq) (first-exp seq))
+          (else (make-begin seq))))
+
+  (define (make-begin seq) (cons 'begin seq))
+
+  (define (application? exp) (pair? exp))
+
+  (define (operator exp) (car exp))
+
+  (define (operands exp) (cdr exp))
+
+  (define (no-operands? ops) (null? ops))
+
+  (define (first-operand ops) (car ops))
+
+  (define (rest-operands ops) (cdr ops))
+#+END_SRC
+
 ~Генерация имен~
 
 Для генерации имен переменных и функций необходимо:
@@ -330,7 +419,7 @@ main. Так что создадим конструктор для компил�
                         (cons " [" (transform-exp (cdr exp))))
                        ((eq? CLOSING_BRACKET first-elt)
                         (cons " ]" (transform-exp (cdr exp))))
-                       ((eq? СOLON first-elt)
+                       ((eq? COLON first-elt)
                         (cons ":" (transform-exp (cdr exp))))
                        ((eq? SEMICOLON first-elt)
                         (cons ";" (transform-exp (cdr exp))))
@@ -585,7 +674,9 @@ main. Так что создадим конструктор для компил�
         frame)))
 
   (define (extend-environment vars base-env)
-    (cons vars base-env))
+    (if (null? vars)
+        base-env
+    (cons vars base-env)))
 
   (define (lookup-variable var env)
     (define (env-loop env)
@@ -1094,7 +1185,7 @@ main. Так что создадим конструктор для компил�
     (define (compile-args-rec args compiled-code)
       (if (null? args)
           (begin
-            (format #t "compiled-code ~A ~%" compiled-code)
+            ;; (format #t "compiled-code ~A ~%" compiled-code)
             compiled-code)
           (let* ((compiled-arg-code (compile (car args) env)))
             ;; (format #t "compiled-arg-code ~A ~%" compiled-arg-code)
@@ -1265,7 +1356,7 @@ main. Так что создадим конструктор для компил�
     ;; (format #t "compile-definition ~A ~%" exp)
     (if (definition-fn? exp)
         (compile-named-function exp env)
-        (compile-definition-var exp env)))
+        (compile-global-var exp env)))
 #+END_SRC
 
 Сначала разбираемся с переменными.
@@ -1615,6 +1706,21 @@ main. Так что создадим конструктор для компил�
        (list var-name1))))
 #+END_SRC
 
+#+NAME: make_assingments
+#+BEGIN_SRC scheme :noweb yes
+  (print-code (make-int-assignment-for-assigned-var 's 1))
+
+  (print-code (make-int-assignment-for-assigned-var "s" 1))
+
+  (print-code (make-string-assignment-for-assigned-var 's "\" string\""))
+
+  (print-code (make-string-assignment-for-assigned-var "s" "\" string\""))
+
+  (print-code (make-symbol-assignment-for-assigned-var 's "\"symbol\""))
+
+  (print-code (make-symbol-assignment-for-assigned-var "s" "\"symbol\""))
+#+END_SRC
+
 Теперь создем две функции.
 Одна будет компилировать код для глобальной переменной, которая ранее не
 была определена, а вторая будет компилировать код для переопределения
@@ -1641,7 +1747,7 @@ main. Так что создадим конструктор для компил�
                           (append
                            compile-value-code
                            (list var-name '= value-call SEMICOLON))))))
-           (service-fn-name (generate-name-string var-name))
+           (service-fn-name (generate-name-string (list var-name value)))
            (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
       (list (append
              unassigned-variable
@@ -1671,7 +1777,7 @@ main. Так что создадим конструктор для компил�
                           (append
                            compile-value-code
                            (list var-name '= value-call SEMICOLON))))))
-           (service-fn-name (generate-name-string var-name))
+           (service-fn-name (generate-name-string (list var-name value)))
            (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
       (list (compile-service-fn service-fn-name
                                 var-assignment)
@@ -1726,23 +1832,208 @@ main. Так что создадим конструктор для компил�
   (define global-environment (setup-environment))
 #+END_SRC
 
-#+NAME: make_assingments
+Теперь тестим определения со всей системой.
+
+#+NAME: compile_for_definitions
 #+BEGIN_SRC scheme :noweb yes
-  (print-code (make-int-assignment-for-assigned-var 's 1))
+  (define (compile exp env)
+    (cond ((self-evaluating? exp)
+           (compile-self-evaluating exp))
+          ((variable? exp)
+           (compile-variable exp env))
+          ((definition? exp)
+           (compile-global-var exp env))
+           (else (compile-primitive exp env))))
+#+END_SRC
 
-  (print-code (make-int-assignment-for-assigned-var "s" 1))
+#+NAME: compile_for_definitions_tests
+#+BEGIN_SRC scheme :noweb yes
+  (print-code (compile '(define n "\" string\"") global-environment))
 
-  (print-code (make-string-assignment-for-assigned-var 's "\" string\""))
+  (print-code (compile '(define n (car (list 1 2 3 4))) global-environment))
 
-  (print-code (make-string-assignment-for-assigned-var "s" "\" string\""))
+  (print-code (compile '(define n (cdr (list 1 2 3 4))) global-environment))
+#+END_SRC
 
-  (print-code (make-symbol-assignment-for-assigned-var 's "\"symbol\""))
+~Компиляция функций~
 
-  (print-code (make-symbol-assignment-for-assigned-var "s" "\"symbol\""))
+Сначала компилируем тело функций. Тело функции представляет собой
+последовательность. Нужно просто скомпилировать выражение одно за другим,
+а затем соединить код.
+
+#+NAME: compile_sequences
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-sequences sequences env)
+    (define (compile-sequences-rec sequences compiled-code)
+      ;; (format #t "compile-sequences-rec sequences ~A compiled-code ~A ~%" sequences
+      ;;         compiled-code)
+      (if (null? sequences)
+          compiled-code
+          (let ((first-compiled-seq (compile (car sequences) env)))
+            (compile-sequences-rec (cdr sequences)
+                                   (cons first-compiled-seq compiled-code)))))
+    ;; (format #t "sequences ~A env ~A ~%" sequences env)
+    (format #t "env ~A ~%" env)
+    (let* ((compiled-code-with-names (reverse (compile-sequences-rec sequences '())))
+           (compiled-code (connect-compiled-exps compiled-code-with-names))
+           (compiled-code-names (get-names-and-calls compiled-code-with-names)))
+      (list compiled-code compiled-code-names)))
+#+END_SRC
+
+
+#+NAME: compile_for_sequences
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile exp env)
+    (cond ((self-evaluating? exp)
+           (compile-self-evaluating exp))
+          ((variable? exp)
+           (compile-variable exp env))
+          ((definition? exp)
+           (compile-global-var exp env))
+          ((begin? exp)
+           (compile-sequences (begin-actions exp) env))
+           (else (compile-primitive exp env))))
+#+END_SRC
+
+#+NAME: compile_for_sequences_tests
+#+BEGIN_SRC scheme :noweb yes
+  (print-code (compile '(begin
+                          (define q 10)
+                          (define q "\"string\"")
+                          (define a q)
+                          (define q (list 1 2 3 4))
+                          (* (- (+ 1 2) 4) (+ 5 0))) global-environment))
+#+END_SRC
+
+Теперь создаем констурктор, который будет компилировать функции.
+
+#+NAME: compile_function
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-function fn-name params body env)
+    (format #t "compile-function: fn-name ~A params ~A body ~A ~%"
+            fn-name params body)
+    (let* ((new-env (extend-environment (copy-list params) (copy-list env)))
+           (compiled-body-with-names (compile-sequences body new-env))
+           (compiled-body (car compiled-body-with-names))
+           (names-and-calls (cadr compiled-body-with-names))
+           (return-value (return-value-constructor (last-pair names-and-calls)))
+           (param-in-c-syntax (compile-fn-params-in-c-syntax params)))
+      ;; (format #t "compile-function: names-and-calls ~A ~% ~% "names-and-calls)
+      (append (list 'val ASTERISK fn-name)
+              (compile-parenthesis param-in-c-syntax)
+              (compile-braces
+               (append compiled-body
+                       return-value)))))
+
+
+  (define (copy-list list)
+    (fold-right cons '() list))
+
+  (define (compile-fn-params-in-c-syntax params)
+    (define (compile-fn-params-in-c-syntax-rec params-lisp params-c)
+      (if (null? params-lisp)
+          params-c
+          (let ((cur-param (if (null? (cdr params-lisp))
+                               (list 'val ASTERISK (car params-lisp))
+                               (list 'val ASTERISK (car params-lisp) COMMA))))
+            (compile-fn-params-in-c-syntax-rec (cdr params-lisp)
+                                               (append params-c cur-param)))))
+    (format #t "params ~A ~%" params)
+    (compile-fn-params-in-c-syntax-rec params '()))
+
+  (define (call-all-exps-in-body calls)
+    (if (null? calls)
+        '()
+        (let ((first-call (car calls)))
+          (if (and (null? (cdr calls)) (pair? first-call))
+              (cons (return-value-constructor first-call)
+                    (call-all-exps-in-body (cdr calls)))
+              (if (pair? first-call)
+                  (cons (append first-call (list SEMICOLON))
+                        (call-all-exps-in-body (cdr calls)))
+                  (call-all-exps-in-body (cdr calls)))))))
+
+
+  (define (compile-function fn-name params body env)
+    ;; (format #t "compile-function: fn-name ~A params ~A body ~A ~%"
+    ;;         fn-name params body)
+    (let* ((new-env (extend-environment (copy-list params) (copy-list env)))
+           (compiled-body-with-names (compile-sequences body new-env)))
+      ;; (format #t "compile-function: compiled-body-with-names ~A ~%"
+      ;;         compiled-body-with-names)
+      ;; (format #t "compile-function: params1 ~A ~% ~% " params)
+      (format #t "global-environment ~A ~%" env)
+      (let*(
+           (compiled-body (car compiled-body-with-names))
+           (names-and-calls (cadr compiled-body-with-names)))
+        ;; (format #t "compile-function: params2 ~A ~% ~% "params)
+        (let* (
+               (return-value (call-all-exps-in-body  names-and-calls))
+               (param-in-c-syntax (compile-fn-params-in-c-syntax params)))
+          ;; (format #t "compile-function: last-pair ~A ~% ~% "(last-pair names-and-calls))
+          ;; (format #t "compile-function: names-and-calls ~A ~% ~% "names-and-calls)
+          (append (list 'val ASTERISK fn-name)
+                  (compile-parenthesis param-in-c-syntax)
+                  (compile-braces
+                   (append compiled-body
+                           return-value)))))))
+
+  (define global-environment (setup-environment))
+#+END_SRC
+
+Создаем констуркторы, которые позволят компилировать именованные функции.
+#+NAME: compile_named_function
+#+BEGIN_SRC scheme :noweb yes
+  (define (named-fn-params exp)
+    ;; (format #t "(cdr (cadr exp)) ~A ~%" (cdr (cadr exp)))
+    (cdr (cadr exp)))
+
+  (define (named-fn-body exp)
+    (cdr (cdr exp)))
+
+  (define (compile-named-function exp env)
+    (define-variable! (definition-variable exp) env)
+    (list (compile-function (definition-variable exp)
+                            (named-fn-params exp) (named-fn-body exp) env)
+          (list (definition-variable exp))))
+#+END_SRC
+
+#+NAME: compile_for_named_fns
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile exp env)
+    ;; (format #t "exp ~A ~%" exp)
+    (cond ((self-evaluating? exp)
+           (compile-self-evaluating exp))
+          ((variable? exp)
+           (compile-variable exp env))
+          ((definition? exp)
+           (compile-definition exp env))
+          ((begin? exp)
+           (compile-sequences (begin-actions exp) env))
+           (else (compile-primitive exp env))))
+#+END_SRC
+
+#+NAME: compile_named_function
+#+BEGIN_SRC scheme :noweb yes
+  (print-code (compile '(define (test x)
+                          (+ x 1)) global-environment))
+
+  (print-code (compile '(define (test x)
+                          (define n 10)
+                          (+ n x)) global-environment))
+
+  (print-code (compile '(define (test)
+                          (define n (list 1 2 3 4))
+                          (define f (append n (list 5 6 7 8)))) global-environment))
+
+  (print-code (compile '(define (test)
+                          (define n (list 1 2 3 4))
+                          (define f (append n (list 5 6 7 8)))) global-environment))
 #+END_SRC
 
 #+NAME: code
 #+BEGIN_SRC forth :tangle code.scheme :noweb tangle :exports code :padline no :comments none
+  <<syntax_procs>>
   <<syntax_symbols>>
   <<syntax_constructors>>
   <<main>>
@@ -1766,4 +2057,12 @@ main. Так что создадим конструктор для компил�
   <<compile_self_evaluating>>
   <<compile_variable>>
   <<compile_primitives>>
+  <<define_definition>>
+  <<compile_definition_var>>
+  <<compile_unassigned_variable>>
+  <<make_unassigned-var_assingments>>
+  <<make_assingments>>
+  <<define_global_var>>
+  <<compile_global_var>>
+  <<compile_for_definitions>>
 #+END_SRC
