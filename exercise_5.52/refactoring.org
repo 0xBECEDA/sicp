@@ -906,7 +906,7 @@ main. Так что создадим конструктор для компил�
 возвращать этот же список, но только параметры будут перечислены через
 запятую.
 
-#+NAME: compile_primitives_constructors
+#+NAME: compile_call_params_in_c_syntax
 #+BEGIN_SRC scheme :noweb yes
   (define (compile-call-params-in-c-syntax params)
     ;; (format #t "compile-call-params-in-c-syntax: params ~A ~%" params)
@@ -919,7 +919,7 @@ main. Так что создадим конструктор для компил�
 
 #+END_SRC
 
-#+NAME: compile_primitives_constructors_tests
+#+NAME: compile_call_params_in_c_syntax_tests
 #+BEGIN_SRC scheme :noweb yes
   (compile-call-params-in-c-syntax '(0 1 2 3 4))
 
@@ -1954,8 +1954,8 @@ main. Так что создадим конструктор для компил�
     ;;         fn-name params body)
     (let* ((new-env (extend-environment (copy-list params) (copy-frame env)))
            (compiled-body-with-names (compile-sequences body new-env)))
-      ;; (format #t "compile-function: compiled-body-with-names ~A ~%"
-      ;;         compiled-body-with-names)
+      (format #t "compile-function: compiled-body-with-names ~A ~%"
+              compiled-body-with-names)
       ;; (format #t "compile-function: params1 ~A ~% ~% " params)
       ;; (format #t "global-environment ~A ~%" env)
       (let*(
@@ -2239,13 +2239,6 @@ main. Так что создадим конструктор для компил�
                        (* n (factorial (- n 1)))))
                 global-environment))
 
-  (print-code (compile '(define (my-reverse lst)
-                           (define (my-reverse-rec lst new-lst)
-                             (if (null? lst)
-                                 new-lst
-                                 (my-reverse-rec (cdr lst) (cons (car lst) new-lst))))
-                           (my-reverse-rec lst (list))) global-environment))
-
   (print-code (compile '(define (my_reverse lst)
                           (define (my_reverse_rec lst new_lst)
                             (if (null? lst)
@@ -2256,6 +2249,42 @@ main. Так что создадим конструктор для компил�
   (print-code (compile '(my_reverse (list 1 2 3 4))
                        global-environment))
 
+  (print-code (compile '((lambda (x)
+                           (+ x 1)) 2) global-environment))
+#+END_SRC
+
+~Присваивания~
+
+Необходимый функционал для присваиний у нас уже есть. Мы его создали для
+переопределений.
+#+NAME: assignments
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-assignment exp env)
+    (if (lookup-variable (assignment-variable exp) env)
+        (compile-redefinition-var (assignment-variable exp)
+                                  (assignment-value exp) env)))
+#+END_SRC
+
+Добавляем ветку вычисления в compile
+#+NAME: compile_for_assignments
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile exp env)
+    (format #t "compile exp ~A ~%" exp)
+    (cond ((self-evaluating? exp)
+           (compile-self-evaluating exp))
+          ((variable? exp)
+           (compile-variable exp env))
+          ((definition? exp)
+           (compile-definition exp env))
+          ((lambda? exp)
+           (compile-lambda exp env))
+          ((if? exp)
+           (compile-if exp env))
+          ((begin? exp)
+           (compile-sequences (begin-actions exp) env))
+          ((assignment? exp)
+           (compile-assignment exp env))
+          (else (compile-application exp env))))
 #+END_SRC
 
 #+NAME: code
@@ -2277,6 +2306,7 @@ main. Так что создадим конструктор для компил�
   <<copy_environment>>
   <<allocate_memory_constructors>>
   <<nums_strings_symbols_constructors>>
+  <<compile_call_params_in_c_syntax>>
   <<compile_primitives_constructors>>
   <<connect_compiled_code>>
   <<get_names_and_calls>>
@@ -2292,7 +2322,13 @@ main. Так что создадим конструктор для компил�
   <<make_assingments>>
   <<define_global_var>>
   <<compile_global_var>>
+  <<compile_sequences>>
+  <<compile_function>>
+  <<compile_named_function>>
   <<compile_for_definitions>>
   <<compile_lambda>>
   <<compile_application>>
+  <<compile_if>>
+  <<assignments>>
+  <<compile_for_assignments>>
 #+END_SRC
