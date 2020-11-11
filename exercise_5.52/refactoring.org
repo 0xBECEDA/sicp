@@ -2078,13 +2078,26 @@ main. Так что создадим конструктор для компил�
                 false))
           false)))
 
-  (define (compile-application exp env)
-    (format #t "compile-application: exp ~A ~%" exp)
-    (cond ((primitive-proc? exp env)
-           (compile-primitive exp env))
-          (else (compile-compound exp env))))
+  (define (lambda-call? exp)
+    (and (pair? exp)
+         (lambda? (car exp))))
 
-  ;; (compile-application '(list 1 2 3 4) global-environment)
+  ;; (lambda-call? '((lambda (x)
+  ;;                  (+ x 1)) 2))
+
+  (define (compile-application exp env)
+    ;; (format #t "compile-application: exp ~A ~%" exp)
+    (cond  ((lambda-call? exp)
+            (begin
+              ;; (format #t "lambda call ~%")
+              (compile-lambda-call exp env)))
+           ((primitive-proc? exp env)
+            (begin
+              ;; (format #t "primitive call ~%")
+              (compile-primitive exp env)))
+           (else (begin
+                   ;; (format #t "compound call ~%")
+                   (compile-compound exp env)))))
 
   (define (compile-compound-proc-call exp env)
     (let* ((compiled-args-with-names (compile-args (operands exp) env))
@@ -2109,6 +2122,52 @@ main. Так что создадим конструктор для компил�
     (if (lookup-variable (operator exp) env)
         (compile-compound-proc-call exp env)))
 
+#+END_SRC
+
+Отдельно обрабатываем вызовы лямбд.
+
+Сначала надо скомпилировать саму лямбду, ее аргументы, а потом вызвать ее
+с этими аргументами и вернуть результат.
+
+#+NAME: compile_lambda_call
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-lambda-call exp env)
+    (let* ((lambda-definition (car exp))
+           (lambda-call-args (cdr exp))
+           (lambda-call-compiled-args (compile-args lambda-call-args env))
+           (lambda-call-compiled-code (connect-compiled-exps lambda-call-compiled-args))
+           (lambda-call-compiled-names (get-names-and-calls lambda-call-compiled-args))
+           (lambda-definition-compiled (compile lambda-definition env))
+           (lambda-definition-compiled-code (connect-compiled-exps
+                                             lambda-definition-compiled))
+           (lambda-definition-compiled-name (get-names-and-calls lambda-definition-compiled))
+           (lambda-params-in-c-syntax (compile-call-params-in-c-syntax
+                                       lambda-call-compiled-names))
+           (lambda-call (return-value-constructor
+                         (append lambda-definition-compiled-name
+                                 (compile-parenthesis lambda-params-in-c-syntax))))
+           (service-fn-name (generate-name-string exp))
+           (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+      (list (compile-service-fn service-fn-name
+                                (append
+                                 lambda-call-compiled-code
+                                 lambda-definition-compiled-code
+                                 lambda-call))
+            call-service-fn)))
+
+#+END_SRC
+
+#+NAME: compile_lambda_call_tests
+#+BEGIN_SRC scheme :noweb yes
+  (print-code (compile '((lambda (x)
+                           (+ x 1)) 2) global-environment))
+
+
+  (print-code (compile '((lambda (x y)
+                           (define (test x)
+                             (+ x 1))
+                           (* x (test x) y))
+                            2 3) global-environment))
 #+END_SRC
 
 #+NAME: compile_for_application
@@ -2249,8 +2308,6 @@ main. Так что создадим конструктор для компил�
   (print-code (compile '(my_reverse (list 1 2 3 4))
                        global-environment))
 
-  (print-code (compile '((lambda (x)
-                           (+ x 1)) 2) global-environment))
 #+END_SRC
 
 ~Присваивания~
@@ -2285,6 +2342,106 @@ main. Так что создадим конструктор для компил�
           ((assignment? exp)
            (compile-assignment exp env))
           (else (compile-application exp env))))
+#+END_SRC
+
+#+NAME: compile_for_assignments_tests
+#+BEGIN_SRC scheme :noweb yes
+  (print-code (compile-sequences '((define n 10)
+                                   (set! n "\"string\"")) global-environment))
+#+END_SRC
+
+~компиляция заковыченных выражений~
+
+Заковыченные выражения бывают следующих видов:
+- список
+- число
+- строка
+- символ
+
+Технически, мы можем заковычить что угодно, в том числе и саму
+кавычку. Но представленные выше типы - основные.
+Следовательно, нам нужно проверить, что за выражение мы заковычиваем.
+Если символ, число или строку - то просто вызываем соответствующие
+конструкторы и компилируем их. Если же заковычивается список, то нужно
+скомпилировать каждый его элемент.
+
+#+NAME: compile_quoted_exp
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile-quoted-exp exp)
+    (let* ((compiled-exp (compile-cur-quoted-exp exp))
+           (compiled-exp-names (get-names-and-calls compiled-exp))
+           (compiled-exp-code (connect-compiled-exps compiled-exp))
+           (service-fn-name (generate-name-string exp))
+           (call-service-fn (append (list service-fn-name) (compile-parenthesis '())))
+           (return-value (if (pair? exp)
+                             (return-value-constructor
+                              (compile-list compiled-exp-names))
+                             (return-value-constructor
+                              compiled-exp-names))))
+      (list
+       (compile-service-fn service-fn-name
+                           (append
+                            compiled-exp-code
+                            return-value))
+       call-service-fn)))
+
+  (define (compile-cur-quoted-exp exp)
+    (format #t "compile-quoted-exp exp ~A ~%" exp)
+    (cond ((number? exp)
+           (compile-int-val-constructor (generate-name-string exp)
+                                        exp))
+          ((string? exp)
+           (compile-string-val-constructor (generate-name-string exp)
+                                           exp))
+          ((pair? exp)
+           (compile-quoted-list exp))
+          (else  (compile-symbol-val-constructor (generate-name-string exp)
+                                                 (symbol->string exp)))))
+
+  (define (compile-quoted-list exp)
+    (define (compile-quoted-list-rec exp compiled-code)
+      (if (null? exp)
+          (begin
+            (format #t "exit ~A ~%" compiled-code)
+          compiled-code)
+          (let ((first-elt (compile-cur-quoted-exp (car exp))))
+            (compile-quoted-list-rec (cdr exp) (append compiled-code (list
+                                                                      first-elt))))))
+    (compile-quoted-list-rec (cdr exp) (list (compile-cur-quoted-exp (car exp)))))
+#+END_SRC
+
+#+NAME: final_compile
+#+BEGIN_SRC scheme :noweb yes
+  (define (compile exp env)
+    (cond ((quoted? exp)
+           (compile-quoted-exp (text-of-quotation exp)))
+          ((self-evaluating? exp)
+           (compile-self-evaluating exp))
+          ((variable? exp)
+           (compile-variable exp env))
+          ((definition? exp)
+           (compile-definition exp env))
+          ((lambda? exp)
+           (compile-lambda exp env))
+          ((if? exp)
+           (compile-if exp env))
+          ((begin? exp)
+           (compile-sequences (begin-actions exp) env))
+          ((assignment? exp)
+           (compile-assignment exp env))
+          (else (compile-application exp env))))
+#+END_SRC
+
+#+NAME: compile_for_quotation_tests
+#+BEGIN_SRC scheme :noweb yes
+  (print-code (compile ''(1 2 3 4) global-environment))
+
+  (print-code (compile ''d global-environment))
+
+  (print-code (compile ''"string" global-environment))
+
+  (print-code (compile ''1 global-environment))
+
 #+END_SRC
 
 #+NAME: code
@@ -2328,7 +2485,10 @@ main. Так что создадим конструктор для компил�
   <<compile_for_definitions>>
   <<compile_lambda>>
   <<compile_application>>
+  <<compile_lambda_call>>
   <<compile_if>>
   <<assignments>>
   <<compile_for_assignments>>
+  <<compile_quoted_exp>>
+  <<final_compile>>
 #+END_SRC
