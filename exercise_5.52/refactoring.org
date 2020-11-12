@@ -296,7 +296,10 @@ main. Так что создадим конструктор для компил�
 
 #+END_SRC
 
-Превращаем полученную строку в хэш и генерируем имя
+Превращаем полученную строку в хэш и генерируем имя. Так же добавляем
+соль к хэшу, поскольку у нас могут встречаться одинаковые выражения во
+время компиляции, которые, тем не менее, не должны иметь одинаковые
+имена.
 #+NAME: generate_name
 #+BEGIN_SRC scheme :noweb yes
   (define (exp->string exp)
@@ -306,11 +309,14 @@ main. Так что создадим конструктор для компил�
     (let ((string (exp->string exp)))
       (string-hash string)))
 
+  (define *random-max* 1000000)
+
   (define (generate-name-string exp)
     ;; (format #t "generate-name-string: ~A ~%" exp)
     (let* ((hash (hash-exp exp))
-           (hash-string (number->string hash)))
-      (string-append "a" hash-string)))
+           (hash-string (number->string hash))
+           (salt (number->string (random *random-max*))))
+      (string-append "a" hash-string salt)))
 #+END_SRC
 
 #+NAME: generate_name_tests
@@ -704,7 +710,7 @@ main. Так что создадим конструктор для компил�
       (define (scan vars)
         (cond ((null? vars)
                (begin
-                 (format #t "define-variable!: переменная новая ~%" )
+                 ;; (format #t "define-variable!: переменная новая ~%" )
                  (add-binding-to-frame! var frame)
                  'ok))
               ((and (pair? var) (pair? (car vars)))
@@ -826,7 +832,8 @@ main. Так что создадим конструктор для компил�
   (define (compile-strcpy var-name string)
     (append
      '(strncpy) (compile-parenthesis
-                 (list (append-ptr var-name) COMMA string COMMA 100))
+                 (list (append-ptr var-name) COMMA (string-append "\"" string "\"" )
+                       COMMA 100))
      (list SEMICOLON)))
 
   ;; присваивает неинициализированному указателю значение
@@ -1211,11 +1218,21 @@ main. Так что создадим конструктор для компил�
 
   (define (compile-self-evaluating exp)
     ;; (format #t "compile-self-evaluating ~A ~%" exp)
-    (if (number? exp)
-        (compile-int-val-constructor (generate-name-string exp)
-                                     exp)
-        (compile-string-val-constructor (generate-name-string exp)
-                                        exp)))
+    (let* ((service-fn-name (generate-name-string exp))
+           (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+      (let* ((compiled-exp (if (number? exp)
+                                (compile-int-val-constructor (generate-name-string exp)
+                                                             exp)
+                                (compile-string-val-constructor (generate-name-string exp)
+                                                                exp)))
+                   (code (connect-compiled-exps compiled-exp))
+                   (names (get-names-and-calls compiled-exp))
+                   (return-value (return-value-constructor names)))
+              (list (compile-service-fn service-fn-name
+                                        (append
+                                         code
+                                         return-value))
+                    call-service-fn))))
 #+END_SRC
 
 #+NAME: compile_variable
@@ -1769,12 +1786,12 @@ main. Так что создадим конструктор для компил�
             call-service-fn)))
 
   (define (compile-redefinition-var var-name value env)
-    (format #t "compile-redefinition-var ~%")
+    ;; (format #t "compile-redefinition-var ~%")
     (let* ((var-assignment
             (cond ((variable? value)
                    (if (lookup-variable value env)
                        (begin
-                         (format #t "значение = переменная ~%")
+                         ;; (format #t "значение = переменная ~%")
                          (connect-compiled-exps
                           (make-var-assignment-for-assigned-var var-name value)))))
                   ((number? value)
@@ -1802,11 +1819,11 @@ main. Так что создадим конструктор для компил�
     (let ((return-value (define-variable! (definition-variable exp) env)))
       (if (eq? return-value 'ok)
           (begin
-            (format #t "Новая переменная ~%")
+            ;; (format #t "Новая переменная ~%")
           (compile-definition-var (definition-variable exp)
                                          (definition-value exp) env))
           (begin
-            (format #t "Переопределение переменной ~%")
+            ;; (format #t "Переопределение переменной ~%")
             (compile-redefinition-var (definition-variable exp)
                                              (definition-value exp) env)))))
 #+END_SRC
@@ -1885,7 +1902,7 @@ main. Так что создадим конструктор для компил�
             (compile-sequences-rec (cdr sequences)
                                    (cons first-compiled-seq compiled-code)))))
     ;; (format #t "sequences ~A env ~A ~%" sequences env)
-    (format #t "env ~A ~%" env)
+    ;; (format #t "env ~A ~%" env)
     (let* ((compiled-code-with-names (reverse (compile-sequences-rec sequences '())))
            (compiled-code (connect-compiled-exps compiled-code-with-names))
            (compiled-code-names (get-names-and-calls compiled-code-with-names)))
@@ -1954,8 +1971,8 @@ main. Так что создадим конструктор для компил�
     ;;         fn-name params body)
     (let* ((new-env (extend-environment (copy-list params) (copy-frame env)))
            (compiled-body-with-names (compile-sequences body new-env)))
-      (format #t "compile-function: compiled-body-with-names ~A ~%"
-              compiled-body-with-names)
+      ;; (format #t "compile-function: compiled-body-with-names ~A ~%"
+      ;;         compiled-body-with-names)
       ;; (format #t "compile-function: params1 ~A ~% ~% " params)
       ;; (format #t "global-environment ~A ~%" env)
       (let*(
@@ -2109,7 +2126,7 @@ main. Так что создадим конструктор для компил�
            (return-value (return-value-constructor (list (operator exp)
                                                          (compile-parenthesis
                                                           call-params-in-c-syntax)))))
-      (format #t "compile-compound-proc-call: compiled-code ~A ~% ~%" compiled-code)
+      ;; (format #t "compile-compound-proc-call: compiled-code ~A ~% ~%" compiled-code)
 
       (list (append (list 'val ASTERISK service-fn-name)
               (compile-parenthesis '())
@@ -2368,25 +2385,25 @@ main. Так что создадим конструктор для компил�
 #+NAME: compile_quoted_exp
 #+BEGIN_SRC scheme :noweb yes
   (define (compile-quoted-exp exp)
-    (let* ((compiled-exp (compile-cur-quoted-exp exp))
+    (let* ((compiled-exp (compile-cur-quoted-exp exp)))
+      ;; (format #t "compile-quoted-exp exp ~A ~%" compiled-exp)
+      (let* (
            (compiled-exp-names (get-names-and-calls compiled-exp))
            (compiled-exp-code (connect-compiled-exps compiled-exp))
            (service-fn-name (generate-name-string exp))
            (call-service-fn (append (list service-fn-name) (compile-parenthesis '())))
-           (return-value (if (pair? exp)
-                             (return-value-constructor
-                              (compile-list compiled-exp-names))
-                             (return-value-constructor
-                              compiled-exp-names))))
+           (return-value  (return-value-constructor
+                           compiled-exp-names)))
       (list
        (compile-service-fn service-fn-name
                            (append
                             compiled-exp-code
                             return-value))
-       call-service-fn)))
+       call-service-fn))))
+
 
   (define (compile-cur-quoted-exp exp)
-    (format #t "compile-quoted-exp exp ~A ~%" exp)
+    ;; (format #t "compile-quoted-exp exp ~A ~%" exp)
     (cond ((number? exp)
            (compile-int-val-constructor (generate-name-string exp)
                                         exp))
@@ -2398,16 +2415,28 @@ main. Так что создадим конструктор для компил�
           (else  (compile-symbol-val-constructor (generate-name-string exp)
                                                  (symbol->string exp)))))
 
-  (define (compile-quoted-list exp)
+  (define (compile-quoted-list lst)
     (define (compile-quoted-list-rec exp compiled-code)
       (if (null? exp)
           (begin
-            (format #t "exit ~A ~%" compiled-code)
-          compiled-code)
+            ;; (format #t "exit ~A ~% ~%" compiled-code)
+            (let* ((code (connect-compiled-exps compiled-code))
+                  (names (get-names-and-calls compiled-code))
+                  (service-fn-name (generate-name-string lst))
+                  (call-service-fn (append (list service-fn-name)
+                                           (compile-parenthesis '())))
+                  (return-value (return-value-constructor (compile-list names))))
+                  (list
+                   (compile-service-fn service-fn-name
+                                       (append
+                                        code
+                                        return-value))
+                   call-service-fn)))
           (let ((first-elt (compile-cur-quoted-exp (car exp))))
+            ;; (format #t "first-elt ~A ~% ~%" first-elt)
             (compile-quoted-list-rec (cdr exp) (append compiled-code (list
                                                                       first-elt))))))
-    (compile-quoted-list-rec (cdr exp) (list (compile-cur-quoted-exp (car exp)))))
+          (compile-quoted-list-rec (cdr lst) (list (compile-cur-quoted-exp (car lst)))))
 #+END_SRC
 
 #+NAME: final_compile
@@ -2441,6 +2470,106 @@ main. Так что создадим конструктор для компил�
   (print-code (compile ''"string" global-environment))
 
   (print-code (compile ''1 global-environment))
+
+  (print-code (compile ''((define n 10)
+                          (define f 4))
+                       global-environment))
+
+  (print-code (compile ''(n
+                          (define f 4))
+                       global-environment))
+
+  (print-code (compile ''(n f)
+                       global-environment))
+#+END_SRC
+
+~Сборка~
+
+Теперь необходимо сделать так, что скомпилированный код компилировался
+вместе с функцией main.
+
+#+NAME: final_compile_with_main
+#+BEGIN_SRC scheme :noweb yes
+  (define include-files
+    '("#include <stdio.h>"
+      "#include <stdlib.h>"
+      "#include \"primitives.h\""))
+
+  (define necessary-fns
+    (append (list "set_true_and_false")
+            (compile-parenthesis '())
+            (list SEMICOLON)))
+
+
+  (define (compile-print-exp  retval)
+    (append '(ipprint) (compile-parenthesis retval)
+                        (list SEMICOLON)
+                        '("printf(\"\\n\")") (list SEMICOLON)))
+
+  (define (call-all-exps-in-main-body calls)
+    (define (call-all-exps-in-main-body-rec calls)
+      (format #t "calls ~A ~%" calls)
+      (if (null? calls)
+          '()
+          (let ((first-call (car calls)))
+            (if (and (null? (cdr calls)) (pair? first-call))
+                (cons (compile-print-exp  first-call)
+                      (call-all-exps-in-main-body-rec (cdr calls)))
+                (if (pair? first-call)
+                    (cons (append first-call (list SEMICOLON))
+                          (call-all-exps-in-main-body-rec (cdr calls)))
+                    (call-all-exps-in-main-body-rec (cdr calls)))))))
+    (cond ((and (= (length calls) 3)
+                (equal? (cadr calls)
+                        OPENING_PARENTHESIS)
+                (equal? (caddr calls)
+                        CLOSING_PARENTHESIS))
+           (compile-print-exp calls))
+          ((= (length calls) 1)
+           (compile-print-exp calls))
+          (else (call-all-exps-in-main-body-rec calls))))
+
+  (define (compile-complete-code compiled-code)
+    (let* ((code (connect-compiled-exps compiled-code))
+           (calls (get-names-and-calls compiled-code))
+           (main-body (append
+                       necessary-fns
+                       (call-all-exps-in-main-body calls))))
+      (append
+       include-files
+       code
+       (compile-main main-body))))
+#+END_SRC
+
+#+NAME: compile_driver_loop
+#+BEGIN_SRC scheme :noweb yes
+  (define global-environment (setup-environment))
+
+  (define (prompt-for-input string)
+    (newline) (newline) (display string) (newline))
+
+  (define (announce-output string)
+    (newline) (display string) (newline))
+
+  (define input-prompt ";;; Ввод :")
+  (define output-prompt ";;; Компиляция окончена:")
+
+  (define (driver-loop)
+    (set! global-environment (setup-environment))
+    (prompt-for-input input-prompt)
+    (let ((input (read)))
+      (if (and (pair? input)
+               (pair? (car input)))
+          (begin
+            (print-code (compile-complete-code (compile-sequences input
+                                           global-environment)))
+            (announce-output output-prompt)
+            (driver-loop))
+          (begin
+            (print-code (compile-complete-code (compile input
+                                 global-environment)))
+            (announce-output output-prompt)
+            (driver-loop)))))
 
 #+END_SRC
 
@@ -2491,4 +2620,6 @@ main. Так что создадим конструктор для компил�
   <<compile_for_assignments>>
   <<compile_quoted_exp>>
   <<final_compile>>
+  <<final_compile_with_main>>
+  <<compile_driver_loop>>
 #+END_SRC
