@@ -543,10 +543,10 @@ main. Так что создадим конструктор для компил�
                 (begin
                   (format output-port "~A" first-string)
                   (rec-print-code (cdr code-string) output-port))))))
-    (let ((output-port (open-output-file  *c-file*)))
-      (rec-print-code code-string output-port)
-      (close-output-port output-port)
-      'ok))
+  (let ((output-port (open-output-file  *c-file* #t)))
+    (rec-print-code code-string output-port)
+    (close-output-port output-port)
+    'ok))
 #+END_SRC
 
 #+NAME: print_code_into_file_tests
@@ -2506,9 +2506,21 @@ main. Так что создадим конструктор для компил�
                         (list SEMICOLON)
                         '("printf(\"\\n\")") (list SEMICOLON)))
 
+  (define (print-include-files code-string)
+    (define (rec-print-code code-string output-port)
+      (if (null? code-string)
+          'ok
+          (begin
+            (format output-port "~A ~% " (car code-string))
+            (rec-print-code (cdr code-string) output-port))))
+    (let ((output-port (open-output-file  *c-file*)))
+      (rec-print-code code-string output-port)
+      (close-output-port output-port)
+      'ok))
+
   (define (call-all-exps-in-main-body calls)
     (define (call-all-exps-in-main-body-rec calls)
-      (format #t "calls ~A ~%" calls)
+      ;; (format #t "calls ~A ~%" calls)
       (if (null? calls)
           '()
           (let ((first-call (car calls)))
@@ -2536,7 +2548,6 @@ main. Так что создадим конструктор для компил�
                        necessary-fns
                        (call-all-exps-in-main-body calls))))
       (append
-       include-files
        code
        (compile-main main-body))))
 #+END_SRC
@@ -2552,7 +2563,7 @@ main. Так что создадим конструктор для компил�
     (newline) (display string) (newline))
 
   (define input-prompt ";;; Ввод :")
-  (define output-prompt ";;; Компиляция окончена:")
+  (define output-prompt ";;; Компиляция окончена")
 
   (define (driver-loop)
     (set! global-environment (setup-environment))
@@ -2561,11 +2572,13 @@ main. Так что создадим конструктор для компил�
       (if (and (pair? input)
                (pair? (car input)))
           (begin
+            (print-include-files include-files)
             (print-code (compile-complete-code (compile-sequences input
                                            global-environment)))
             (announce-output output-prompt)
             (driver-loop))
           (begin
+            (print-include-files include-files)
             (print-code (compile-complete-code (compile input
                                  global-environment)))
             (announce-output output-prompt)
