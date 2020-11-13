@@ -1379,7 +1379,8 @@ main. Так что создадим конструктор для компил�
     (tagged-list? exp 'define))
 
   (define (definition-fn? exp)
-    (pair? (cadr exp)))
+    (and (pair? (cdr exp))
+         (pair? (cadr exp))))
 
   (define (compile-definition exp env)
     ;; (format #t "compile-definition ~A ~%" exp)
@@ -1932,6 +1933,10 @@ main. Так что создадим конструктор для компил�
                           (define a q)
                           (define q (list 1 2 3 4))
                           (* (- (+ 1 2) 4) (+ 5 0))) global-environment))
+
+
+  (print-code (compile '(begin
+                          1 2 3 4 5) global-environment))
 #+END_SRC
 
 Теперь создаем констурктор, который будет компилировать функции.
@@ -2047,9 +2052,10 @@ main. Так что создадим конструктор для компил�
 #+NAME: compile_lambda
 #+BEGIN_SRC scheme :noweb yes
   (define (compile-lambda exp env)
-    (list (compile-function (generate-name-string exp) (lambda-parameters exp)
-                            (lambda-body exp) env)
-          (list (generate-name-string exp))))
+    (let ((name (generate-name-string exp)))
+      (list (compile-function name (lambda-parameters exp)
+                              (lambda-body exp) env)
+            (list name))))
 #+END_SRC
 
 Добавляем соответствующую ветку в compile
@@ -2157,7 +2163,8 @@ main. Так что создадим конструктор для компил�
            (lambda-definition-compiled (compile lambda-definition env))
            (lambda-definition-compiled-code (connect-compiled-exps
                                              lambda-definition-compiled))
-           (lambda-definition-compiled-name (get-names-and-calls lambda-definition-compiled))
+           (lambda-definition-compiled-name
+            (get-names-and-calls lambda-definition-compiled))
            (lambda-params-in-c-syntax (compile-call-params-in-c-syntax
                                        lambda-call-compiled-names))
            (lambda-call (return-value-constructor
@@ -2401,7 +2408,6 @@ main. Так что создадим конструктор для компил�
                             return-value))
        call-service-fn))))
 
-
   (define (compile-cur-quoted-exp exp)
     ;; (format #t "compile-quoted-exp exp ~A ~%" exp)
     (cond ((number? exp)
@@ -2518,6 +2524,23 @@ main. Так что создадим конструктор для компил�
       (close-output-port output-port)
       'ok))
 
+
+  (define (last-exp-type exps)
+    ;; (format #t "exps ~A ~%" exps)
+    ;; (format #t "(last-pair exps) ~A ~%" (last-pair exps))
+    (cond ((definition-fn? exps)
+           'definition-fn)
+          ((definition-fn? (last-pair exps))
+           'definition-fn)
+          ((lambda? exps)
+           'lambda)
+          ((lambda? (last-pair exps))
+           'lambda)
+          (else
+           (begin
+             ;; (format #t "other type ~%")
+             'other-type))))
+
   (define (call-all-exps-in-main-body calls)
     (define (call-all-exps-in-main-body-rec calls)
       ;; (format #t "calls ~A ~%" calls)
@@ -2541,15 +2564,43 @@ main. Так что создадим конструктор для компил�
            (compile-print-exp calls))
           (else (call-all-exps-in-main-body-rec calls))))
 
-  (define (compile-complete-code compiled-code)
-    (let* ((code (connect-compiled-exps compiled-code))
-           (calls (get-names-and-calls compiled-code))
-           (main-body (append
-                       necessary-fns
-                       (call-all-exps-in-main-body calls))))
-      (append
-       code
-       (compile-main main-body))))
+  (define (delete-last-call calls)
+    (format #t "calls ~A ~%" calls)
+    (if (null? (cdr calls))
+        '()
+        (cons (car calls)
+              (delete-last-call (cdr calls)))))
+
+  (define (compile-complete-code compiled-code last-exp-type)
+    (format #t "last-exp-type ~A ~%" last-exp-type)
+    (cond ((eq? last-exp-type 'definition-fn)
+           (let* ((code (connect-compiled-exps compiled-code))
+                  (calls (get-names-and-calls compiled-code))
+                  (main-body (append
+                              necessary-fns
+                              (call-all-exps-in-main-body (delete-last-call calls)))))
+             (append
+              code
+              (compile-main main-body))))
+
+          ((eq? last-exp-type 'lambda)
+           (let* ((code (connect-compiled-exps compiled-code))
+                  (calls (get-names-and-calls compiled-code))
+                  (main-body (append
+                              necessary-fns
+                              (call-all-exps-in-main-body (delete-last-call calls)))))
+             (append
+              code
+              (compile-main main-body))))
+          (else
+           (let* ((code (connect-compiled-exps compiled-code))
+                  (calls (get-names-and-calls compiled-code))
+                  (main-body (append
+                              necessary-fns
+                              (call-all-exps-in-main-body calls))))
+             (append
+              code
+              (compile-main main-body))))))
 #+END_SRC
 
 #+NAME: compile_driver_loop
@@ -2574,15 +2625,38 @@ main. Так что создадим конструктор для компил�
           (begin
             (print-include-files include-files)
             (print-code (compile-complete-code (compile-sequences input
-                                           global-environment)))
+                                                                  global-environment)
+                                               (last-exp-type input)))
             (announce-output output-prompt)
             (driver-loop))
           (begin
             (print-include-files include-files)
             (print-code (compile-complete-code (compile input
-                                 global-environment)))
+                                                        global-environment)
+                                               (last-exp-type input)))
             (announce-output output-prompt)
             (driver-loop)))))
+
+#+END_SRC
+
+
+#+NAME: compile_system_tests
+#+BEGIN_SRC scheme :noweb yes
+  ;; запуск компилятора
+  (driver-loop)
+
+
+  (define (test g)
+    (+ g 1))
+
+  (define (test g)
+    (lambda (x)
+      (+ x 1)))
+
+  (define (test g)
+    ((lambda (x)
+       (+ x 1)) g))
+  (test 3)
 
 #+END_SRC
 
