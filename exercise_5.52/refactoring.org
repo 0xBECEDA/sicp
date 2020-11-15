@@ -284,7 +284,7 @@ main. Так что создадим конструктор для компил�
   (list->string '(define (factorial n)
                    (if (= n 0)
                        1
-                       (* n (factorial (= n 1))))))
+                       (* n (factorial (- n 1))))))
 
   (list->string '(let ((a 3)
                        (b 4))
@@ -2494,6 +2494,22 @@ main. Так что создадим конструктор для компил�
 Теперь необходимо сделать так, что скомпилированный код компилировался
 вместе с функцией main.
 
+В процессе сборки я столкнулась с некоторой проблемой.
+Намжелательно сделать так, чтоб юзер увидел результат исполнения
+скомпилированного выражения. Поэтому нужно напечатать его, а все прочие -
+вызвать.
+
+Но вот в чем загвозка: выражение вполне может быть определением функции
+или лямбды, и вот их вызывать не нужно автоматически.
+Поэтому мы будем определять тип последнего выражения - ведь именно его
+результат мы будем печатать - , которое ввел юзер. Если жто определение
+функции или лямбды, то мы просто удалим их вызовы из списка вызовов,
+которые представляют собой тело main.
+
+Также видно, что в main всегда впомиливается вызов ~set_true_and_false~ -
+это функция определена в test.c и нужна, чтоб установить глобальные
+переменные true и false для примитивов, написанных на си. Безэтого они не
+будут работать корректно.
 #+NAME: final_compile_with_main
 #+BEGIN_SRC scheme :noweb yes
   (define include-files
@@ -2528,9 +2544,9 @@ main. Так что создадим конструктор для компил�
   (define (last-exp-type exps)
     ;; (format #t "exps ~A ~%" exps)
     ;; (format #t "(last-pair exps) ~A ~%" (last-pair exps))
-    (cond ((definition-fn? exps)
+    (cond ((and (definition? exps) (definition-fn? exps))
            'definition-fn)
-          ((definition-fn? (last-pair exps))
+          ((and (definition? exps) definition-fn? (last-pair exps))
            'definition-fn)
           ((lambda? exps)
            'lambda)
@@ -2565,14 +2581,14 @@ main. Так что создадим конструктор для компил�
           (else (call-all-exps-in-main-body-rec calls))))
 
   (define (delete-last-call calls)
-    (format #t "calls ~A ~%" calls)
+    ;; (format #t "delete-last-call calls ~A ~%" calls)
     (if (null? (cdr calls))
         '()
         (cons (car calls)
               (delete-last-call (cdr calls)))))
 
   (define (compile-complete-code compiled-code last-exp-type)
-    (format #t "last-exp-type ~A ~%" last-exp-type)
+    ;; (format #t "last-exp-type ~A ~%" last-exp-type)
     (cond ((eq? last-exp-type 'definition-fn)
            (let* ((code (connect-compiled-exps compiled-code))
                   (calls (get-names-and-calls compiled-code))
@@ -2620,31 +2636,34 @@ main. Так что создадим конструктор для компил�
     (set! global-environment (setup-environment))
     (prompt-for-input input-prompt)
     (let ((input (read)))
-      (if (and (pair? input)
-               (pair? (car input)))
-          (begin
-            (print-include-files include-files)
-            (print-code (compile-complete-code (compile-sequences input
-                                                                  global-environment)
-                                               (last-exp-type input)))
-            (announce-output output-prompt)
-            (driver-loop))
-          (begin
-            (print-include-files include-files)
-            (print-code (compile-complete-code (compile input
-                                                        global-environment)
-                                               (last-exp-type input)))
-            (announce-output output-prompt)
-            (driver-loop)))))
+      (print-include-files include-files)
+      (print-code (compile-complete-code (compile input
+                                                  global-environment)
+                                         (last-exp-type input)))
+      (announce-output output-prompt)
+      (set! *restart-flag* 0)
+      (driver-loop)))
 
 #+END_SRC
 
+Это тесты всей системы.
+Сначала нужно запустить драйвер луп. Внутри него вызывается установка
+окружения компилятора. Как можно видеть, это происходит после каждого
+вызова драйвер-лупа, следовательно, каждое выражение будет скомпилировано
+заново, с чистого листа.
+Поэтому если нужно скомпилировать сразу несколько выражений, то они
+объединяются в блок ~begin~.
+
+ЧТоб правильно скомпилировать сишный код, нужно в косноли ввести
+"gcc test.c your-file-name.c -o name"
+
+~test.c~ - это файл, в котором определены все примитивы в сишном
+эквиваленте.
 
 #+NAME: compile_system_tests
 #+BEGIN_SRC scheme :noweb yes
   ;; запуск компилятора
   (driver-loop)
-
 
   (define (test g)
     (+ g 1))
@@ -2653,11 +2672,28 @@ main. Так что создадим конструктор для компил�
     (lambda (x)
       (+ x 1)))
 
-  (define (test g)
-    ((lambda (x)
-       (+ x 1)) g))
-  (test 3)
+  (begin (define (test g)
+           ((lambda (x)
+              (+ x 1)) g))
+         (test 3))
+  (begin
+    (+ 1 2)
+    (- 4 3)
+    (define n 3)
+    (set! n 8))
 
+  (begin
+    (define (factorial n)
+      (if (= n 0)
+          1
+          (* n (factorial (- n 1)))))
+    (factorial 5))
+
+  (if (= 1 2)
+      'true
+      'false)
+
+  '((1 2) (3 4) (5 6))
 #+END_SRC
 
 #+NAME: code
