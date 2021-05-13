@@ -1,4 +1,0 @@
- int* ptr_a56614 = malloc( sizeof( int ) ); 
- * ptr_a56614 = 1; 
-  val* val_a56614 = int_val_constructor( ptr_a56614 ); 
- 
