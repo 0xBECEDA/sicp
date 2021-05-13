@@ -1,0 +1,3 @@
+some string
+abrakadabra
+read_input: ввод законечен

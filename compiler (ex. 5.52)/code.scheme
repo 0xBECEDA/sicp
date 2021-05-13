@@ -1,0 +1,1537 @@
+(define (variable? exp) (symbol? exp))
+
+(define (quoted? exp)
+  (tagged-list? exp 'quote))
+
+(define (text-of-quotation exp) (cadr exp))
+
+(define (tagged-list? exp tag)
+  (if (pair? exp)
+      (eq? (car exp) tag)
+      false))
+
+(define (assignment? exp)
+  (tagged-list? exp 'set!))
+
+(define (assignment-variable exp) (cadr exp))
+
+(define (assignment-value exp) (caddr exp))
+
+(define (definition? exp)
+  (tagged-list? exp 'define))
+
+(define (definition-variable exp)
+  (if (symbol? (cadr exp))
+      (cadr exp)
+      (caadr exp)))
+
+(define (definition-value exp)
+  (if (symbol? (cadr exp))
+      (caddr exp)
+      (make-lambda (cdadr exp)
+                   (cddr exp))))
+
+(define (lambda? exp) (tagged-list? exp 'lambda))
+
+(define (lambda-parameters exp) (cadr exp))
+
+(define (lambda-body exp) (cddr exp))
+
+(define (make-lambda parameters body)
+  (cons 'lambda (cons parameters body)))
+
+(define (if? exp) (tagged-list? exp 'if))
+
+(define (if-predicate exp) (cadr exp))
+
+(define (if-consequent exp) (caddr exp))
+
+(define (if-alternative exp)
+  (if (not (null? (cdddr exp)))
+      (cadddr exp)
+      'false))
+
+(define (make-if predicate consequent alternative)
+  (list 'if predicate consequent alternative))
+
+(define (begin? exp) (tagged-list? exp 'begin))
+
+(define (begin-actions exp) (cdr exp))
+
+(define (last-exp? seq) (null? (cdr seq)))
+
+(define (first-exp seq) (car seq))
+
+(define (rest-exps seq) (cdr seq))
+
+(define (sequence->exp seq)
+  (cond ((null? seq) seq)
+        ((last-exp? seq) (first-exp seq))
+        (else (make-begin seq))))
+
+(define (make-begin seq) (cons 'begin seq))
+
+(define (application? exp) (pair? exp))
+
+(define (operator exp) (car exp))
+
+(define (operands exp) (cdr exp))
+
+(define (no-operands? ops) (null? ops))
+
+(define (first-operand ops) (car ops))
+
+(define (rest-operands ops) (cdr ops))
+;; преставление { и } в компилируемом коде
+(define OPENING_BRACE #\{)
+(define CLOSING_BRACE #\})
+
+;; преставление ( и ) в компилируемом коде
+
+(define OPENING_PARENTHESIS #\()
+(define CLOSING_PARENTHESIS #\))
+
+;; преставление [ и ] в компилируемом коде
+
+(define OPENING_BRACKET #\[)
+(define CLOSING_BRACKET #\])
+
+;; преставление : и , в компилируемом коде
+(define COLON #\:)
+(define COMMA #\,)
+
+;; преставление * в компилируемом коде
+(define ASTERISK #\*)
+
+;; преставление ; в компилируемом коде
+(define SEMICOLON #\;)
+
+;; представление ... в компилируемом коде
+(define ELLIPSIS 'ELLIPSIS)
+;; компилирует { }
+(define(compile-braces code)
+  (if (or (pair? code) (null? code))
+      (append (list OPENING_BRACE)
+              code
+              (list CLOSING_BRACE))
+      (append (list OPENING_BRACE)
+              (list code)
+              (list CLOSING_BRACE))))
+
+;; компилирует ()
+(define(compile-parenthesis code)
+  (if (or (pair? code) (null? code))
+      (append (list OPENING_PARENTHESIS)
+              code
+              (list CLOSING_PARENTHESIS))
+      (append (list OPENING_PARENTHESIS)
+              (list code)
+              (list CLOSING_PARENTHESIS))))
+
+;; компилирует []
+(define(compile-brackets code)
+  (if (or (pair? code) (null? code))
+      (append (list OPENING_BRACKET)
+              code
+              (list CLOSING_BRACKET))
+      (append (list OPENING_BRACKET)
+              (list code)
+              (list CLOSING_BRACKET))))
+
+;; компилирует :
+(define(compile-colon code)
+  (append code
+          (list COLON)))
+
+;; компилирует ;
+(define(compile-semicolon code)
+  (append code
+          (list SEMICOLON)))
+
+;; компилирует ...
+(define(compile-ellipsis code)
+  (append code
+          (list ELLIPSIS)))
+
+(define (compile-main fn-calls)
+  (let ((code-into-braces (compile-braces fn-calls)))
+    (append (list 'int 'main)
+            (compile-parenthesis())
+            code-into-braces)))
+(define (atom? arg)
+  (or (string? arg) (number? arg)
+      (symbol? arg)))
+
+;; превращает выражение в строку
+(define (list->string lst)
+  (define (rec-list->string lst retval-string)
+    (if (null? lst)
+        (string-append retval-string ")")
+        (if (pair? (car lst))
+            (let ((result (string-append (rec-list->string (car lst) "(")
+                                         (rec-list->string (cdr lst) ""))))
+              (string-append retval-string result))
+            (cond ((symbol? (car lst)) (rec-list->string (cdr lst)
+                                                         (string-append retval-string
+                                                                        (symbol->string
+                                                                         (car lst)))))
+                  ((number? (car lst)) (rec-list->string (cdr lst)
+                                                         (string-append retval-string
+                                                                        (number->string
+                                                                         (car lst)))))
+                  (else (rec-list->string (cdr lst)
+                                          (string-append retval-string
+                                                         "string" (car lst))))))))
+  (if (atom? lst)
+      (cond ((symbol? lst) (symbol->string lst))
+            ((number? lst) (string-append (number->string lst)))
+            (else (string-append "string" lst)))
+  (rec-list->string lst "(")))
+(define (exp->string exp)
+  (list->string exp))
+
+(define (hash-exp exp)
+  (let ((string (exp->string exp)))
+    (string-hash string)))
+
+(define *random-max* 1000000)
+
+(define (generate-name-string exp)
+  ;; (format #t "generate-name-string: ~A ~%" exp)
+  (let* ((hash (hash-exp exp))
+         (hash-string (number->string hash))
+         (salt (number->string (random *random-max*))))
+    (string-append "a" hash-string salt)))
+(define (append-ptr str)
+  (string-append "ptr_" str))
+
+(define (append-val str)
+  (string-append "val_" str))
+(define (compile-service-fn name body)
+  (let ((code-into-braces (compile-braces body)))
+    (append (list 'val ASTERISK name)
+            (compile-parenthesis '())
+            code-into-braces)))
+(define (transform-exp exp)
+  (if (null? exp)
+      '(" ")
+      (let ((first-elt (car exp )))
+        ;; если число, превратить число в строку и присоединить к списку строк
+        (cond ((number? first-elt) (cons (string-append " " (number->string
+                                                             first-elt))
+                                         (transform-exp (cdr exp))))
+              ;; если строка, присоединить как есть
+              ((string? first-elt) (cons (string-append " " first-elt)
+                                         (transform-exp (cdr exp))))
+              ;; если список, то обойти его, преобразовать и присоединить все элементы
+              ((pair? first-elt) (append (transform-exp first-elt)
+                                       (transform-exp (cdr exp))))
+              ;; если символ
+              (else
+               ;; то проверить на совпадение с синтаксическими символами, при необходимости
+               ;; заменить на строковое представление
+               (cond ((eq? OPENING_BRACE first-elt)
+                      (cons " {" (transform-exp (cdr exp))))
+                     ((eq? CLOSING_BRACE first-elt)
+                      (cons " }" (transform-exp (cdr exp))))
+                     ((eq? OPENING_PARENTHESIS first-elt)
+                      (cons " (" (transform-exp (cdr exp))))
+                     ((eq? CLOSING_PARENTHESIS first-elt)
+                      (cons " )" (transform-exp (cdr exp))))
+                     ((eq? OPENING_BRACKET first-elt)
+                      (cons " [" (transform-exp (cdr exp))))
+                     ((eq? CLOSING_BRACKET first-elt)
+                      (cons " ]" (transform-exp (cdr exp))))
+                     ((eq? COLON first-elt)
+                      (cons ":" (transform-exp (cdr exp))))
+                     ((eq? SEMICOLON first-elt)
+                      (cons ";" (transform-exp (cdr exp))))
+                     ((eq? COMMA first-elt)
+                      (cons ", " (transform-exp (cdr exp))))
+                     ((eq? ASTERISK first-elt)
+                      (cons "*" (transform-exp (cdr exp))))
+                     ((eq? ELLIPSIS first-elt)
+                      (cons " ..." (transform-exp (cdr exp))))
+                     ;; это какой-то другой символ
+                     ;; преобразовать в строку, присоединить к списку строк
+                     (else (cons (string-append " " (symbol->string first-elt))
+                                 (transform-exp (cdr exp))))))))))
+
+(define (compiled-code->string code)
+  (if (null? code)
+      '()
+      (let ((first-exp (car code)))
+        (if (pair? first-exp)
+            (append (transform-exp first-exp) (compiled-code->string (cdr code)))
+            (transform-exp code)))))
+
+(load-option 'format)
+(define *c-file* "test-file.txt")
+
+(define (print-code-into-file code-string)
+  (define (rec-print-code code-string output-port)
+    (if (null? code-string)
+        'ok
+        (let ((first-string (car code-string)))
+          (if (or (equal? first-string " {" )
+                  (equal? first-string " }" )
+                  (equal? first-string ";" )
+                  (equal? first-string ":" ))
+              (begin
+                (format output-port "~A ~% "first-string)
+                (rec-print-code (cdr code-string) output-port))
+              (begin
+                (format output-port "~A" first-string)
+                (rec-print-code (cdr code-string) output-port))))))
+(let ((output-port (open-output-file  *c-file* #t)))
+  (rec-print-code code-string output-port)
+  (close-output-port output-port)
+  'ok))
+(define (print-code exps)
+  (print-code-into-file (compiled-code->string exps)))
+(define (primitive-proc-bindings)
+  (list (list 'car 'car)
+        (list 'cdr 'cdr)
+        (list 'cons 'cons)
+        (list 'list 'make-list)
+        (list  '+ 'add)
+        (list  '- 'sub)
+        (list  '* 'mul)
+        (list  '/ 'division)
+        (list  '= 'equal_numbers_predicate)
+        (list  '> 'bigger_predicate)
+        (list  '< 'smaller_predicate)
+        (list  'reverse 'reverse)
+        (list  'append 'append)
+        (list  'assoc 'assoc)
+        (list  'length 'length_compile)
+        (list  'last-pair 'last_pair)
+        (list  'true? 'true_predicate_compile)
+        (list  'false? 'false_predicate_compile)
+        (list  'null? 'null_predicate_compile)
+        (list  'pair? 'pair_predicate_compile)
+        (list  'symbol? 'symbol_predicate_compile)
+        (list  'atom? 'atom_predicate_compile)
+        (list  'string? 'string_predicate_compile)
+        (list  'dotpair? 'dotpair_predicate_compile)))
+
+(define (primitive-procedure-objects)
+  (map (lambda (proc)
+         (list (car proc)
+               (list 'primitive (cadr proc))))
+       (primitive-proc-bindings)))
+(define (atom? arg)
+  (or (string? arg) (number? arg)
+      (symbol? arg)))
+
+(define (enclosing-environment env) (cdr env))
+
+(define (first-frame env) (car env))
+
+(define the-empty-environment '())
+
+(define (add-binding-to-frame! var frame)
+  (let* ((first-elt (car frame))
+         (rest (cdr frame)))
+    (set-car! frame var)
+    (set-cdr! frame (list first-elt))
+    (let ((last-elt (last-pair frame)))
+      (set-cdr! last-elt rest)
+      frame)))
+
+(define (extend-environment vars base-env)
+  (if (null? vars)
+      base-env
+  (cons vars base-env)))
+
+(define (lookup-variable var env)
+  (define (env-loop env)
+    (define (scan vars)
+      (cond ((null? vars)
+             (env-loop (enclosing-environment env)))
+            ((and (pair? var) (pair? (car vars)))
+             (if (eq? (car var) (caar vars))
+                 (car vars)
+                 (scan (cdr vars))))
+            ((and (not (pair? var)) (pair? (car vars)))
+             (if (eq? var (caar vars))
+                 (car vars)
+                 (scan (cdr vars))))
+            ((eq? var (car vars)) 'ok)
+            (else (scan (cdr vars)))))
+    (if (eq? env the-empty-environment)
+        (error "Compile: Несвязанная переменная" var)
+        (let ((frame (first-frame env)))
+          (scan frame))))
+  (env-loop env))
+
+(define (define-variable! var env)
+  (let ((frame (first-frame env)))
+    (define (scan vars)
+      (cond ((null? vars)
+             (begin
+               ;; (format #t "define-variable!: переменная новая ~%" )
+               (add-binding-to-frame! var frame)
+               'ok))
+            ((and (pair? var) (pair? (car vars)))
+             (if (eq? (car var) (caar vars))
+                 (car vars)
+                 (scan (cdr vars))))
+            ((and (atom? var) (pair? (car vars)))
+             (if (eq? var (caar vars))
+                 (car vars)
+                 (scan (cdr vars))))
+            ((eq? var (car vars)) (car vars))
+            (else (scan (cdr vars)))))
+    (scan frame)))
+
+(define (delete-frame env)
+  (set! env (cdr env)))
+
+(define (setup-environment)
+  (let ((initial-env
+         (extend-environment (primitive-procedure-objects)
+                             the-empty-environment)))
+    initial-env))
+
+(define global-environment (setup-environment))
+(define (copy-frame frame)
+  (if (null? frame)
+      '()
+      (let ((first-elt (car frame)))
+        (if (pair? first-elt)
+        (cons (copy-frame first-elt)
+              (copy-frame (cdr frame)))
+        (cons first-elt (copy-frame (cdr frame)))))))
+
+(define test-env (copy-frame global-environment))
+
+(add-binding-to-frame! 'n (car test-env))
+;; компилирует выделение памяти на 1 инт
+(define (compile-malloc-int var-name)
+  (let* ((malloc-int (append '(malloc)
+                             (compile-parenthesis (append '(sizeof)
+                                                          (compile-parenthesis 'int)))))
+         (int-pointer (list 'int  ASTERISK (append-ptr var-name) '=)))
+    (append int-pointer malloc-int (list SEMICOLON))))
+
+;; кмопилирует код для выделения массива на 100 чаров
+(define (compile-malloc-char var-name)
+  (let* ((malloc-char (append '(malloc)
+                              (compile-parenthesis (append '(sizeof)
+                                                           (compile-parenthesis
+                                                            (append '(char)
+                                                                    (compile-brackets
+                                                                     100)))))))
+         (char-pointer (list 'char ASTERISK (append-ptr var-name) '=)))
+    (append char-pointer malloc-char (list SEMICOLON))))
+
+(define (compile-malloc-cell var-name)
+  (let* ((malloc-int (append '(malloc)
+                             (compile-parenthesis (append '(sizeof)
+                                                          (compile-parenthesis 'cell)))))
+         (int-pointer (list 'int  ASTERISK (append-ptr var-name) '=)))
+    (append int-pointer malloc-int (list SEMICOLON))))
+
+;; комиплирует код для комипрования строки в выделенную память
+(define (compile-strcpy var-name string)
+  (append
+   '(strncpy) (compile-parenthesis
+               (list (append-ptr var-name) COMMA (string-append "\"" string "\"" )
+                     COMMA 100))
+   (list SEMICOLON)))
+
+;; присваивает неинициализированному указателю значение
+(define (compile-set-value-to-pointer p-name value)
+  (list ASTERISK (append-ptr p-name) '= value SEMICOLON))
+(define (compile-int-val-constructor var-name var-value)
+  (if (string? var-name)
+      (let ((allocated-memory (compile-malloc-int var-name))
+            (set-value-to-pointer (compile-set-value-to-pointer var-name var-value)))
+        (list (append allocated-memory
+                      set-value-to-pointer
+                      (list 'val ASTERISK var-name '= 'int_val_constructor)
+                      (compile-parenthesis (append-ptr var-name))
+                      (list SEMICOLON))
+              (list var-name)))
+      (error "var-name should be a string -- compile-int-val-constructor" var-name)))
+
+(define (compile-symbol-val-constructor var-name string)
+  (if (string? var-name)
+      (let* ((allocated-memory (compile-malloc-char var-name))
+             (strcpy (compile-strcpy var-name string)))
+        (list (append
+               allocated-memory strcpy
+               (list 'val ASTERISK var-name '= 'symbol_val_constructor)
+               (compile-parenthesis (append-ptr var-name))
+               (list SEMICOLON)) (list var-name)))
+      (error "var-name should be a string -- compile-symbol-val-constructor" var-name)))
+
+(define (compile-string-val-constructor var-name string)
+  (if (string? var-name)
+      (let* ((allocated-memory (compile-malloc-char var-name))
+             (strcpy (compile-strcpy var-name string)))
+        (list (append
+               allocated-memory strcpy
+               (list 'val ASTERISK var-name '= 'string_val_constructor)
+               (compile-parenthesis (append-ptr var-name))
+               (list SEMICOLON)) (list var-name)))
+      (error "var-name should be a string -- compile-string-val-constructor" var-name)))
+
+(define (compile-call-params-in-c-syntax params)
+  ;; (format #t "compile-call-params-in-c-syntax: params ~A ~%" params)
+  (if (null? params)
+      '()
+      (let ((cur-param (if (null? (cdr params))
+                           (list  (car params))
+                           (list  (car params) COMMA))))
+        (append cur-param (compile-call-params-in-c-syntax (cdr params))))))
+
+(define (compile-list args)
+  (let* ((amount-of-args (length args))
+         (new-args (append (list amount-of-args)
+                           args)))
+    (append '(make_list)
+            (compile-parenthesis (compile-call-params-in-c-syntax new-args)))))
+
+(define (compile-cons args)
+  (let ((first-arg (car args))
+        (second-arg (cadr args)))
+    (append '(cons)
+            (compile-parenthesis
+             (list first-arg COMMA second-arg)))))
+
+(define (compile-car args)
+  (append '(car)
+          (compile-parenthesis args)))
+
+(define (compile-cdr args)
+  (append '(cdr)
+          (compile-parenthesis args)))
+
+(define (compile-set-car args)
+  (append '(set_car)
+          (compile-parenthesis args)))
+
+(define (compile-set-cdr args)
+  (append '(set_cdr)
+          (compile-parenthesis args)))
+
+(define (compile-append args)
+  (let ((first-arg (car args))
+        (second-arg (cadr args)))
+    (append '(append)
+            (compile-parenthesis
+             (list first-arg COMMA second-arg)))))
+
+(define (compile-assoc args)
+  (let ((first-arg (car args))
+        (second-arg (cadr args)))
+    (append '(assoc)
+            (compile-parenthesis
+             (list first-arg COMMA second-arg)))))
+
+(define (compile-length args)
+  (append '(length_compile)
+          (compile-parenthesis args)))
+
+(define (compile-last-pair args)
+  (append '(last_pair)
+          (compile-parenthesis args)))
+
+(define (compile-smaller-predicate-compile args)
+  (append '(smaller_predicate_compile)
+          (compile-parenthesis args)))
+
+(define (compile-bigger-predicate-compile args)
+  (append '(bigger_predicate_compile)
+          (compile-parenthesis args)))
+
+(define (compile-equal-numbers args)
+  (let ((first-arg (car args))
+        (second-arg (cadr args)))
+    (append '(equal_numbers_predicate_compile)
+            (compile-parenthesis
+             (list first-arg COMMA second-arg)))))
+
+(define (compile-add args)
+  (append '(add)
+          (compile-parenthesis args)))
+
+(define (compile-sub args)
+  (append '(sub)
+          (compile-parenthesis args)))
+
+(define (compile-mul args)
+  (append '(mul)
+          (compile-parenthesis args)))
+
+(define (compile-division args)
+  (append '(division)
+          (compile-parenthesis args)))
+
+(define (compile-reverse args)
+  (append '(reverse)
+          (compile-parenthesis args)))
+
+(define (compile-true? args)
+  (append '(true_predicate_compile)
+          (compile-parenthesis args)))
+
+(define (compile-false? args)
+  (append '(false_predicate_compile)
+          (compile-parenthesis args)))
+
+(define (compile-null? args)
+  (append '(null_predicate_compile)
+          (compile-parenthesis args)))
+
+(define (compile-pair? args)
+  (append '(pair_predicate_compile)
+          (compile-parenthesis args)))
+
+(define (compile-atom? args)
+  (append '(atom_predicate_compile)
+          (compile-parenthesis args)))
+(define (connect-compiled-exps compiled-exps-with-names)
+  (if (null? compiled-exps-with-names)
+      '()
+      (let* ((compiled-exp (car compiled-exps-with-names))
+             (compiled-code (car compiled-exp))
+             (name-compiled-code (cadr compiled-exp)))
+        ;; проверяем, поступило нам множество скомиплированных выражений
+        (if (and (pair? compiled-code)
+                 (pair? name-compiled-code))
+            ;; выражений множество
+            (append compiled-code
+                    (connect-compiled-exps (cdr compiled-exps-with-names)))
+            ;; выражение было единичным
+            compiled-exp))))
+(define (get-names-and-calls compiled-exps-with-names)
+  (let* ((compiled-exp (car compiled-exps-with-names))
+         (compiled-code (car compiled-exp))
+         (name-compiled-code (cadr compiled-exp)))
+    ;; проверяем, скомиплировано у нас 1 выражение или много
+    (if (and (pair? compiled-code)
+             (pair? name-compiled-code))
+        (map (lambda (code)
+               (if (= 1 (length (cadr code)))
+                   (caadr code)
+               ;; (format #t "get-names-and-calls: ~A ~%" (cadr code))
+                   (cadr code))) compiled-exps-with-names)
+        (cadr compiled-exps-with-names))))
+(define (return-value-constructor retval)
+  (if (pair? retval)
+      (append '(return)
+              retval (list SEMICOLON))
+      (list 'return retval SEMICOLON)))
+(define (compile-args args env)
+  (define (compile-args-rec args compiled-code)
+    (if (null? args)
+        (begin
+          ;; (format #t "compiled-code ~A ~%" compiled-code)
+          compiled-code)
+        (let* ((compiled-arg-code (compile (car args) env)))
+          ;; (format #t "compiled-arg-code ~A ~%" compiled-arg-code)
+          (compile-args-rec (cdr args) (append compiled-code (list
+                                                              compiled-arg-code))))))
+  (compile-args-rec (cdr args) (list (compile (car args) env))))
+(define (self-evaluating? exp)
+  (cond ((number? exp) true)
+        ((string? exp) true)
+        (else false)))
+
+(define (compile-self-evaluating exp)
+  ;; (format #t "compile-self-evaluating ~A ~%" exp)
+  (let* ((service-fn-name (generate-name-string exp))
+         (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+    (let* ((compiled-exp (if (number? exp)
+                              (compile-int-val-constructor (generate-name-string exp)
+                                                           exp)
+                              (compile-string-val-constructor (generate-name-string exp)
+                                                              exp)))
+                 (code (connect-compiled-exps compiled-exp))
+                 (names (get-names-and-calls compiled-exp))
+                 (return-value (return-value-constructor names)))
+            (list (compile-service-fn service-fn-name
+                                      (append
+                                       code
+                                       return-value))
+                  call-service-fn))))
+(define (compile-variable exp env)
+  ;; (format #t "compile-variable: exp ~A ~%" exp)
+  (if (lookup-variable exp env)
+      (let* ((return-value (return-value-constructor exp))
+             (service-fn-name (generate-name-string exp))
+             (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+        (list (compile-service-fn service-fn-name
+                                  return-value)
+              call-service-fn))))
+(define (compile-primitive-call operator compiled-args-names)
+  ;; (format #t "compile-primitive-call: compiled-args-names ~A ~%" compiled-args-names)
+  (cond ((eq? operator 'list)
+         (compile-list compiled-args-names))
+        ((eq? operator 'cons)
+         (compile-cons compiled-args-names))
+        ((eq? operator 'car)
+         (compile-car compiled-args-names))
+        ((eq? operator 'cdr)
+         (compile-cdr compiled-args-names))
+        ((eq? operator 'set-car!)
+         (compile-set-car compiled-args-names))
+        ((eq? operator 'set-cdr!)
+         (compile-set-cdr compiled-args-names))
+        ((eq? operator 'append)
+         (compile-append compiled-args-names))
+        ((eq? operator 'assoc)
+         (compile-assoc compiled-args-names))
+        ((eq? operator 'length)
+         (compile-length compiled-args-names))
+        ((eq? operator 'last-pair)
+         (compile-last-pair compiled-args-names))
+        ((eq? operator '=)
+         (compile-equal-numbers compiled-args-names))
+        ((eq? operator '+)
+         (compile-add (compile-list compiled-args-names)))
+        ((eq? operator '>)
+         (compile-bigger-predicate-compile (compile-list compiled-args-names)))
+        ((eq? operator '<)
+         (compile-smaller-predicate-compile (compile-list compiled-args-names)))
+        ((eq? operator '-)
+         (compile-sub (compile-list compiled-args-names)))
+        ((eq? operator '*)
+         (compile-mul (compile-list compiled-args-names)))
+        ((eq? operator '/)
+         (compile-division (compile-list compiled-args-names)))
+        ((eq? operator 'reverse)
+         (compile-reverse compiled-args-names))
+        ((eq? operator 'true?)
+         (compile-true? compiled-args-names))
+        ((eq? operator 'false?)
+         (compile-false? compiled-args-names))
+        ((eq? operator 'null?)
+         (compile-null? compiled-args-names))
+        ((eq? operator 'pair?)
+         (compile-pair? compiled-args-names))
+        ((eq? operator 'atom?)
+         (atom? compiled-args-names))
+        (else (error "Неизвестный примитив -- compile-primitive" operator))))
+
+(define (compile-primitive exp env)
+  (if (null? (operands exp))
+      (let* ((compiled-args '())
+             (return-value (return-value-constructor
+                            (compile-primitive-call (operator exp) compiled-args)))
+             (service-fn-name (generate-name-string exp))
+             (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+        (list (compile-service-fn service-fn-name return-value)
+              (list  call-service-fn)))
+      (let* ((compiled-args (compile-args (operands exp) env)))
+        ;; (format #t "compiled-args ~A ~%" compiled-args)
+        (let*
+            ((compiled-args-names (get-names-and-calls compiled-args))
+          (return-value (return-value-constructor
+                         (compile-primitive-call (operator exp) compiled-args-names)))
+          (service-fn-name (generate-name-string exp))
+          (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+        ;; (format #t "compile-cur-primitive: compiled-args ~A ~%"
+        ;; (connect-compiled-exps compiled-args))
+        (list (compile-service-fn service-fn-name
+                                  (append (connect-compiled-exps compiled-args)
+                                          return-value))
+              call-service-fn)))))
+(define (tagged-list? exp tag)
+  (if (pair? exp)
+      (eq? (car exp) tag)
+      false))
+
+(define (definition? exp)
+  (tagged-list? exp 'define))
+
+(define (definition-fn? exp)
+  (and (pair? (cdr exp))
+       (pair? (cadr exp))))
+
+(define (compile-definition exp env)
+  ;; (format #t "compile-definition ~A ~%" exp)
+  (if (definition-fn? exp)
+      (compile-named-function exp env)
+      (compile-global-var exp env)))
+(define (global-env? env)
+  ( = ( length env) 1))
+
+;; (global-env? global-environment)
+
+;; (global-env? (cons '(some var names) global-environment))
+
+;; вызывает компиляцию локальной или глобальной переменной
+(define (compile-definition-var exp env)
+  (if (global-env? env)
+      (compile-definition-var-global exp env)
+      (compile-definition-var-local exp env)))
+(define (compile-unassigned-variable var-name)
+  (list 'val ASTERISK (symbol->string var-name) SEMICOLON))
+(define (make-int-assignment-for-unassigned-var var-name var-value)
+  (let* ((var-name-string (if (string? var-name)
+                              var-name
+                              (symbol->string var-name)))
+         (allocated-memory (compile-malloc-int var-name-string))
+         (set-value-to-pointer (compile-set-value-to-pointer var-name-string var-value)))
+    (list (append allocated-memory
+                  set-value-to-pointer
+                  (list var-name-string '= 'int_val_constructor)
+                  (compile-parenthesis (append-ptr var-name-string))
+                  (list SEMICOLON))
+          (list var-name-string))))
+
+
+(define (make-string-assignment-for-unassigned-var var-name string)
+  (let* ((var-name-string (if (string? var-name)
+                              var-name
+                              (symbol->string var-name)))
+         (allocated-memory (compile-malloc-char var-name-string))
+         (strcpy (compile-strcpy var-name-string string)))
+    (list (append
+           allocated-memory strcpy
+           (list var-name-string '= 'string_val_constructor)
+           (compile-parenthesis (append-ptr var-name-string))
+           (list SEMICOLON)) (list var-name-string))))
+
+
+(define (make-symbol-assignment-for-unassigned-var var-name string)
+  (let* ((var-name-string (if (string? var-name)
+                              var-name
+                              (symbol->string var-name)))
+         (allocated-memory (compile-malloc-char var-name-string))
+         (strcpy (compile-strcpy var-name-string string)))
+    (list (append
+           allocated-memory strcpy
+           (list var-name-string '= 'symbol_val_constructor)
+           (compile-parenthesis (append-ptr var-name-string))
+           (list SEMICOLON)) (list var-name-string))))
+
+(define (make-var-assignment-for-unassigned-var var-name1 var-name2)
+  (list (list var-name1 '= var-name2 SEMICOLON) (list var-name1)))
+
+
+(define (make-var-assignment-for-unassigned-var var-name1 var-name2)
+  (list (list ASTERISK var-name1 '= ASTERISK var-name2 SEMICOLON) (list var-name1)))
+
+(define (make-int-ptr-malloc-assignment ptr-name)
+  (list  ptr-name '=
+        (append '(malloc)
+                (compile-parenthesis (append '(sizeof)
+                                             (compile-parenthesis 'int))))
+        SEMICOLON))
+
+(define (make-char-ptr-malloc-assignment ptr-name)
+  (list ptr-name '=
+        (append '(malloc)
+                (compile-parenthesis (append '(sizeof)
+                                             (compile-parenthesis
+                                              (append '(char)
+                                                      (compile-brackets
+                                                       100))))))
+        SEMICOLON))
+
+(define (make-var-assignment-for-unassigned-var var1 var2)
+  (let* ((var-name1 (if (symbol? var1)
+                        (symbol->string var1)
+                        var1))
+         (var-name2 (if (symbol? var2)
+                        (symbol->string var2)
+                        var2))
+         (type-num-pointer (string-append var-name2 "->type_num"))
+         (char-ptr (append-ptr (string-append "char_" var-name1)))
+         (int-ptr (append-ptr (string-append "int_" var-name1))))
+    (list
+     (append
+      (list 'int ASTERISK int-ptr SEMICOLON)
+      (list 'char ASTERISK char-ptr SEMICOLON)
+      (list '(switch) (compile-parenthesis type-num-pointer)
+            (compile-braces (append
+                             (append
+                              (list 'case "TYPE_INT" COLON)
+                              (make-int-ptr-malloc-assignment
+                               int-ptr)
+                              (compile-set-value-to-pointer
+                               (string-append "int_" var-name1)
+                               (list
+                                ASTERISK
+                                (string-append var-name2 "->uni_val.int_val")))
+                              (list var-name1 '= 'int_val_constructor)
+                              (compile-parenthesis int-ptr)
+                              (list SEMICOLON)
+                              (list 'break SEMICOLON))
+
+                             (append
+                              (list 'case "TYPE_STRING" COLON)
+                              (make-char-ptr-malloc-assignment char-ptr)
+                              (compile-strcpy (string-append "char_" var-name1)
+                                              (string-append var-name2
+                                                             "->uni_val.char_val"))
+                              (list var-name1 '= 'string_val_constructor)
+                              (compile-parenthesis char-ptr)
+                              (list SEMICOLON)
+                              (list 'break SEMICOLON))
+
+                             (append
+                              (list 'case "TYPE_SYMBOL" COLON)
+                              (make-char-ptr-malloc-assignment char-ptr)
+                              (compile-strcpy (string-append "char_" var-name1)
+                                              (string-append var-name2
+                                                             "->uni_val.char_val"))
+                              (list var-name1 '= 'symbol_val_constructor)
+                              (compile-parenthesis char-ptr)
+                              (list SEMICOLON)
+                              (list 'break SEMICOLON))
+
+                             (append
+                              (list 'case "TYPE_NIL" COLON)
+                              (list var-name1 '= 'nil_constructor)
+                              (compile-parenthesis '())
+                              (list SEMICOLON)
+                              (list 'break SEMICOLON))
+
+                             (append
+                              (list 'case "TYPE_CELL" COLON)
+                              (list var-name1 '= 'cell_val_constructor)
+                              (compile-parenthesis (string-append var-name2
+                                                                  "->uni_val.cell_val"))
+                              (list SEMICOLON)
+                              (list 'break SEMICOLON))))))
+     (list var-name1))))
+(define (make-int-assignment-for-assigned-var var value)
+  (let* ((var-name (if (symbol? var)
+                       (symbol->string var)
+                       var))
+         (int-val-pointer (string-append var-name "->uni_val.int_val"))
+         (type-num-pointer (string-append var-name "->type_num")))
+    (list (append
+           (make-int-ptr-malloc-assignment
+            (string-append var-name
+                           "->uni_val.int_val"))
+           (list ASTERISK int-val-pointer '= value SEMICOLON)
+           (list type-num-pointer '= "TYPE_INT" SEMICOLON))
+          (list var))))
+
+(define (make-string-assignment-for-assigned-var var string)
+  (let* ((var-name (if (symbol? var)
+                       (symbol->string var)
+                       var))
+         (char-val-pointer (string-append var-name "->uni_val.char_val"))
+         (type-num-pointer (string-append var-name "->type_num")))
+    (list (append
+           (compile-malloc-char var-name)
+           (compile-strcpy var-name string)
+           (list char-val-pointer '= (append-ptr var-name) SEMICOLON)
+           (list type-num-pointer '= "TYPE_STRING" SEMICOLON))
+          (list var))))
+
+(define (make-symbol-assignment-for-assigned-var var string)
+  (let* ((var-name (if (symbol? var)
+                       (symbol->string var)
+                       var))
+         (char-val-pointer (string-append var-name "->uni_val.char_val"))
+         (type-num-pointer (string-append var-name "->type_num")))
+    (list (append
+           (compile-malloc-char var-name)
+           (compile-strcpy var-name string)
+           (list char-val-pointer '= (append-ptr var-name) SEMICOLON)
+           (list type-num-pointer '= "TYPE_SYMBOL" SEMICOLON))
+          (list var))))
+
+
+(define (compile-strcpy-existed-ptr var-name string)
+  (append
+   '(strncpy) (compile-parenthesis
+               (list var-name COMMA string COMMA 100))
+   (list SEMICOLON)))
+
+(define (make-var-assignment-for-assigned-var var1 var2)
+  ;; (format #t "make-var-assignment-for-assigned-var ~%")
+  (let* ((var-name1 (if (symbol? var1)
+                        (symbol->string var1)
+                        var1))
+         (var-name2 (if (symbol? var2)
+                        (symbol->string var2)
+                        var2))
+         (type-num-pointer2 (string-append var-name2 "->type_num"))
+         (type-num-pointer1 (string-append var-name1 "->type_num"))
+         (char-ptr (append-ptr (string-append "char_" var-name1)))
+         (int-ptr (append-ptr (string-append "int_" var-name1))))
+    (list
+     (append
+      (list 'int ASTERISK int-ptr SEMICOLON)
+      (list 'char ASTERISK char-ptr SEMICOLON)
+      (list '(switch) (compile-parenthesis type-num-pointer2)
+            (compile-braces (append
+                             (append
+                              (list 'case "TYPE_INT" COLON)
+                              (make-int-ptr-malloc-assignment
+                               (string-append var-name1
+                                              "->uni_val.int_val"))
+                              (list
+                               ASTERISK
+                               (string-append var-name1 "->uni_val.int_val")
+                               '=)
+                              (list
+                               ASTERISK
+                               (string-append var-name2 "->uni_val.int_val") SEMICOLON)
+                              (list type-num-pointer1 '= "TYPE_INT" SEMICOLON)
+                              (list 'break SEMICOLON))
+
+                             (append
+                              (list 'case "TYPE_STRING" COLON)
+                              (make-char-ptr-malloc-assignment
+                               (string-append var-name1
+                                              "->uni_val.char_val"))
+                              (compile-strcpy-existed-ptr (string-append var-name1
+                                                             "->uni_val.char_val")
+                                              (string-append var-name2
+                                                             "->uni_val.char_val"))
+                              (list type-num-pointer1 '= "TYPE_STRING" SEMICOLON)
+                              (list 'break SEMICOLON))
+
+                             (append
+                              (list 'case "TYPE_SYMBOL" COLON)
+                              (make-char-ptr-malloc-assignment
+                               (string-append var-name1
+                                              "->uni_val.char_val"))
+                              (compile-strcpy-existed-ptr (string-append var-name1
+                                                             "->uni_val.char_val")
+                                              (string-append var-name2
+                                                             "->uni_val.char_val"))
+                              (list type-num-pointer1 '= "TYPE_SYMBOL" SEMICOLON)
+                              (list 'break SEMICOLON))
+
+                             (append
+                              (list 'case "TYPE_NIL" COLON)
+                              (list type-num-pointer1 '= "TYPE_NIL" SEMICOLON)
+                              (list 'break SEMICOLON))
+
+                             (append
+                              (list 'case "TYPE_CELL" COLON)
+                              (list
+                               ASTERISK
+                               (string-append var-name1 "->uni_val.cell_val")
+                               '=)
+                               (list
+                                ASTERISK
+                                (string-append var-name2 "->uni_val.cell_val") SEMICOLON)
+                              (list type-num-pointer1 '= "TYPE_CELL" SEMICOLON)
+                              (list 'break SEMICOLON))))))
+     (list var-name1))))
+(define (compile-definition-var var-name value env)
+  (let* ((unassigned-variable (compile-unassigned-variable var-name))
+         (var-assignment
+          (cond ((variable? value)
+                 (if (lookup-variable value env)
+                     (connect-compiled-exps
+                      (make-var-assignment-for-unassigned-var var-name value))))
+                ((number? value)
+                 (connect-compiled-exps
+                  (make-int-assignment-for-unassigned-var var-name value)))
+                ((string? value)
+                 (connect-compiled-exps
+                  (make-string-assignment-for-unassigned-var var-name value)))
+                (else (let* ((compiled-value (compile value env))
+                             (compile-value-code (connect-compiled-exps compiled-value))
+                             (value-call (get-names-and-calls compiled-value)))
+                        (append
+                         compile-value-code
+                         (list var-name '= value-call SEMICOLON))))))
+         (service-fn-name (generate-name-string (list var-name value)))
+         (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+    (list (append
+           unassigned-variable
+           (compile-service-fn service-fn-name
+                               var-assignment))
+
+          call-service-fn)))
+
+(define (compile-redefinition-var var-name value env)
+  ;; (format #t "compile-redefinition-var ~%")
+  (let* ((var-assignment
+          (cond ((variable? value)
+                 (if (lookup-variable value env)
+                     (begin
+                       ;; (format #t "значение = переменная ~%")
+                       (connect-compiled-exps
+                        (make-var-assignment-for-assigned-var var-name value)))))
+                ((number? value)
+                 (connect-compiled-exps
+                  (make-int-assignment-for-assigned-var var-name value)))
+                ((string? value)
+                 (connect-compiled-exps
+                  (make-string-assignment-for-assigned-var var-name value)))
+                (else (let* ((compiled-value (compile value env))
+                             (compile-value-code (connect-compiled-exps compiled-value))
+                             (value-call (get-names-and-calls compiled-value)))
+                        (append
+                         compile-value-code
+                         (list var-name '= value-call SEMICOLON))))))
+         (service-fn-name (generate-name-string (list var-name value)))
+         (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+    (list (compile-service-fn service-fn-name
+                              var-assignment)
+          call-service-fn)))
+(define (compile-global-var exp env)
+  (let ((return-value (define-variable! (definition-variable exp) env)))
+    (if (eq? return-value 'ok)
+        (begin
+          ;; (format #t "Новая переменная ~%")
+        (compile-definition-var (definition-variable exp)
+                                       (definition-value exp) env))
+        (begin
+          ;; (format #t "Переопределение переменной ~%")
+          (compile-redefinition-var (definition-variable exp)
+                                           (definition-value exp) env)))))
+(define (compile-sequences sequences env)
+  (define (compile-sequences-rec sequences compiled-code)
+    ;; (format #t "compile-sequences-rec sequences ~A compiled-code ~A ~%" sequences
+    ;;         compiled-code)
+    (if (null? sequences)
+        compiled-code
+        (let ((first-compiled-seq (compile (car sequences) env)))
+          (compile-sequences-rec (cdr sequences)
+                                 (cons first-compiled-seq compiled-code)))))
+  ;; (format #t "sequences ~A env ~A ~%" sequences env)
+  ;; (format #t "env ~A ~%" env)
+  (let* ((compiled-code-with-names (reverse (compile-sequences-rec sequences '())))
+         (compiled-code (connect-compiled-exps compiled-code-with-names))
+         (compiled-code-names (get-names-and-calls compiled-code-with-names)))
+    (list compiled-code compiled-code-names)))
+(define (copy-list list)
+  (fold-right cons '() list))
+
+(define (compile-fn-params-in-c-syntax params)
+  (define (compile-fn-params-in-c-syntax-rec params-lisp params-c)
+    (if (null? params-lisp)
+        params-c
+        (let ((cur-param (if (null? (cdr params-lisp))
+                             (list 'val ASTERISK (car params-lisp))
+                             (list 'val ASTERISK (car params-lisp) COMMA))))
+          (compile-fn-params-in-c-syntax-rec (cdr params-lisp)
+                                             (append params-c cur-param)))))
+  ;; (format #t "params ~A ~%" params)
+  (compile-fn-params-in-c-syntax-rec params '()))
+
+(define (call-all-exps-in-body calls)
+  (if (null? calls)
+      '()
+      (let ((first-call (car calls)))
+        (if (and (null? (cdr calls)) (pair? first-call))
+            (cons (return-value-constructor first-call)
+                  (call-all-exps-in-body (cdr calls)))
+            (if (pair? first-call)
+                (cons (append first-call (list SEMICOLON))
+                      (call-all-exps-in-body (cdr calls)))
+                (call-all-exps-in-body (cdr calls)))))))
+
+
+(define (compile-function fn-name params body env)
+  ;; (format #t "compile-function: fn-name ~A params ~A body ~A ~%"
+  ;;         fn-name params body)
+  (let* ((new-env (extend-environment (copy-list params) (copy-frame env)))
+         (compiled-body-with-names (compile-sequences body new-env)))
+    ;; (format #t "compile-function: compiled-body-with-names ~A ~%"
+    ;;         compiled-body-with-names)
+    ;; (format #t "compile-function: params1 ~A ~% ~% " params)
+    ;; (format #t "global-environment ~A ~%" env)
+    (let*(
+         (compiled-body (car compiled-body-with-names))
+         (names-and-calls (cadr compiled-body-with-names)))
+      ;; (format #t "compile-function: params2 ~A ~% ~% "params)
+      (let* (
+             (return-value (call-all-exps-in-body  names-and-calls))
+             (param-in-c-syntax (compile-fn-params-in-c-syntax params)))
+        ;; (format #t "compile-function: last-pair ~A ~% ~% "(last-pair names-and-calls))
+        ;; (format #t "compile-function: names-and-calls ~A ~% ~% "names-and-calls)
+        (append (list 'val ASTERISK fn-name)
+                (compile-parenthesis param-in-c-syntax)
+                (compile-braces
+                 (append compiled-body
+                         return-value)))))))
+(define (named-fn-params exp)
+  ;; (format #t "(cdr (cadr exp)) ~A ~%" (cdr (cadr exp)))
+  (cdr (cadr exp)))
+
+(define (named-fn-body exp)
+  (cdr (cdr exp)))
+
+(define (compile-named-function exp env)
+  (define-variable! (definition-variable exp) env)
+  (list (compile-function (definition-variable exp)
+                          (named-fn-params exp) (named-fn-body exp) env)
+        (list (definition-variable exp))))
+(define (compile exp env)
+  (cond ((self-evaluating? exp)
+         (compile-self-evaluating exp))
+        ((variable? exp)
+         (compile-variable exp env))
+        ((definition? exp)
+         (compile-global-var exp env))
+         (else (compile-primitive exp env))))
+(define (compile-lambda exp env)
+  (let ((name (generate-name-string exp)))
+    (list (compile-function name (lambda-parameters exp)
+                            (lambda-body exp) env)
+          (list name))))
+(define (primitive-proc? exp env)
+  ;; (format #t "primitive proc exp ~A ~%" exp)
+  (let* ((op (operator exp))
+         (value (lookup-variable op env)))
+    (if (pair? value)
+        (let ((proc-binding (cadr value)))
+          (if (eq? 'primitive (car proc-binding))
+              true
+              false))
+        false)))
+
+(define (lambda-call? exp)
+  (and (pair? exp)
+       (lambda? (car exp))))
+
+;; (lambda-call? '((lambda (x)
+;;                  (+ x 1)) 2))
+
+(define (compile-application exp env)
+  ;; (format #t "compile-application: exp ~A ~%" exp)
+  (cond  ((lambda-call? exp)
+          (begin
+            ;; (format #t "lambda call ~%")
+            (compile-lambda-call exp env)))
+         ((primitive-proc? exp env)
+          (begin
+            ;; (format #t "primitive call ~%")
+            (compile-primitive exp env)))
+         (else (begin
+                 ;; (format #t "compound call ~%")
+                 (compile-compound exp env)))))
+
+(define (compile-compound-proc-call exp env)
+  (let* ((compiled-args-with-names (compile-args (operands exp) env))
+         (compiled-code (connect-compiled-exps compiled-args-with-names))
+         (compiled-code-names (get-names-and-calls compiled-args-with-names))
+         (service-fn-name (generate-name-string exp))
+         (call-service-fn (append (list service-fn-name) (compile-parenthesis '())))
+         (call-params-in-c-syntax (compile-call-params-in-c-syntax compiled-code-names))
+         (return-value (return-value-constructor (list (operator exp)
+                                                       (compile-parenthesis
+                                                        call-params-in-c-syntax)))))
+    ;; (format #t "compile-compound-proc-call: compiled-code ~A ~% ~%" compiled-code)
+
+    (list (append (list 'val ASTERISK service-fn-name)
+            (compile-parenthesis '())
+            (compile-braces (append
+                             compiled-code
+                             return-value)))
+          (list call-service-fn))))
+
+(define (compile-compound exp env)
+  (if (lookup-variable (operator exp) env)
+      (compile-compound-proc-call exp env)))
+
+(define (compile-lambda-call exp env)
+  (let* ((lambda-definition (car exp))
+         (lambda-call-args (cdr exp))
+         (lambda-call-compiled-args (compile-args lambda-call-args env))
+         (lambda-call-compiled-code (connect-compiled-exps lambda-call-compiled-args))
+         (lambda-call-compiled-names (get-names-and-calls lambda-call-compiled-args))
+         (lambda-definition-compiled (compile lambda-definition env))
+         (lambda-definition-compiled-code (connect-compiled-exps
+                                           lambda-definition-compiled))
+         (lambda-definition-compiled-name
+          (get-names-and-calls lambda-definition-compiled))
+         (lambda-params-in-c-syntax (compile-call-params-in-c-syntax
+                                     lambda-call-compiled-names))
+         (lambda-call (return-value-constructor
+                       (append lambda-definition-compiled-name
+                               (compile-parenthesis lambda-params-in-c-syntax))))
+         (service-fn-name (generate-name-string exp))
+         (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+    (list (compile-service-fn service-fn-name
+                              (append
+                               lambda-call-compiled-code
+                               lambda-definition-compiled-code
+                               lambda-call))
+          call-service-fn)))
+
+(define (compile-if exp env)
+  ;; компилируем код для условия, консеквента и антецедента
+  (let* ((condition-code (compile (if-predicate exp) env))
+        (consequent-code (compile (if-consequent exp) env))
+        (alternative-code (compile (if-alternative exp) env))
+        ;; компилируем переменную, в которую бдем записывать результат выполния условия
+        (conpidion-result-var (generate-name-string exp))
+        (assign-condition-result (list 'val ASTERISK
+                                       conpidion-result-var '= (cadr condition-code)
+                                       SEMICOLON))
+        ;; компилируем возвращаемое значение консеквента и антецедента
+        (return_consequent (return-value-constructor
+                            (get-names-and-calls consequent-code)))
+        (return_alternative (return-value-constructor
+                             (get-names-and-calls
+                                  alternative-code)))
+        ;; компилируем имя и вызов служебной функции, внутри которой
+        ;; будет исполняться иф
+        (service-fn-name (string-append
+                          conpidion-result-var "_if_fn"))
+        (call-service-fn (append (list service-fn-name) (compile-parenthesis '()))))
+    ;; компилируем служебную функцию
+    (list (append  (list 'val ASTERISK service-fn-name)
+             (compile-parenthesis '())
+             (compile-braces
+              ;; соединяем код условия, консеквента и антецедента
+              (append (connect-compiled-exps condition-code)
+                      (connect-compiled-exps consequent-code)
+                      (connect-compiled-exps alternative-code)
+                      ;; присоединяем к нему присваивание переменной результата выполнения
+                      ;; условия
+                      assign-condition-result
+                      ;; компиляция проверки условия
+                      (list 'if (compile-parenthesis (list 'symbol_predicate
+                                                           (compile-parenthesis
+                                                            conpidion-result-var)))
+                            (compile-braces
+                             (list 'if
+                                   (compile-parenthesis
+                                    (list 'eq_names_predicate
+                                          (compile-parenthesis
+                                           (list "\"true\"" COMMA
+                                                 (string-append
+                                                  conpidion-result-var
+                                                  "->uni_val.char_val")))))
+                                   (compile-braces return_consequent)
+                                   'else
+                                   (compile-braces return_alternative))))
+                      (list 'else 'if
+                            (compile-parenthesis
+                             (list 'true_predicate
+                                   (compile-parenthesis conpidion-result-var)))
+                            (compile-braces return_consequent)
+                            'else
+                            (compile-braces return_alternative)))))
+          ;; если не обернуть в список дополнительно, то ничего не заработает
+          ;; хорошо бы узнать, почему
+          call-service-fn)))
+
+(define (compile-assignment exp env)
+  (if (lookup-variable (assignment-variable exp) env)
+      (compile-redefinition-var (assignment-variable exp)
+                                (assignment-value exp) env)))
+(define (compile exp env)
+  (format #t "compile exp ~A ~%" exp)
+  (cond ((self-evaluating? exp)
+         (compile-self-evaluating exp))
+        ((variable? exp)
+         (compile-variable exp env))
+        ((definition? exp)
+         (compile-definition exp env))
+        ((lambda? exp)
+         (compile-lambda exp env))
+        ((if? exp)
+         (compile-if exp env))
+        ((begin? exp)
+         (compile-sequences (begin-actions exp) env))
+        ((assignment? exp)
+         (compile-assignment exp env))
+        (else (compile-application exp env))))
+(define (compile-quoted-exp exp)
+  (let* ((compiled-exp (compile-cur-quoted-exp exp)))
+    ;; (format #t "compile-quoted-exp exp ~A ~%" compiled-exp)
+    (let* (
+         (compiled-exp-names (get-names-and-calls compiled-exp))
+         (compiled-exp-code (connect-compiled-exps compiled-exp))
+         (service-fn-name (generate-name-string exp))
+         (call-service-fn (append (list service-fn-name) (compile-parenthesis '())))
+         (return-value  (return-value-constructor
+                         compiled-exp-names)))
+    (list
+     (compile-service-fn service-fn-name
+                         (append
+                          compiled-exp-code
+                          return-value))
+     call-service-fn))))
+
+(define (compile-cur-quoted-exp exp)
+  ;; (format #t "compile-quoted-exp exp ~A ~%" exp)
+  (cond ((number? exp)
+         (compile-int-val-constructor (generate-name-string exp)
+                                      exp))
+        ((string? exp)
+         (compile-string-val-constructor (generate-name-string exp)
+                                         exp))
+        ((pair? exp)
+         (compile-quoted-list exp))
+        (else  (compile-symbol-val-constructor (generate-name-string exp)
+                                               (symbol->string exp)))))
+
+(define (compile-quoted-list lst)
+  (define (compile-quoted-list-rec exp compiled-code)
+    (if (null? exp)
+        (begin
+          ;; (format #t "exit ~A ~% ~%" compiled-code)
+          (let* ((code (connect-compiled-exps compiled-code))
+                (names (get-names-and-calls compiled-code))
+                (service-fn-name (generate-name-string lst))
+                (call-service-fn (append (list service-fn-name)
+                                         (compile-parenthesis '())))
+                (return-value (return-value-constructor (compile-list names))))
+                (list
+                 (compile-service-fn service-fn-name
+                                     (append
+                                      code
+                                      return-value))
+                 call-service-fn)))
+        (let ((first-elt (compile-cur-quoted-exp (car exp))))
+          ;; (format #t "first-elt ~A ~% ~%" first-elt)
+          (compile-quoted-list-rec (cdr exp) (append compiled-code (list
+                                                                    first-elt))))))
+        (compile-quoted-list-rec (cdr lst) (list (compile-cur-quoted-exp (car lst)))))
+(define (compile exp env)
+  (cond ((quoted? exp)
+         (compile-quoted-exp (text-of-quotation exp)))
+        ((self-evaluating? exp)
+         (compile-self-evaluating exp))
+        ((variable? exp)
+         (compile-variable exp env))
+        ((definition? exp)
+         (compile-definition exp env))
+        ((lambda? exp)
+         (compile-lambda exp env))
+        ((if? exp)
+         (compile-if exp env))
+        ((begin? exp)
+         (compile-sequences (begin-actions exp) env))
+        ((assignment? exp)
+         (compile-assignment exp env))
+        (else (compile-application exp env))))
+(define include-files
+  '("#include <stdio.h>"
+    "#include <stdlib.h>"
+    "#include \"primitives.h\""))
+
+(define necessary-fns
+  (append (list "set_true_and_false")
+          (compile-parenthesis '())
+          (list SEMICOLON)))
+
+
+(define (compile-print-exp  retval)
+  (append '(ipprint) (compile-parenthesis retval)
+                      (list SEMICOLON)
+                      '("printf(\"\\n\")") (list SEMICOLON)))
+
+(define (print-include-files code-string)
+  (define (rec-print-code code-string output-port)
+    (if (null? code-string)
+        'ok
+        (begin
+          (format output-port "~A ~% " (car code-string))
+          (rec-print-code (cdr code-string) output-port))))
+  (let ((output-port (open-output-file  *c-file*)))
+    (rec-print-code code-string output-port)
+    (close-output-port output-port)
+    'ok))
+
+
+(define (last-exp-type exps)
+  ;; (format #t "exps ~A ~%" exps)
+  ;; (format #t "(last-pair exps) ~A ~%" (last-pair exps))
+  (cond ((and (definition? exps) (definition-fn? exps))
+         'definition-fn)
+        ((and (definition? exps) definition-fn? (last-pair exps))
+         'definition-fn)
+        ((lambda? exps)
+         'lambda)
+        ((lambda? (last-pair exps))
+         'lambda)
+        (else
+         (begin
+           ;; (format #t "other type ~%")
+           'other-type))))
+
+(define (call-all-exps-in-main-body calls)
+  (define (call-all-exps-in-main-body-rec calls)
+    ;; (format #t "calls ~A ~%" calls)
+    (if (null? calls)
+        '()
+        (let ((first-call (car calls)))
+          (if (and (null? (cdr calls)) (pair? first-call))
+              (cons (compile-print-exp  first-call)
+                    (call-all-exps-in-main-body-rec (cdr calls)))
+              (if (pair? first-call)
+                  (cons (append first-call (list SEMICOLON))
+                        (call-all-exps-in-main-body-rec (cdr calls)))
+                  (call-all-exps-in-main-body-rec (cdr calls)))))))
+  (cond ((and (= (length calls) 3)
+              (equal? (cadr calls)
+                      OPENING_PARENTHESIS)
+              (equal? (caddr calls)
+                      CLOSING_PARENTHESIS))
+         (compile-print-exp calls))
+        ((= (length calls) 1)
+         (compile-print-exp calls))
+        (else (call-all-exps-in-main-body-rec calls))))
+
+(define (delete-last-call calls)
+  ;; (format #t "delete-last-call calls ~A ~%" calls)
+  (if (null? (cdr calls))
+      '()
+      (cons (car calls)
+            (delete-last-call (cdr calls)))))
+
+(define (compile-complete-code compiled-code last-exp-type)
+  ;; (format #t "last-exp-type ~A ~%" last-exp-type)
+  (cond ((eq? last-exp-type 'definition-fn)
+         (let* ((code (connect-compiled-exps compiled-code))
+                (calls (get-names-and-calls compiled-code))
+                (main-body (append
+                            necessary-fns
+                            (call-all-exps-in-main-body (delete-last-call calls)))))
+           (append
+            code
+            (compile-main main-body))))
+
+        ((eq? last-exp-type 'lambda)
+         (let* ((code (connect-compiled-exps compiled-code))
+                (calls (get-names-and-calls compiled-code))
+                (main-body (append
+                            necessary-fns
+                            (call-all-exps-in-main-body (delete-last-call calls)))))
+           (append
+            code
+            (compile-main main-body))))
+        (else
+         (let* ((code (connect-compiled-exps compiled-code))
+                (calls (get-names-and-calls compiled-code))
+                (main-body (append
+                            necessary-fns
+                            (call-all-exps-in-main-body calls))))
+           (append
+            code
+            (compile-main main-body))))))
+(define global-environment (setup-environment))
+
+(define (prompt-for-input string)
+  (newline) (newline) (display string) (newline))
+
+(define (announce-output string)
+  (newline) (display string) (newline))
+
+(define input-prompt ";;; Ввод :")
+(define output-prompt ";;; Компиляция окончена")
+
+(define (driver-loop)
+  (set! global-environment (setup-environment))
+  (prompt-for-input input-prompt)
+  (let ((input (read)))
+    (print-include-files include-files)
+    (print-code (compile-complete-code (compile input
+                                                global-environment)
+                                       (last-exp-type input)))
+    (announce-output output-prompt)
+    (set! *restart-flag* 0)
+    (driver-loop)))
