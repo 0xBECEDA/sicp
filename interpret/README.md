@@ -2,7 +2,7 @@
 сикпа: написание интерпретатора языка scheme на языке си.
 
 <img src="https://github.com/0xBECEDA/sicp/blob/master/interpret/demo.gif"
-width="500" height="500" />
+width="500" height="700" />
 
 Данный интерпретатор поддерживает вычисление:
 - примитивов: cons, car, cdr, set-car, set-cdr, length, list и др.
