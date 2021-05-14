@@ -2633,6 +2633,7 @@ main. Так что создадим конструктор для компил�
   (define input-prompt ";;; Ввод :")
   (define output-prompt ";;; Компиляция окончена")
 
+  (define *restart-flag* 1)
   (define (driver-loop)
     (set! global-environment (setup-environment))
     (prompt-for-input input-prompt)
