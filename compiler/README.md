@@ -1,47 +1,47 @@
-Этот мини-проект представляет собой ограниченный компилятор, который
-компилирует код с языка scheme на язык си и записывает выходной код в
-файл c-code-file.txt, который автоматически появится в вашей текущей
-директории.
+This mini-project is a limited compiler that
+compiles code from scheme to c and writes the output code to a
+file c-code-file.txt which will automatically appear in your current
+directory.
 
-Компидятор поддерживает компиляцию:
-- арифметических операций
-- условных выражений (только с помощью оператора if)
-- определения и вызовы функций (в том числе и рекурсивных)
-- определения и вызовы лямбда-функций
-- определение переменных и вычисление их значения
+The compiler supports compilation:
+- arithmetic operations
+- conditional expressions (using the if operator only)
+- definitions and function calls (including recursive ones)
+- definitions and calls of lambda functions
+- defining variables and calculating their values
 
-Если вы хотите скомпилировать несколько выражений, то объедините их в
-единый блок с помощью begin.
+If you want to compile multiple expressions, then combine them into
+a single block using begin.
 
-Важно: файл с скомпилированным кодом перезаписывается после каждой
-компилции. Если вы вводите какое-то выражение, то оно сразу
-компилируется и записывается в файл. Поэтому и следует объединять
-выражения в единый бок с помощью begin, если вы хотите, чтоб все они
-попали в выходной файл, а не только последнее.
+Important: the compiled code file is overwritten after each
+compilation. If you enter an expression, it is immediately
+compiled and written to a file. Therefore, you should combine
+expressions into a single side using begin, if you want all of them
+to get into the output file, and not just the last one.
 
-Так же из этого следует, что если вы когда-то определили какую-то
-функцию или переменную и скомпилировали ее, а затем решили что-то
-добавить в вашу программу, то вы снова должны ввести все определения,
-объединить их в единый блок и так скомпилировать. В противном случае
-во время компиляции вашего сишного кода вы столкнетесь с
-нераспознанными переменными.
+It also follows from this that if you once defined some
+function or variable and compiled it, and then decided
+to add something to your program, then you must enter all the definitions again,
+combine them into a single block and compile it that way. Otherwise
+during the compilation of your system code, you will encounter
+unrecognized variables.
 
-Для быстрого старта:
-- слейте весь проект
-- установите себе mit-scheme - интерпретаор языка scheme - если у вас
-  его еще нет.
-  Скачать его можно отсюда
+For a quick start:
+- merge the entire project
+- install mit-scheme - interpreter of the scheme language - if you have
+  he's not here yet.
+  You can download it from here
   https://www.gnu.org/software/mit-scheme/
 
-  Другие интерпретаторы могут использовать немного иной синтаксис,
-  поэтому попытка запустить проект под ними, вызовет ошибки.
+  Other interpreters may use slightly different syntax,
+  therefore, trying to run a project under them will cause errors.
 
-- запустите mit-scheme
-- скопируйте весь код из файла code.scheme в работающий интерпретатор
-- введите (driver-loop)
-- введите любое выражение
-- откройте файл c-code-file.txt
-- перенесите код из него в файл с разрешением *.c
-- скомпилируйте файл как gcc primitives.c your_file.c -o your_file
+- run mit-scheme
+- copy all the code from the code.scheme file to a working interpreter
+- enter (driver-loop)
+- enter any expression
+- open the file c-code-file.txt
+- transfer the code from it to a file with the *.c permission
+- compile the file as gcc primitives.c your_file.c -o your_file
 
-Вся документация по проекту содержится в файле doc.org.
+All project documentation is contained in the file doc.org .
